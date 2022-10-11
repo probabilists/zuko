@@ -1,0 +1,5 @@
+# Backfire - Normalizing flows in PyTorch
+
+`backfire` is a Python package that implements normalizing flows in PyTorch. The philosophy of `backfire` is to rely as much as possible on distributions and transformations already existing in PyTorch. Unfortunately, the `Distribution` and `Transformation` classes of `torch` are not sub-classes of `nn.Module`, which means they don't implement a `forward` method, you cannot send their internal tensors to GPU with `.to('cuda')` or even get their parameters with `.parameters()`.
+
+To solve this problem, `backfire` defines two abstract classes: `DistributionModule` and `TransformModule`. The former is any `nn.Module` whose `forward` method returns a `Distribution`. Similarly, the latter is any `nn.Module` whose `forward` method returns a `Transform`. Then, a normalizing flow is simply a `nn.Module` that is constructed from a list of `TransformModule` and a base `DistributionModule` and its parameters are handled just like any neural network. This design allows for flow implementations that are easy to understand and extend.

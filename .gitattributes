@@ -1,0 +1,5 @@
+###########
+# IPython #
+###########
+
+*.ipynb linguist-vendored
