@@ -1,0 +1,153 @@
+/* Miscellaneous */
+
+* {
+    overflow-wrap: break-word;
+}
+
+a {
+    text-decoration: none;
+}
+
+h2 {
+    font-size: 1.75em;
+}
+
+p.rubric {
+    font-size: var(--font-size--small);
+    font-weight: 500;
+    margin-bottom: 0;
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+}
+
+/* Admonitions */
+
+div.admonition {
+    box-shadow: 5px 5px 10px rgb(0 0 0 / 5%);
+}
+
+/* Citations */
+
+dl.citation {
+    display: grid;
+    grid-gap: 0.75rem;
+    grid-template-columns: auto auto;
+    margin: 0.5rem 0 0.75rem 0.75rem;
+}
+
+dl.citation > dt {
+    color: inherit !important;
+}
+
+dl.citation > dt > span.brackets:not(:last-child) {
+    margin-right: 0.5rem;
+}
+
+dl.citation > dd {
+    margin-left: 0 !important;
+}
+
+dl.citation > dd > :first-child {
+    margin-top: 0 !important;
+}
+
+dl.citation > dd > :last-child {
+    margin-bottom: 0 !important;
+}
+
+/* Code */
+
+div[class*=" highlight-"],
+div[class^=highlight-] {
+    margin-top: 0.5rem;
+}
+
+.highlight,
+.highlight span,
+.literal {
+    background: var(--color-api-background) !important;
+    border: none !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    text-decoration: none !important;
+}
+
+.highlight .go {
+    color: var(--color-api-overall) !important;
+}
+
+div.cell > div.cell_input {
+    background: var(--color-api-background);
+    border: unset;
+    border-left: medium green solid;
+    border-radius: 0.2rem;
+}
+
+div.cell > div.cell_output > div.output {
+    background: unset;
+    border: unset;
+}
+
+/* Footnotes */
+
+dl.footnote.brackets > dt:after {
+    content: unset;
+}
+
+/* Lists */
+
+dl.field-list > dd strong {
+    font-family: var(--font-stack--monospace);
+}
+
+/* Math */
+
+div.math-wrapper {
+    overflow-x: unset;
+    overflow-y: auto;
+    margin-bottom: 0.75rem;
+}
+
+mjx-container[display="true"] {
+    margin: 0.125rem 0 !important;
+}
+
+/* Sidebar */
+
+.sidebar-drawer {
+    left: -18em;
+    min-width: 18em;\
+}
+
+div.sidebar-container {
+    width: 18em;
+}
+
+img.sidebar-logo {
+    max-width: 50%;
+}
+
+div.sidebar-tree .reference.external {
+    color: var(--color-link);
+}
+
+div.sidebar-tree .reference.internal,
+div.sidebar-tree label .icon {
+    color: var(--color-sidebar-link-text) !important;
+}
+
+/* Signatures */
+
+dl.py > dt.sig > a.headerlink {
+    margin-right: 2em;
+}
+
+dl.py > dt.sig > a.reference {
+    float: right;
+    text-indent: 0;
+    width: 0;
+}
+
+dl.py > dt.sig > a.reference > span.viewcode-link {
+    width: unset;
+}
