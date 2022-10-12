@@ -9,8 +9,8 @@ with open('requirements.txt', 'r') as f:
     required = f.read().splitlines()
 
 setuptools.setup(
-    name='backfire',
-    version='0.0.0',
+    name='zuko',
+    version='0.0.1',
     packages=setuptools.find_packages(),
     description='Normalizing flows in PyTorch',
     keywords=[
@@ -26,11 +26,11 @@ setuptools.setup(
     author='François Rozet',
     author_email='francois.rozet@outlook.com',
     license='MIT license',
-    url='https://github.com/francois-rozet/backfire',
+    url='https://github.com/francois-rozet/zuko',
     project_urls={
-        'Documentation': 'https://francois-rozet.github.io/backfire',
-        'Source': 'https://github.com/francois-rozet/backfire',
-        'Tracker': 'https://github.com/francois-rozet/backfire/issues',
+        'Documentation': 'https://francois-rozet.github.io/zuko',
+        'Source': 'https://github.com/francois-rozet/zuko',
+        'Tracker': 'https://github.com/francois-rozet/zuko/issues',
     },
     classifiers=[
         'Intended Audience :: Developers',

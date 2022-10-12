@@ -1,10 +1,10 @@
-r"""Tests for the backfire.nn module."""
+r"""Tests for the zuko.nn module."""
 
 import pytest
 import torch
 import torch.nn as nn
 
-from backfire.nn import *
+from zuko.nn import *
 from torch import randn
 
 

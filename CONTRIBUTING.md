@@ -2,15 +2,15 @@
 
 First off, thank you for taking the time to contribute! 🎉
 
-This document is a set of guidelines for contributing to the `backfire` package, which includes how to ask questions, report issues, suggest enhancements, contribute code, etc.
+This document is a set of guidelines for contributing to the `zuko` package, which includes how to ask questions, report issues, suggest enhancements, contribute code, etc.
 
 ## I just have a question
 
-Please **don't file an issue** to ask a question. We use [GitHub discussions](https://github.com/francois-rozet/backfire/discussions) as community forum for people to ask questions, share ideas or seek help. Before submitting your question, check whether it is addressed by the [documentation](https://francois-rozet.github.io/backfire) or has already been asked in the discussions. If it has but the answer does not satisfy you, add a comment to the existing discussion instead of opening a new one.
+Please **don't file an issue** to ask a question. We use [GitHub discussions](https://github.com/francois-rozet/zuko/discussions) as community forum for people to ask questions, share ideas or seek help. Before submitting your question, check whether it is addressed by the [documentation](https://francois-rozet.github.io/zuko) or has already been asked in the discussions. If it has but the answer does not satisfy you, add a comment to the existing discussion instead of opening a new one.
 
 ## Submit an issue
 
-Bugs and enhancements are tracked as [GitHub issues](https://github.com/francois-rozet/backfire/issues). For common issues, such as bug reports and feature requests, templates are provided. It is strongly recommended to use them as it helps understand and resolve issues faster. A clear and concise title (e.g. "RuntimeError with X when Y") also helps other users and developers to find relevant issues.
+Bugs and enhancements are tracked as [GitHub issues](https://github.com/francois-rozet/zuko/issues). For common issues, such as bug reports and feature requests, templates are provided. It is strongly recommended to use them as it helps understand and resolve issues faster. A clear and concise title (e.g. "RuntimeError with X when Y") also helps other users and developers to find relevant issues.
 
 Before submitting any issue, please perform a thorough search to see if your problem or a similar one has already been reported. If it has and the issue is still open, add a comment to the existing issue instead of opening a new one. If you only find closed issues related to your problem, open a new one and include links to the closed issues in the description.
 
@@ -41,11 +41,11 @@ We use [pytest](https://docs.pytest.org) to test our code base. If your contribu
 pytest tests
 ```
 
-It is also recommended to ensure your code works as expected within toy experiments similar to the [tutorials](tutorials). When you submit a pull request, tests are automatically (upon approval) executed for several versions of Python and PyTorch.
+When you submit a pull request, tests are automatically (upon approval) executed for several versions of Python and PyTorch.
 
 ### Documentation
 
-The package's [documentation](https://francois-rozet.github.io/backfire) is automatically built by [Sphinx](https://www.sphinx-doc.org) using type hints and docstrings. All classes and functions accessible to the user should be documented with [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) docstrings. After installing the documentation dependencies (`sphinx` and `furo`), you can build it with
+The package's [documentation](https://francois-rozet.github.io/zuko) is automatically built by [Sphinx](https://www.sphinx-doc.org) using type hints and docstrings. All classes and functions accessible to the user should be documented with [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) docstrings. After installing the documentation dependencies (`sphinx` and `furo`), you can build it with
 
 ```
 cd sphinx

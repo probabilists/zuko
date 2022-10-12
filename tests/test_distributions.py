@@ -1,9 +1,9 @@
-r"""Tests for the backfire.distributions module."""
+r"""Tests for the zuko.distributions module."""
 
 import pytest
 import torch
 
-from backfire.distributions import *
+from zuko.distributions import *
 
 
 def test_distributions():

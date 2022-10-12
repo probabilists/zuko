@@ -26,35 +26,6 @@ div.admonition {
     box-shadow: 5px 5px 10px rgb(0 0 0 / 5%);
 }
 
-/* Citations */
-
-dl.citation {
-    display: grid;
-    grid-gap: 0.75rem;
-    grid-template-columns: auto auto;
-    margin: 0.5rem 0 0.75rem 0.75rem;
-}
-
-dl.citation > dt {
-    color: inherit !important;
-}
-
-dl.citation > dt > span.brackets:not(:last-child) {
-    margin-right: 0.5rem;
-}
-
-dl.citation > dd {
-    margin-left: 0 !important;
-}
-
-dl.citation > dd > :first-child {
-    margin-top: 0 !important;
-}
-
-dl.citation > dd > :last-child {
-    margin-bottom: 0 !important;
-}
-
 /* Code */
 
 div[class*=" highlight-"],
@@ -74,24 +45,6 @@ div[class^=highlight-] {
 
 .highlight .go {
     color: var(--color-api-overall) !important;
-}
-
-div.cell > div.cell_input {
-    background: var(--color-api-background);
-    border: unset;
-    border-left: medium green solid;
-    border-radius: 0.2rem;
-}
-
-div.cell > div.cell_output > div.output {
-    background: unset;
-    border: unset;
-}
-
-/* Footnotes */
-
-dl.footnote.brackets > dt:after {
-    content: unset;
 }
 
 /* Lists */
@@ -150,4 +103,34 @@ dl.py > dt.sig > a.reference {
 
 dl.py > dt.sig > a.reference > span.viewcode-link {
     width: unset;
+}
+
+/* Table */
+
+div.table-wrapper {
+    margin: 1em 0;
+    padding: 0;
+}
+
+table.autosummary {
+    border-radius: 0.25em;
+    box-shadow: none;
+    width: 100%;
+}
+
+table.autosummary tr {
+    border: none;
+}
+
+table.autosummary tr.row-odd {
+    background: var(--color-api-background);
+}
+
+table.autosummary tr td {
+    border: none;
+    padding: 0.5em;
+}
+
+table.autosummary tr td code {
+    background: none !important;
 }

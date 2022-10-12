@@ -82,11 +82,9 @@ class SinTransform(Transform):
 
 
 class SoftclipTransform(Transform):
-    r"""Creates a transform
+    r"""Creates a transform that maps :math:`\mathbb{R}` to the inverval :math:`[-B, B]`.
 
     .. math:: f(x) = \frac{x}{1 + \left| \frac{x}{B} \right|}
-
-    that maps :math:`\mathbb{R}` to the inverval :math:`[-B, B]`.
 
     Arguments:
         bound: The codomain bound :math:`B`.
@@ -116,7 +114,7 @@ class SoftclipTransform(Transform):
 
 
 class MonotonicAffineTransform(Transform):
-    r"""Creates a transformation :math:`f(x) = x \times \alpha + \beta`.
+    r"""Creates a transformation :math:`f(x) = \alpha x + \beta`.
 
     Arguments:
         shift: The shift term :math:`\beta`, with shape :math:`(*,)`.
@@ -156,9 +154,8 @@ class MonotonicRQSTransform(Transform):
     r"""Creates a monotonic rational-quadratic spline (RQS) transformation.
 
     References:
-        Neural Spline Flows
-        (Durkan et al., 2019)
-        https://arxiv.org/abs/1906.04032
+        | Neural Spline Flows (Durkan et al., 2019)
+        | https://arxiv.org/abs/1906.04032
 
     Arguments:
         widths: The unconstrained bin widths, with shape :math:`(*, K)`.
@@ -394,10 +391,9 @@ class AutoregressiveTransform(Transform):
         return self.meta(x)(x)
 
     def _inverse(self, y: Tensor) -> Tensor:
-        with torch.no_grad():
-            x = torch.zeros_like(y)
-            for _ in range(self.passes):
-                x = self.meta(x).inv(y)
+        x = torch.zeros_like(y)
+        for _ in range(self.passes):
+            x = self.meta(x).inv(y)
 
         return x
 

@@ -19,11 +19,11 @@ fi
 # Generate HTML
 sphinx-build -b html . ../docs
 
-# Disable Jekyll
-cd ../docs
-touch .nojekyll
+# Remove auto-generated RST files
+find api ! -name index.rst -type f -exec rm {} +
 
 # Edit HTML
+cd ../docs
 sed "s|<span class=\"pre\">\[source\]</span>|<i class=\"fa-solid fa-code\"></i>|g" -i **/*.html
 sed "s|\(<a class=\"reference external\".*</a>\)\(<a class=\"headerlink\".*</a>\)|\2\1|g" -i **/*.html
 sed "s|<a class=\"muted-link\" href=\"https://pradyunsg.me\">@pradyunsg</a>'s||g" -i **/*.html

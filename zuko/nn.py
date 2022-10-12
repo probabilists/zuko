@@ -14,9 +14,8 @@ class BatchNorm0d(nn.BatchNorm1d):
     r"""Creates a batch normalization (BatchNorm) layer for scalars.
 
     References:
-        Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift
-        (Ioffe et al., 2015)
-        https://arxiv.org/abs/1502.03167
+        | Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift (Ioffe et al., 2015)
+        | https://arxiv.org/abs/1502.03167
 
     Arguments:
         args: Positional arguments passed to :class:`torch.nn.BatchNorm1d`.

@@ -13,7 +13,7 @@ A clear description of what the bug is.
 A minimal working example demonstrating the current behavior.
 
 ```python
-from backfire import component
+from zuko import component
 ...
 y = component(x)  # bug happens
 ```
@@ -28,7 +28,7 @@ If you know the causes and/or a solution to the bug, present them.
 
 ### Environment
 
-* Backfire version: [e.g. 0.1.0]
+* Zuko version: [e.g. 0.0.1]
 * PyTorch version: [e.g. 1.9.0]
 * Python version: [e.g. 3.9.7]
 * OS: [e.g. Ubuntu 21.04]

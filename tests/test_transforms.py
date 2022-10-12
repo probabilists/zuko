@@ -1,9 +1,9 @@
-r"""Tests for the backfire.transforms module."""
+r"""Tests for the zuko.transforms module."""
 
 import pytest
 import torch
 
-from backfire.transforms import *
+from zuko.transforms import *
 
 
 def test_univariate_transforms():

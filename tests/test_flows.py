@@ -1,9 +1,9 @@
-r"""Tests for the backfire.flows module."""
+r"""Tests for the zuko.flows module."""
 
 import pytest
 import torch
 
-from backfire.flows import *
+from zuko.flows import *
 from torch import randn
 
 

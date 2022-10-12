@@ -1,10 +1,10 @@
-r"""Tests for the backfire.utils module."""
+r"""Tests for the zuko.utils module."""
 
 import math
 import pytest
 import torch
 
-from backfire.utils import *
+from zuko.utils import *
 from torch import rand
 
 

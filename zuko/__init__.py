@@ -1,4 +1,4 @@
-r"""Backfire - Normalizing flows in PyTorch"""
+r"""Zuko - Normalizing flows in PyTorch"""
 
 from . import distributions
 from . import flows
