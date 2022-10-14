@@ -36,7 +36,7 @@ class MLP(nn.Sequential):
     r"""Creates a multi-layer perceptron (MLP).
 
     Also known as fully connected feedforward network, an MLP is a series of
-    non-linear parametric transformations
+    non-linear parametric functions
 
     .. math:: h_{i + 1} = a_{i + 1}(h_i W_{i + 1}^T + b_{i + 1}),
 
@@ -52,8 +52,8 @@ class MLP(nn.Sequential):
         in_features: The number of input features.
         out_features: The number of output features.
         hidden_features: The numbers of hidden features.
-        activation: The activation function. If :py:`None`, use :class:`torch.nn.ReLU`
-            instead.
+        activation: The activation function constructor. If :py:`None`, use
+            :class:`torch.nn.ReLU` instead.
         batchnorm: Whether to use batch normalization or not.
         dropout: The dropout rate.
         kwargs: Keyword arguments passed to :class:`torch.nn.Linear`.

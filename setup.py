@@ -10,7 +10,7 @@ with open('requirements.txt', 'r') as f:
 
 setuptools.setup(
     name='zuko',
-    version='0.0.1',
+    version='0.0.2',
     packages=setuptools.find_packages(),
     description='Normalizing flows in PyTorch',
     keywords=[
@@ -41,9 +41,5 @@ setuptools.setup(
         'Programming Language :: Python :: 3',
     ],
     install_requires=required,
-    extras_require={
-        'docs': ['furo', 'sphinx'],
-        'test': ['pytest'],
-    },
     python_requires='>=3.8',
 )

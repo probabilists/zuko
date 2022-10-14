@@ -109,7 +109,7 @@ class Unconditional(nn.Module):
             if buffer:
                 self.register_buffer(f'_{i}', arg)
             else:
-                self.register_parameter(f'_{i}', arg)
+                self.register_parameter(f'_{i}', nn.Parameter(arg))
 
         self.kwargs = kwargs
 
@@ -137,12 +137,11 @@ class MaskedAutoregressiveTransform(TransformModule):
         passes: The number of passes for the inverse transformation. If :py:`None`,
             use the number of features instead.
         order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
-        univariate: A univariate transformation constructor. If :py:`None`, use
-            :class:`zuko.transforms.MonotonicAffineTransform` instead.
+        univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
 
-    Examples:
+    Example:
         >>> t = MaskedAutoregressiveTransform(3, 4)
         >>> t
         MaskedAutoregressiveTransform(
@@ -171,21 +170,18 @@ class MaskedAutoregressiveTransform(TransformModule):
         context: int = 0,
         passes: int = None,
         order: LongTensor = None,
-        univariate: Callable[..., Transform] = None,
+        univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: List[Size] = [(), ()],
         **kwargs,
     ):
         super().__init__()
 
-        if univariate is None:
-            self.univariate = MonotonicAffineTransform
-        else:
-            self.univariate = univariate
-
-        # Adjacency
+        # Univariate transformation
+        self.univariate = univariate
         self.shapes = list(map(Size, shapes))
         self.sizes = [s.numel() for s in self.shapes]
 
+        # Adjacency
         self.register_buffer('order', None)
 
         if passes is None:
@@ -245,7 +241,7 @@ class MAF(FlowModule):
             (odd) transformations.
         kwargs: Keyword arguments passed to :class:`MaskedAutoregressiveTransform`.
 
-    Examples:
+    Example:
         >>> flow = MAF(3, 4, transforms=3)
         >>> flow
         MAF(
@@ -383,7 +379,7 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         network: Keyword arguments passed to :class:`zuko.nn.MonotonicMLP`.
         kwargs: Keyword arguments passed to :class:`MaskedAutoregressiveTransform`.
 
-    Examples:
+    Example:
         >>> t = NeuralAutoregressiveTransform(3, 4)
         >>> t
         NeuralAutoregressiveTransform(
@@ -459,7 +455,7 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         network: Keyword arguments passed to :class:`zuko.nn.MLP`.
         kwargs: Keyword arguments passed to :class:`MaskedAutoregressiveTransform`.
 
-    Examples:
+    Example:
         >>> t = UnconstrainedNeuralAutoregressiveTransform(3, 4)
         >>> t
         UnconstrainedNeuralAutoregressiveTransform(
@@ -512,12 +508,12 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         self.integrand.add_module(str(len(self.integrand)), nn.Softplus())
 
     def univariate(self, signal: Tensor, constant: Tensor) -> Transform:
-        def f(x: Tensor) -> Tensor:
+        def g(x: Tensor) -> Tensor:
             return self.integrand(
                 torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1)
             ).squeeze(dim=-1)
 
-        return UnconstrainedMonotonicTransform(f, constant)
+        return UnconstrainedMonotonicTransform(g, constant)
 
 
 class NAF(FlowModule):

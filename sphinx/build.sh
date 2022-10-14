@@ -20,7 +20,7 @@ fi
 sphinx-build -b html . ../docs
 
 # Remove auto-generated RST files
-find api ! -name index.rst -type f -exec rm {} +
+rm -r api
 
 # Edit HTML
 cd ../docs

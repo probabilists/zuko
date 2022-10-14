@@ -30,7 +30,7 @@ autodoc_typehints = 'description'
 autodoc_typehints_description_target = 'documented'
 autodoc_typehints_format = 'short'
 
-autosummary_ignore_module_all =  False
+autosummary_ignore_module_all = False
 
 intersphinx_mapping = {
     'matplotlib': ('https://matplotlib.org/stable', None),

@@ -5,7 +5,8 @@ import torch
 import torch.nn.functional as F
 
 from torch import Tensor, LongTensor
-from torch.distributions import Transform, constraints
+from torch.distributions import *
+from torch.distributions import constraints
 from typing import *
 
 from .utils import bisection, broadcast, gauss_legendre

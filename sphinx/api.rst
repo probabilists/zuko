@@ -4,7 +4,7 @@ API
 .. module:: zuko
 
 .. autosummary::
-   :toctree:
+   :toctree: api
 
    zuko.distributions
    zuko.flows

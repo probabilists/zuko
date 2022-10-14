@@ -7,7 +7,7 @@ from zuko.flows import *
 from torch import randn
 
 
-def test_flows():
+def test_flows(tmp_path):
     flows = [
         MAF(3, 5),
         NSF(3, 5),
@@ -16,7 +16,7 @@ def test_flows():
     ]
 
     for flow in flows:
-        # log_prob
+        # Evaluation of log_prob
         x, y = randn(256, 3), randn(5)
         log_p = flow(y).log_prob(x)
 
@@ -26,10 +26,10 @@ def test_flows():
         loss = -log_p.mean()
         loss.backward()
 
-        # sample
         for p in flow.parameters():
             assert hasattr(p, 'grad'), flow
 
+        # Sampling
         z = flow(y).sample((32,))
 
         assert z.shape == (32, 3), flow
@@ -48,6 +48,19 @@ def test_flows():
             z = t.inv(z)
 
         assert torch.allclose(x, z, atol=1e-5), flow
+
+        # Saving
+        torch.save(flow, tmp_path / 'flow.pth')
+
+        # Loading
+        flow_bis = torch.load(tmp_path / 'flow.pth')
+
+        x, y = randn(3), randn(5)
+
+        log_p = flow(y).log_prob(x)
+        log_p_bis = flow_bis(y).log_prob(x)
+
+        assert torch.allclose(log_p, log_p_bis), flow
 
 
 def test_autoregressive_transforms():

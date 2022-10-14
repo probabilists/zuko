@@ -68,7 +68,7 @@ References
     :hidden:
     :maxdepth: 2
 
-    api/index.rst
+    api.rst
 
 .. toctree::
     :caption: Development

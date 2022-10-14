@@ -52,13 +52,11 @@ class NormalizingFlow(TransformedDistribution):
         super().__init__(base, [t.inv for t in reversed(transforms)])
 
     def __repr__(self) -> str:
-        lines = [
-            f'({i+1}): {t.inv}' for i, t in enumerate(reversed(self.transforms))
-        ] + [f'(base): {self.base_dist}']
+        lines = [f'({i+1}): {t.inv}' for i, t in enumerate(reversed(self.transforms))]
+        lines.append(f'(base): {self.base_dist}')
+        lines = indent(',\n'.join(lines), '  ')
 
-        lines = [indent(l, '  ') for l in lines]
-
-        return self.__class__.__name__ + '(\n' + ',\n'.join(lines) + '\n)'
+        return self.__class__.__name__ + '(\n' + lines + '\n)'
 
     def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(NormalizingFlow, new)
@@ -90,8 +88,10 @@ class Joint(Distribution):
         self.marginals = [m.expand(self.batch_shape) for m in marginals]
 
     def __repr__(self) -> str:
-        lines = [indent(repr(m), '  ') for m in self.marginals]
-        return self.__class__.__name__ + '(\n' + ',\n'.join(lines) + '\n)'
+        lines = map(repr, self.marginals)
+        lines = indent(',\n'.join(lines), '  ')
+
+        return self.__class__.__name__ + '(\n' + lines + '\n)'
 
     @property
     def event_shape(self) -> Size:
@@ -336,7 +336,7 @@ class Truncated(Distribution):
         return self.uniform.log_prob(self.base.cdf(x)) + self.base.log_prob(x)
 
     def rsample(self, shape: Size = ()) -> Tensor:
-        return self.base.icdf(self.uniform.rsample(shape) * (1 - 2e-6) + 1e-6)
+        return self.base.icdf(torch.clip(self.uniform.rsample(shape), 1e-6, 1 - 1e-6))
 
 
 class Sort(Distribution):
