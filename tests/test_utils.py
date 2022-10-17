@@ -4,8 +4,8 @@ import math
 import pytest
 import torch
 
-from zuko.utils import *
 from torch import rand
+from zuko.utils import *
 
 
 def test_bisection():

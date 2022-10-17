@@ -4,8 +4,8 @@ import pytest
 import torch
 import torch.nn as nn
 
-from zuko.nn import *
 from torch import randn
+from zuko.nn import *
 
 
 def test_MLP():

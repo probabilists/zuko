@@ -3,8 +3,9 @@ r"""Tests for the zuko.flows module."""
 import pytest
 import torch
 
-from zuko.flows import *
 from torch import randn
+from zuko.flows import *
+from zuko.transforms import SoftclipTransform
 
 
 def test_flows(tmp_path):
