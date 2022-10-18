@@ -165,6 +165,9 @@ class MaskedMLP(MLP):
     def __init__(self, adjacency: BoolTensor, *args, **kwargs):
         super().__init__(*reversed(adjacency.shape), *args, **kwargs)
 
+        # Merge outputs with the same dependencies
+        adjacency, inverse = torch.unique(adjacency, dim=0, return_inverse=True)
+
         # j precedes i if A_ik = 1 for all k such that A_jk = 1
         precedence = adjacency.int() @ adjacency.int().t() == adjacency.sum(dim=-1)
 
@@ -179,9 +182,11 @@ class MaskedMLP(MLP):
                     raise ValueError("The adjacency matrix leads to a null Jacobian.")
 
                 if i < len(self) - 1:
-                    reachable = mask.sum(dim=-1).nonzero().squeeze()
+                    reachable = mask.sum(dim=-1).nonzero().squeeze(dim=-1)
                     indices = reachable[torch.arange(layer.out_features) % len(reachable)]
                     mask = mask[indices]
+                else:
+                    mask = mask[inverse]
 
                 self[i] = MaskedLinear(adjacency=mask)
 

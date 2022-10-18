@@ -1,5 +1,17 @@
 r"""Parameterized flows and autoregressive transformations."""
 
+__all__ = [
+    'DistributionModule',
+    'TransformModule',
+    'FlowModule',
+    'MaskedAutoregressiveTransform',
+    'MAF',
+    'NSF',
+    'NeuralAutoregressiveTransform',
+    'UnconstrainedNeuralAutoregressiveTransform',
+    'NAF',
+]
+
 import abc
 import torch
 import torch.nn as nn
@@ -194,7 +206,7 @@ class MaskedAutoregressiveTransform(TransformModule):
         self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
 
         in_order = torch.cat((self.order, torch.full((context,), -1)))
-        out_order = self.order.tile(sum(self.sizes))
+        out_order = torch.repeat_interleave(self.order, sum(self.sizes))
         adjacency = out_order[:, None] > in_order
 
         # Hyper network
@@ -202,10 +214,14 @@ class MaskedAutoregressiveTransform(TransformModule):
 
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
+        order = self.order.tolist()
+
+        if len(order) > 11:
+            order = str(order[:5] + [...] + order[-5:]).replace('Ellipsis', '...')
 
         return '\n'.join([
             f'(base): {base}',
-            f'(order): {self.order.tolist()}',
+            f'(order): {order}',
         ])
 
     def forward(self, y: Tensor = None) -> AutoregressiveTransform:
@@ -214,8 +230,7 @@ class MaskedAutoregressiveTransform(TransformModule):
                 x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
 
             params = self.hyper(x)
-            params = params.reshape(*params.shape[:-1], sum(self.sizes), -1)
-            params = params.transpose(-1, -2).contiguous()
+            params = params.reshape(*params.shape[:-1], -1, sum(self.sizes))
 
             args = params.split(self.sizes, dim=-1)
             args = [a.reshape(a.shape[:-1] + s) for a, s in zip(args, self.shapes)]
