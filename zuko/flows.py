@@ -146,8 +146,9 @@ class MaskedAutoregressiveTransform(TransformModule):
     Arguments:
         features: The number of features.
         context: The number of context features.
-        passes: The number of passes for the inverse transformation. If :py:`None`,
-            use the number of features instead.
+        passes: The number of sequential passes for the inverse transformation. If
+            :py:`None`, use the number of features instead, making the transformation
+            fully autoregressive. Coupling corresponds to :py:`passes=2`.
         order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
@@ -341,6 +342,10 @@ class MAF(FlowModule):
 class NSF(MAF):
     r"""Creates a neural spline flow (NSF) with monotonic rational-quadratic spline
     transformations.
+
+    Note:
+        By default, transformations are fully autoregressive. Coupling transformations
+        can be used by setting :py:`passes=2`.
 
     References:
         | Neural Spline Flows (Durkan et al., 2019)
