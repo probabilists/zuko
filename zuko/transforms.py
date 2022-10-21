@@ -12,34 +12,25 @@ from typing import *
 from .utils import bisection, broadcast, gauss_legendre
 
 
-class PermutationTransform(Transform):
-    r"""Creates a transformation that permutes the elements.
+class IdentityTransform(Transform):
+    r"""Creates a transformation :math:`f(x) = x`."""
 
-    Arguments:
-        order: The permutation order, with shape :math:`(*, D)`.
-    """
-
-    domain = constraints.real_vector
-    codomain = constraints.real_vector
+    domain = constraints.real
+    codomain = constraints.real
     bijective = True
+    sign = +1
 
-    def __init__(self, order: LongTensor, **kwargs):
-        super().__init__(**kwargs)
-
-        self.order = order
-        self.inverse = torch.argsort(order)
-
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.order.tolist()})'
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, IdentityTransform)
 
     def _call(self, x: Tensor) -> Tensor:
-        return x[..., self.order]
+        return x
 
     def _inverse(self, y: Tensor) -> Tensor:
-        return y[..., self.inverse]
+        return y
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return x.new_zeros(x.shape[:-1])
+        return torch.zeros_like(x)
 
 
 class CosTransform(Transform):
@@ -48,6 +39,7 @@ class CosTransform(Transform):
     domain = constraints.interval(0, math.pi)
     codomain = constraints.interval(-1, 1)
     bijective = True
+    sign = +1
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, CosTransform)
@@ -68,6 +60,7 @@ class SinTransform(Transform):
     domain = constraints.interval(-math.pi / 2, math.pi / 2)
     codomain = constraints.interval(-1, 1)
     bijective = True
+    sign = +1
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, SinTransform)
@@ -400,3 +393,33 @@ class AutoregressiveTransform(Transform):
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return self.meta(x).log_abs_det_jacobian(x, y).sum(dim=-1)
+
+
+class PermutationTransform(Transform):
+    r"""Creates a transformation that permutes the elements.
+
+    Arguments:
+        order: The permutation order, with shape :math:`(*, D)`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(self, order: LongTensor, **kwargs):
+        super().__init__(**kwargs)
+
+        self.order = order
+        self.inverse = torch.argsort(order)
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.order.tolist()})'
+
+    def _call(self, x: Tensor) -> Tensor:
+        return x[..., self.order]
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return y[..., self.inverse]
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return x.new_zeros(x.shape[:-1])

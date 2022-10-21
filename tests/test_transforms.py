@@ -8,6 +8,7 @@ from zuko.transforms import *
 
 def test_univariate_transforms():
     ts = [
+        IdentityTransform(),
         CosTransform(),
         SinTransform(),
         SoftclipTransform(),
