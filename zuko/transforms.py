@@ -89,7 +89,7 @@ class SoftclipTransform(Transform):
     bijective = True
     sign = +1
 
-    def __init__(self, bound: float = 3.0, **kwargs):
+    def __init__(self, bound: float = 5.0, **kwargs):
         super().__init__(**kwargs)
 
         self.bound = bound
@@ -169,7 +169,7 @@ class MonotonicRQSTransform(Transform):
         widths: Tensor,
         heights: Tensor,
         derivatives: Tensor,
-        bound: float = 3.0,
+        bound: float = 5.0,
         slope: float = 1e-3,
         **kwargs,
     ):
@@ -282,7 +282,7 @@ class MonotonicTransform(Transform):
     def __init__(
         self,
         f: Callable[[Tensor], Tensor],
-        bound: float = 3.0,
+        bound: float = 5.0,
         eps: float = 1e-6,
         **kwargs,
     ):

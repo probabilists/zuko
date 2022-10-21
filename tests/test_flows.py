@@ -5,7 +5,6 @@ import torch
 
 from torch import randn
 from zuko.flows import *
-from zuko.transforms import SoftclipTransform
 
 
 def test_flows(tmp_path):
@@ -65,8 +64,6 @@ def test_flows(tmp_path):
 
 
 def test_autoregressive_transforms():
-    softclip = SoftclipTransform()
-
     ATs = [
         MaskedAutoregressiveTransform,
         NeuralAutoregressiveTransform,
@@ -76,7 +73,7 @@ def test_autoregressive_transforms():
     for AT in ATs:
         # Without context
         t = AT(3)
-        x = softclip(randn(3))
+        x = randn(3)
         z = t()(x)
 
         assert z.shape == x.shape, t
@@ -85,7 +82,7 @@ def test_autoregressive_transforms():
 
         # With context
         t = AT(3, 5)
-        x, y = softclip(randn(256, 3)), randn(5)
+        x, y = randn(256, 3), randn(5)
         z = t(y)(x)
 
         assert z.shape == x.shape, t
@@ -96,14 +93,14 @@ def test_autoregressive_transforms():
 
         ## Fully autoregressive
         t = AT(7)
-        x = softclip(randn(7))
+        x = randn(7)
         J = torch.autograd.functional.jacobian(t(), x)
 
         assert (torch.triu(J, diagonal=1) == 0).all(), t
 
         ## Coupling
         t = AT(7, passes=2)
-        x = softclip(randn(7))
+        x = randn(7)
         J = torch.autograd.functional.jacobian(t(), x)
 
         assert (torch.triu(J, diagonal=1) == 0).all(), t

@@ -22,7 +22,7 @@ def test_univariate_transforms():
         if hasattr(t.domain, 'lower_bound'):
             x = torch.linspace(t.domain.lower_bound, t.domain.upper_bound, 256)
         else:
-            x = torch.linspace(-3.0, 3.0, 256)
+            x = torch.linspace(-5.0, 5.0, 256)
 
         y = t(x)
 

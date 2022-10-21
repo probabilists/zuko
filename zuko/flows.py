@@ -345,7 +345,7 @@ class NSF(MAF):
 
     Note:
         By default, transformations are fully autoregressive. Coupling transformations
-        can be used by setting :py:`passes=2`.
+        can be obtained by setting :py:`passes=2`.
 
     References:
         | Neural Spline Flows (Durkan et al., 2019)
@@ -372,12 +372,6 @@ class NSF(MAF):
             shapes=[(bins,), (bins,), (bins - 1,)],
             **kwargs,
         )
-
-        self.transforms.insert(0, Unconditional(SoftclipTransform))
-        self.transforms.append(Unconditional(self.softunclip))
-
-    def softunclip(self) -> Transform:
-        return SoftclipTransform().inv
 
 
 class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
