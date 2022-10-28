@@ -35,7 +35,7 @@ def test_flows(tmp_path):
         assert z.shape == (32, 3), flow
 
         # Invertibility
-        x, y = randn(256, 3), randn(5)
+        x, y = randn(256, 3), randn(256, 5)
 
         transforms = [t(y) for t in flow.transforms]
 
@@ -47,7 +47,7 @@ def test_flows(tmp_path):
         for t in reversed(transforms):
             z = t.inv(z)
 
-        assert torch.allclose(x, z, atol=1e-5), flow
+        assert torch.allclose(x, z, atol=1e-4), flow
 
         # Saving
         torch.save(flow, tmp_path / 'flow.pth')
@@ -78,7 +78,7 @@ def test_autoregressive_transforms():
 
         assert z.shape == x.shape, t
         assert z.requires_grad, t
-        assert torch.allclose(t().inv(z), x, atol=1e-5), t
+        assert torch.allclose(t().inv(z), x, atol=1e-4), t
 
         # With context
         t = AT(3, 5)
@@ -87,7 +87,7 @@ def test_autoregressive_transforms():
 
         assert z.shape == x.shape, t
         assert z.requires_grad, t
-        assert torch.allclose(t(y).inv(z), x, atol=1e-5), t
+        assert torch.allclose(t(y).inv(z), x, atol=1e-4), t
 
         # Passes
 

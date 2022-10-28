@@ -123,6 +123,11 @@ class MaskedLinear(nn.Linear):
 
         self.register_buffer('mask', adjacency)
 
+        degree = adjacency.sum(dim=-1)
+        rescale = adjacency.shape[-1] / torch.clip(degree, min=1)
+
+        self.weight.data *= rescale[:, None]
+
     def forward(self, x: Tensor) -> Tensor:
         return F.linear(x, self.mask * self.weight, self.bias)
 

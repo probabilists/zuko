@@ -3,6 +3,7 @@ r"""Tests for the zuko.transforms module."""
 import pytest
 import torch
 
+from torch import randn
 from zuko.transforms import *
 
 
@@ -12,10 +13,10 @@ def test_univariate_transforms():
         CosTransform(),
         SinTransform(),
         SoftclipTransform(),
-        MonotonicAffineTransform(torch.tensor(42.0), torch.tensor(-0.69)),
-        MonotonicRQSTransform(*map(torch.rand, (8, 8, 7))),
+        MonotonicAffineTransform(randn(256), randn(256)),
+        MonotonicRQSTransform(randn(256, 8), randn(256, 8), randn(256, 7)),
         MonotonicTransform(lambda x: x**3),
-        UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, torch.tensor(0.0)),
+        UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(256)),
     ]
 
     for t in ts:
@@ -30,17 +31,17 @@ def test_univariate_transforms():
 
         z = t.inv(y)
 
-        assert torch.allclose(x, z, atol=1e-5), t
+        assert torch.allclose(x, z, atol=1e-4), t
 
         # Jacobian
         J = torch.autograd.functional.jacobian(t, x)
 
-        assert (torch.triu(J, diagonal=1) == 0).all()
-        assert (torch.tril(J, diagonal=-1) == 0).all()
+        assert (torch.triu(J, diagonal=1) == 0).all(), t
+        assert (torch.tril(J, diagonal=-1) == 0).all(), t
 
         ladj = torch.diag(J).abs().log()
 
-        assert torch.allclose(ladj, t.log_abs_det_jacobian(x, y), atol=1e-5), t
+        assert torch.allclose(ladj, t.log_abs_det_jacobian(x, y), atol=1e-4), t
 
 
 def test_PermutationTransform():

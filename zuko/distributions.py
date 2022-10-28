@@ -54,7 +54,7 @@ class NormalizingFlow(TransformedDistribution):
     def __repr__(self) -> str:
         lines = [f'({i+1}): {t.inv}' for i, t in enumerate(reversed(self.transforms))]
         lines.append(f'(base): {self.base_dist}')
-        lines = indent(',\n'.join(lines), '  ')
+        lines = indent('\n'.join(lines), '  ')
 
         return self.__class__.__name__ + '(\n' + lines + '\n)'
 
@@ -89,7 +89,7 @@ class Joint(Distribution):
 
     def __repr__(self) -> str:
         lines = map(repr, self.marginals)
-        lines = indent(',\n'.join(lines), '  ')
+        lines = indent('\n'.join(lines), '  ')
 
         return self.__class__.__name__ + '(\n' + lines + '\n)'
 
