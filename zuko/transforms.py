@@ -358,6 +358,45 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
         return self.g(x).log()
 
 
+class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
+    r"""Creates a sum-of-squares (SOS) polynomial transformation.
+
+    The transformation :math:`f(x)` is expressed as the primitive integral of the
+    sum of :math:`K` squared polynomials of degree :math:`L`.
+
+    .. math:: f(x) = \int_0^x \sum_{i = 1}^K
+        \left( 1 + \sum_{j = 0}^L a_{i,j} t^j \right)^2 ~ dt + C
+
+    References:
+        Sum-of-Squares Polynomial Flow
+        (Priyank et al., 2019)
+        https://arxiv.org/abs/1905.02325
+
+    Arguments:
+        a: The polynomial coefficients :math:`a`, with shape :math:`(*, K, L + 1)`.
+        C: The integration constant :math:`C`.
+        kwargs: Keyword arguments passed to :class:`UnconstrainedMonotonicTransform`.
+    """
+
+    domain = constraints.real
+    codomain = constraints.real
+    bijective = True
+    sign = +1
+
+    def __init__(self, a: Tensor, C: Tensor, **kwargs):
+        super().__init__(self.g, C, a.shape[-1], **kwargs)
+
+        self.a = a
+        self.i = torch.arange(a.shape[-1]).to(a.device)
+
+    def g(self, x: Tensor) -> Tensor:
+        x = x / self.bound
+        x = x[..., None] ** self.i
+        p = 1 + self.a @ x[..., None]
+
+        return p.squeeze(dim=-1).square().sum(dim=-1)
+
+
 class AutoregressiveTransform(Transform):
     r"""Transform via an autoregressive mapping.
 
