@@ -16,6 +16,7 @@ import abc
 import torch
 import torch.nn as nn
 
+from functools import partial
 from math import ceil
 from torch import Tensor, LongTensor, Size
 from typing import *
@@ -225,20 +226,20 @@ class MaskedAutoregressiveTransform(TransformModule):
             f'(order): {order}',
         ])
 
+    def meta(self, y: Tensor, x: Tensor) -> Transform:
+        if y is not None:
+            x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
+
+        params = self.hyper(x)
+        params = params.reshape(*params.shape[:-1], -1, sum(self.sizes))
+
+        args = params.split(self.sizes, dim=-1)
+        args = [a.reshape(a.shape[:-1] + s) for a, s in zip(args, self.shapes)]
+
+        return self.univariate(*args)
+
     def forward(self, y: Tensor = None) -> AutoregressiveTransform:
-        def meta(x: Tensor) -> Transform:
-            if y is not None:
-                x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
-
-            params = self.hyper(x)
-            params = params.reshape(*params.shape[:-1], -1, sum(self.sizes))
-
-            args = params.split(self.sizes, dim=-1)
-            args = [a.reshape(a.shape[:-1] + s) for a, s in zip(args, self.shapes)]
-
-            return self.univariate(*args)
-
-        return AutoregressiveTransform(meta, self.passes)
+        return AutoregressiveTransform(partial(self.meta, y), self.passes)
 
 
 class MAF(FlowModule):
@@ -441,13 +442,13 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
 
         self.network = MonotonicMLP(1 + signal, 1, **network)
 
-    def univariate(self, signal: Tensor) -> Transform:
-        def f(x: Tensor) -> Tensor:
-            return self.network(
-                torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1)
-            ).squeeze(dim=-1)
+    def f(self, signal: Tensor, x: Tensor) -> Tensor:
+        return self.network(
+            torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1)
+        ).squeeze(dim=-1)
 
-        return MonotonicTransform(f)
+    def univariate(self, signal: Tensor) -> Transform:
+        return MonotonicTransform(partial(self.f, signal))
 
 
 class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
@@ -521,13 +522,13 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         self.integrand = MLP(1 + signal, 1, **network)
         self.integrand.add_module(str(len(self.integrand)), nn.Softplus())
 
-    def univariate(self, signal: Tensor, constant: Tensor) -> Transform:
-        def g(x: Tensor) -> Tensor:
-            return self.integrand(
-                torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1)
-            ).squeeze(dim=-1)
+    def g(self, signal: Tensor, x: Tensor) -> Tensor:
+        return self.integrand(
+            torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1)
+        ).squeeze(dim=-1)
 
-        return UnconstrainedMonotonicTransform(g, constant)
+    def univariate(self, signal: Tensor, constant: Tensor) -> Transform:
+        return UnconstrainedMonotonicTransform(partial(self.g, signal), constant)
 
 
 class NAF(FlowModule):
