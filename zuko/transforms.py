@@ -381,8 +381,19 @@ class AutoregressiveTransform(Transform):
         self.meta = meta
         self.passes = passes
 
+        self._cache = None, None
+
     def _call(self, x: Tensor) -> Tensor:
-        return self.meta(x)(x)
+        _x, _f = self._cache
+
+        if x is _x:
+            f = _f
+        else:
+            f = self.meta(x)
+
+        self._cache = x, f
+
+        return f(x)
 
     def _inverse(self, y: Tensor) -> Tensor:
         x = torch.zeros_like(y)
@@ -392,7 +403,16 @@ class AutoregressiveTransform(Transform):
         return x
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return self.meta(x).log_abs_det_jacobian(x, y).sum(dim=-1)
+        _x, _f = self._cache
+
+        if x is _x:
+            f = _f
+        else:
+            f = self.meta(x)
+
+        self._cache = x, f
+
+        return f.log_abs_det_jacobian(x, y).sum(dim=-1)
 
 
 class PermutationTransform(Transform):
