@@ -380,9 +380,8 @@ class SOSPF(MAF):
     r"""Creates a sum-of-squares polynomial flow (SOSPF).
 
     References:
-        Sum-of-Squares Polynomial Flow
-        (Priyank et al., 2019)
-        https://arxiv.org/abs/1905.02325
+        | Sum-of-Squares Polynomial Flow (Jaini et al., 2019)
+        | https://arxiv.org/abs/1905.02325
 
     Arguments:
         features: The number of features.

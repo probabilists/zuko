@@ -317,7 +317,7 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
     r"""Creates a monotonic transformation :math:`f(x)` by integrating a positive
     univariate function :math:`g(x)`.
 
-    .. math:: f(x) = \int_0^x g(t) ~ dt + C
+    .. math:: f(x) = \int_0^x g(u) ~ du + C
 
     The definite integral is estimated by a :math:`n`-point Gauss-Legendre quadrature.
 
@@ -365,12 +365,11 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     sum of :math:`K` squared polynomials of degree :math:`L`.
 
     .. math:: f(x) = \int_0^x \sum_{i = 1}^K
-        \left( 1 + \sum_{j = 0}^L a_{i,j} t^j \right)^2 ~ dt + C
+        \left( 1 + \sum_{j = 0}^L a_{i,j} ~ u^j \right)^2 ~ du + C
 
     References:
-        Sum-of-Squares Polynomial Flow
-        (Priyank et al., 2019)
-        https://arxiv.org/abs/1905.02325
+        | Sum-of-Squares Polynomial Flow (Jaini et al., 2019)
+        | https://arxiv.org/abs/1905.02325
 
     Arguments:
         a: The polynomial coefficients :math:`a`, with shape :math:`(*, K, L + 1)`.
