@@ -11,6 +11,7 @@ def test_flows(tmp_path):
     flows = [
         MAF(3, 5),
         NSF(3, 5),
+        SOSPF(3, 5),
         NAF(3, 5),
         NAF(3, 5, unconstrained=True),
     ]

@@ -17,6 +17,7 @@ def test_univariate_transforms():
         MonotonicRQSTransform(randn(256, 8), randn(256, 8), randn(256, 7)),
         MonotonicTransform(lambda x: x**3),
         UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(256)),
+        SOSPolynomialTransform(randn(256, 2, 4), randn(256)),
     ]
 
     for t in ts:

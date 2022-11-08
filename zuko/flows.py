@@ -7,6 +7,7 @@ __all__ = [
     'MaskedAutoregressiveTransform',
     'MAF',
     'NSF',
+    'SOSPF',
     'NeuralAutoregressiveTransform',
     'UnconstrainedNeuralAutoregressiveTransform',
     'NAF',
@@ -373,6 +374,42 @@ class NSF(MAF):
             shapes=[(bins,), (bins,), (bins - 1,)],
             **kwargs,
         )
+
+
+class SOSPF(MAF):
+    r"""Creates a sum-of-squares polynomial flow (SOSPF).
+
+    References:
+        Sum-of-Squares Polynomial Flow
+        (Priyank et al., 2019)
+        https://arxiv.org/abs/1905.02325
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        degree: The degree :math:`L` of polynomials.
+        polynomials: The number of polynomials :math:`K`.
+        kwargs: Keyword arguments passed to :class:`MAF`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        degree: int = 3,
+        polynomials: int = 2,
+        **kwargs,
+    ):
+        super().__init__(
+            features=features,
+            context=context,
+            univariate=SOSPolynomialTransform,
+            shapes=[(polynomials, degree + 1), ()],
+            **kwargs,
+        )
+
+        for i in reversed(range(len(self.transforms))):
+            self.transforms.insert(i, Unconditional(SoftclipTransform))
 
 
 class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
