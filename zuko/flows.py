@@ -11,6 +11,8 @@ __all__ = [
     'NeuralAutoregressiveTransform',
     'UnconstrainedNeuralAutoregressiveTransform',
     'NAF',
+    'FreeFormJacobianTransform',
+    'CNF',
 ]
 
 import abc
@@ -24,7 +26,7 @@ from typing import *
 
 from .distributions import *
 from .transforms import *
-from .nn import MLP, MaskedMLP, MonotonicMLP
+from .nn import *
 from .utils import broadcast
 
 
@@ -38,7 +40,7 @@ class DistributionModule(nn.Module, abc.ABC):
             y: A context :math:`y`.
 
         Returns:
-            A distribution :math:`p(x | y)`.
+            A distribution :math:`p(X | y)`.
         """
 
         pass
@@ -84,7 +86,7 @@ class FlowModule(DistributionModule):
             y: A context :math:`y`.
 
         Returns:
-            A normalizing flow :math:`p(x | y)`.
+            A normalizing flow :math:`p(X | y)`.
         """
 
         transforms = [t(y) for t in self.transforms]
@@ -204,6 +206,8 @@ class MaskedAutoregressiveTransform(TransformModule):
 
         if order is None:
             order = torch.arange(features)
+        else:
+            order = torch.as_tensor(order)
 
         self.passes = min(max(passes, 1), features)
         self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
@@ -219,7 +223,7 @@ class MaskedAutoregressiveTransform(TransformModule):
         base = self.univariate(*map(torch.randn, self.shapes))
         order = self.order.tolist()
 
-        if len(order) > 11:
+        if len(order) > 10:
             order = str(order[:5] + [...] + order[-5:]).replace('Ellipsis', '...')
 
         return '\n'.join([
@@ -231,15 +235,17 @@ class MaskedAutoregressiveTransform(TransformModule):
         if y is not None:
             x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
 
-        params = self.hyper(x)
-        params = params.reshape(*params.shape[:-1], -1, sum(self.sizes))
+        total = sum(self.sizes)
 
-        args = params.split(self.sizes, dim=-1)
-        args = [a.reshape(a.shape[:-1] + s) for a, s in zip(args, self.shapes)]
+        phi = self.hyper(x)
+        phi = phi.unflatten(-1, (phi.shape[-1] // total, total))
+        phi = phi.split(self.sizes, -1)
+        phi = (p.unflatten(-1, s + (1,)) for p, s in zip(phi, self.shapes))
+        phi = (p.squeeze(-1) for p in phi)
 
-        return self.univariate(*args)
+        return self.univariate(*phi)
 
-    def forward(self, y: Tensor = None) -> AutoregressiveTransform:
+    def forward(self, y: Tensor = None) -> Transform:
         return AutoregressiveTransform(partial(self.meta, y), self.passes)
 
 
@@ -484,7 +490,10 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         ).squeeze(dim=-1)
 
     def univariate(self, signal: Tensor) -> Transform:
-        return MonotonicTransform(partial(self.f, signal))
+        return MonotonicTransform(
+            f=partial(self.f, signal),
+            phi=(signal, *self.network.parameters()),
+        )
 
 
 class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
@@ -564,7 +573,11 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         ).squeeze(dim=-1)
 
     def univariate(self, signal: Tensor, constant: Tensor) -> Transform:
-        return UnconstrainedMonotonicTransform(partial(self.g, signal), constant)
+        return UnconstrainedMonotonicTransform(
+            g=partial(self.g, signal),
+            C=constant,
+            phi=(signal, *self.integrand.parameters()),
+        )
 
 
 class NAF(FlowModule):
@@ -620,6 +633,116 @@ class NAF(FlowModule):
 
         for i in reversed(range(len(transforms))):
             transforms.insert(i, Unconditional(SoftclipTransform))
+
+        base = Unconditional(
+            DiagNormal,
+            torch.zeros(features),
+            torch.ones(features),
+            buffer=True,
+        )
+
+        super().__init__(transforms, base)
+
+
+class FreeFormJacobianTransform(TransformModule):
+    r"""Creates a free-form Jacobian transformation.
+
+    References:
+        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
+        | https://arxiv.org/abs/1810.01367
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
+
+    Example:
+        >>> t = FreeFormJacobianTranform(3, 4)
+        >>> t
+        FreeFormJacobianTranform(
+          (time): 1.000
+          (ode): MLP(
+            (0): Linear(in_features=8, out_features=64, bias=True)
+            (1): ELU(alpha=1.0)
+            (2): Linear(in_features=64, out_features=64, bias=True)
+            (3): ELU(alpha=1.0)
+            (4): Linear(in_features=64, out_features=3, bias=True)
+          )
+        )
+        >>> x = torch.randn(3)
+        >>> x
+        tensor([ 0.1777,  1.0139, -1.0370])
+        >>> y = torch.randn(4)
+        >>> z = t(y)(x)
+        >>> t(y).inv(z)
+        tensor([ 0.1777,  1.0139, -1.0370])
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        **kwargs,
+    ):
+        super().__init__()
+
+        kwargs.setdefault('activation', nn.ELU)
+
+        self.ode = MLP(features + 1 + context, features, **kwargs)
+        self.log_t = nn.Parameter(torch.tensor(0.0))
+
+    def extra_repr(self) -> str:
+        return f'(time): {self.log_t.exp().item():.3f}'
+
+    def f(self, y: Tensor, x: Tensor, t: Tensor) -> Tensor:
+        if y is None:
+            x = torch.cat(broadcast(x, t[..., None], ignore=1), dim=-1)
+        else:
+            x = torch.cat(broadcast(x, t[..., None], y, ignore=1), dim=-1)
+
+        return self.ode(x)
+
+    def forward(self, y: Tensor = None) -> Transform:
+        return FFJTransform(
+            f=partial(self.f, y),
+            time=self.log_t.exp(),
+            phi=(y, *self.ode.parameters()),
+        )
+
+
+class CNF(FlowModule):
+    r"""Creates a continuous normalizing flow (CNF) with free-form Jacobian
+    transformations.
+
+    References:
+        | Neural Ordinary Differential Equations (Chen el al., 2018)
+        | https://arxiv.org/abs/1806.07366
+
+        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
+        | https://arxiv.org/abs/1810.01367
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        transforms: The number of transformations.
+        kwargs: Keyword arguments passed to :class:`FreeFormJacobianTransform`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        transforms: int = 1,
+        **kwargs,
+    ):
+        transforms = [
+            FreeFormJacobianTransform(
+                features=features,
+                context=context,
+                **kwargs,
+            )
+            for _ in range(transforms)
+        ]
 
         base = Unconditional(
             DiagNormal,

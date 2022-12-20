@@ -10,7 +10,7 @@ with open('requirements.txt', 'r') as f:
 
 setuptools.setup(
     name='zuko',
-    version='0.0.6',
+    version='0.0.7',
     packages=setuptools.find_packages(),
     description='Normalizing flows in PyTorch',
     keywords=[

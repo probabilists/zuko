@@ -9,7 +9,23 @@ from torch.distributions import *
 from torch.distributions import constraints
 from typing import *
 
-from .utils import bisection, broadcast, gauss_legendre
+from .utils import bisection, broadcast, gauss_legendre, odeint
+
+
+torch.distributions.transforms._InverseTransform.__name__ = 'Inverse'
+
+
+def _call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    r"""Returns both the transformed value and the log absolute determinant of the
+    transformation's Jacobian."""
+
+    y = self._call(x)
+    ladj = self.log_abs_det_jacobian(x, y)
+
+    return y, ladj
+
+
+Transform.call_and_ladj = _call_and_ladj
 
 
 class IdentityTransform(Transform):
@@ -249,10 +265,18 @@ class MonotonicRQSTransform(Transform):
         return torch.where(mask, x, y)
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        _, ladj = self.call_and_ladj(x)
+        return ladj
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         k = self.searchsorted(self.horizontal, x) - 1
         mask, x0, x1, y0, y1, d0, d1, s = self.bin(k)
 
         z = mask * (x - x0) / (x1 - x0)
+
+        y = y0 + (y1 - y0) * (s * z**2 + d0 * z * (1 - z)) / (
+            s + (d0 + d1 - 2 * s) * z * (1 - z)
+        )
 
         jacobian = (
             s**2
@@ -260,16 +284,17 @@ class MonotonicRQSTransform(Transform):
             / (s + (d0 + d1 - 2 * s) * z * (1 - z)) ** 2
         )
 
-        return mask * jacobian.log()
+        return torch.where(mask, y, x), mask * jacobian.log()
 
 
 class MonotonicTransform(Transform):
-    r"""Creates a transformation from a monotonic univariate function :math:`f(x)`.
+    r"""Creates a transformation from a monotonic univariate function :math:`f_\phi(x)`.
 
-    The inverse function :math:`f^{-1}` is approximated using the bisection method.
+    The inverse function :math:`f_\phi^{-1}` is approximated using the bisection method.
 
     Arguments:
-        f: A monotonic univariate function :math:`f(x)`.
+        f: A monotonic univariate function :math:`f_\phi`.
+        phi: The parameters :math:`\phi` of :math:`f_\phi`.
         bound: The domain bound :math:`B`.
         eps: The absolute tolerance for the inverse transformation.
     """
@@ -282,6 +307,7 @@ class MonotonicTransform(Transform):
     def __init__(
         self,
         f: Callable[[Tensor], Tensor],
+        phi: Iterable[Tensor] = (),
         bound: float = 5.0,
         eps: float = 1e-6,
         **kwargs,
@@ -289,6 +315,7 @@ class MonotonicTransform(Transform):
         super().__init__(**kwargs)
 
         self.f = f
+        self.phi = tuple(filter(lambda p: p.requires_grad, phi))
         self.bound = bound
         self.eps = eps
 
@@ -297,20 +324,26 @@ class MonotonicTransform(Transform):
 
     def _inverse(self, y: Tensor) -> Tensor:
         return bisection(
-            f=lambda x: self.f(x) - y,
+            f=self.f,
+            y=y,
             a=torch.full_like(y, -self.bound),
             b=torch.full_like(y, self.bound),
             n=math.ceil(math.log2(2 * self.bound / self.eps)),
+            phi=self.phi,
         )
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return torch.log(
-            torch.autograd.functional.jacobian(
-                func=lambda x: self.f(x).sum(),
-                inputs=x,
-                create_graph=True,
-            )
-        )
+        _, ladj = self.call_and_ladj(x)
+        return ladj
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        with torch.enable_grad():
+            x = x.requires_grad_()
+            y = self.f(x)
+
+        jacobian = torch.autograd.grad(y, x, torch.ones_like(y), create_graph=True)[0]
+
+        return y, jacobian.log()
 
 
 class UnconstrainedMonotonicTransform(MonotonicTransform):
@@ -322,7 +355,7 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
     The definite integral is estimated by a :math:`n`-point Gauss-Legendre quadrature.
 
     Arguments:
-        g: A positive univariate function :math:`g(x)`.
+        g: A positive univariate function :math:`g`.
         C: The integration constant :math:`C`.
         n: The number of points :math:`n` for the quadrature.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
@@ -352,10 +385,14 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
             a=torch.zeros_like(x),
             b=x,
             n=self.n,
+            phi=self.phi,
         ) + self.C
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return self.g(x).log()
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        return self.f(x), self.g(x).log()
 
 
 class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
@@ -383,7 +420,7 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     sign = +1
 
     def __init__(self, a: Tensor, C: Tensor, **kwargs):
-        super().__init__(self.g, C, a.shape[-1], **kwargs)
+        super().__init__(self.g, C, phi=(a,), n=a.shape[-1], **kwargs)
 
         self.a = a
         self.i = torch.arange(a.shape[-1]).to(a.device)
@@ -396,8 +433,87 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
         return p.squeeze(dim=-1).square().sum(dim=-1)
 
 
+class FFJTransform(Transform):
+    r"""Creates a free-form Jacobian (FFJ) transformation.
+
+    The transformation is the integration of a system of first-order ordinary
+    differential equations
+
+    .. math:: x(T) = \int_0^T f_\phi(x(t), t) ~ dt .
+
+    The log-determinant of the Jacobian is replaced by an unbiased stochastic
+    linear-time estimate.
+
+    References:
+        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
+        | https://arxiv.org/abs/1810.01367
+
+    Arguments:
+        f: A system of first-order ODEs :math:`f_\phi`.
+        time: The integration time :math:`T`.
+        phi: The parameters :math:`\phi` of :math:`f_\phi`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(
+        self,
+        f: Callable[[Tensor, Tensor], Tensor],
+        time: Tensor,
+        phi: Iterable[Tensor] = (),
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.f = f
+        self.t0 = time.new_tensor(0.0)
+        self.t1 = time
+        self.phi = tuple(filter(lambda p: p.requires_grad, phi))
+
+    def _call(self, x: Tensor) -> Tensor:
+        return odeint(self.f, x, self.t0, self.t1, self.phi)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return odeint(self.f, y, self.t1, self.t0, self.phi)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        _, ladj = self.call_and_ladj(x)
+        return ladj
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        shape = x.shape
+        size = x.numel()
+
+        eps = torch.randn_like(x)
+
+        def f_aug(x_aug: Tensor, t: Tensor) -> Tensor:
+            x = x_aug[:size].reshape(shape)
+
+            with torch.enable_grad():
+                x = x.requires_grad_()
+                dx = self.f(x, t)
+
+            epsjp = torch.autograd.grad(dx, x, eps, create_graph=True)[0]
+            trace = (epsjp * eps).sum(dim=-1)
+
+            return torch.cat((dx.flatten(), trace.flatten()))
+
+        zeros = x.new_zeros(shape[:-1])
+
+        x_aug = torch.cat((x.flatten(), zeros.flatten()))
+        y_aug = odeint(f_aug, x_aug, self.t0, self.t1, self.phi)
+
+        y, score = y_aug[:size], y_aug[size:]
+
+        return y.reshape(shape), score.reshape(shape[:-1])
+
+
 class AutoregressiveTransform(Transform):
-    r"""Transform via an autoregressive mapping.
+    r"""Transform via an autoregressive scheme.
+
+    .. math:: y_i = f(x_i; x_{<i})
 
     Arguments:
         meta: A meta function which returns a transformation :math:`f`.
@@ -419,19 +535,8 @@ class AutoregressiveTransform(Transform):
         self.meta = meta
         self.passes = passes
 
-        self._cache = None, None
-
     def _call(self, x: Tensor) -> Tensor:
-        _x, _f = self._cache
-
-        if x is _x:
-            f = _f
-        else:
-            f = self.meta(x)
-
-        self._cache = x, f
-
-        return f(x)
+        return self.meta(x)(x)
 
     def _inverse(self, y: Tensor) -> Tensor:
         x = torch.zeros_like(y)
@@ -441,16 +546,11 @@ class AutoregressiveTransform(Transform):
         return x
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        _x, _f = self._cache
+        return self.meta(x).log_abs_det_jacobian(x, y).sum(dim=-1)
 
-        if x is _x:
-            f = _f
-        else:
-            f = self.meta(x)
-
-        self._cache = x, f
-
-        return f.log_abs_det_jacobian(x, y).sum(dim=-1)
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        y, ladj = self.meta(x).call_and_ladj(x)
+        return y, ladj.sum(dim=-1)
 
 
 class PermutationTransform(Transform):
@@ -468,16 +568,20 @@ class PermutationTransform(Transform):
         super().__init__(**kwargs)
 
         self.order = order
-        self.inverse = torch.argsort(order)
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.order.tolist()})'
+        order = self.order.tolist()
+
+        if len(order) > 10:
+            order = str(order[:5] + [...] + order[-5:]).replace('Ellipsis', '...')
+
+        return f'{self.__class__.__name__}({order})'
 
     def _call(self, x: Tensor) -> Tensor:
         return x[..., self.order]
 
     def _inverse(self, y: Tensor) -> Tensor:
-        return y[..., self.inverse]
+        return y[..., torch.argsort(self.order)]
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return x.new_zeros(x.shape[:-1])

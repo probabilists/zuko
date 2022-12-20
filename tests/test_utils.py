@@ -10,14 +10,15 @@ from zuko.utils import *
 
 def test_bisection():
     f = torch.cos
+    y = torch.tensor(0.0)
     a = torch.rand(256, 1) + 2.0
     b = torch.rand(16)
 
-    x = bisection(f, a, b, n=18)
+    x = bisection(f, y, a, b, n=18)
 
     assert x.shape == (256, 16)
     assert torch.allclose(x, torch.tensor(math.pi / 2), atol=1e-4)
-    assert torch.allclose(f(x), torch.tensor(0.0), atol=1e-4)
+    assert torch.allclose(f(x), y, atol=1e-4)
 
 
 def test_broadcast():
@@ -59,17 +60,37 @@ def test_gauss_legendre():
     # Polynomial
     f = lambda x: x**5 - x**2
     F = lambda x: x**6 / 6 - x**3 / 3
-    a, b = randn(2, 256)
+    a, b = randn(2, 256, requires_grad=True)
 
     area = gauss_legendre(f, a, b, n=3)
 
-    assert torch.allclose(F(b) - F(a), area, atol=1e-4)
+    assert torch.allclose(area, F(b) - F(a), atol=1e-4)
 
     # Gradients
-    grad_a, grad_b = torch.autograd.functional.jacobian(
-        lambda a, b: gauss_legendre(f, a, b).sum(),
-        (a, b),
-    )
+    grad_a, grad_b = torch.autograd.grad(area.sum(), (a, b))
 
-    assert torch.allclose(-f(a), grad_a)
-    assert torch.allclose(f(b), grad_b)
+    assert torch.allclose(grad_a, -f(a), atol=1e-4)
+    assert torch.allclose(grad_b, f(b), atol=1e-4)
+
+
+def test_odeint():
+    # Linear
+    alpha = torch.tensor(1.0, requires_grad=True)
+    t = torch.tensor(3.0, requires_grad=True)
+
+    f = lambda x, t: -alpha * x
+    F = lambda x, t: x * (-alpha * t).exp()
+
+    x0 = randn(256, 1, requires_grad=True)
+    xt = odeint(f, x0, torch.zeros_like(t), t, phi=(alpha,))
+
+    assert xt.shape == x0.shape
+    assert torch.allclose(xt, F(x0, t), atol=1e-4)
+
+    # Gradients
+    grad_x0, grad_t, grad_alpha = torch.autograd.grad(xt.sum(), (x0, t, alpha))
+    g_x0, g_t, g_alpha = torch.autograd.grad(F(x0, t).sum(), (x0, t, alpha))
+
+    assert torch.allclose(grad_x0, g_x0, atol=1e-4)
+    assert torch.allclose(grad_t, g_t, atol=1e-4)
+    assert torch.allclose(grad_alpha, g_alpha, atol=1e-4)

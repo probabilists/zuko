@@ -21,8 +21,9 @@ def test_univariate_transforms():
     ]
 
     for t in ts:
+        # Call
         if hasattr(t.domain, 'lower_bound'):
-            x = torch.linspace(t.domain.lower_bound, t.domain.upper_bound, 256)
+            x = torch.linspace(t.domain.lower_bound + 1e-2, t.domain.upper_bound - 1e-2, 256)
         else:
             x = torch.linspace(-5.0, 5.0, 256)
 
@@ -30,6 +31,7 @@ def test_univariate_transforms():
 
         assert x.shape == y.shape, t
 
+        # Inverse
         z = t.inv(y)
 
         assert torch.allclose(x, z, atol=1e-4), t
@@ -42,7 +44,39 @@ def test_univariate_transforms():
 
         ladj = torch.diag(J).abs().log()
 
-        assert torch.allclose(ladj, t.log_abs_det_jacobian(x, y), atol=1e-4), t
+        assert torch.allclose(t.log_abs_det_jacobian(x, y), ladj, atol=1e-4), t
+
+        # Inverse Jacobian
+        J = torch.autograd.functional.jacobian(t.inv, y)
+
+        assert (torch.triu(J, diagonal=1) == 0).all(), t
+        assert (torch.tril(J, diagonal=-1) == 0).all(), t
+
+        ladj = torch.diag(J).abs().log()
+
+        assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
+
+
+def test_FFJTransform():
+    a = torch.randn(3)
+    f = lambda x, t: a * x
+    t = FFJTransform(f, time=torch.tensor(1.0))
+
+    # Call
+    x = randn(256, 3)
+    y = t(x)
+
+    assert x.shape == y.shape
+
+    # Inverse
+    z = t.inv(y)
+
+    assert torch.allclose(x, z, atol=1e-4)
+
+    # Jacobian
+    ladj = t.log_abs_det_jacobian(x, y)
+
+    assert ladj.shape == x.shape[:-1]
 
 
 def test_PermutationTransform():

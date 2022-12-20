@@ -10,26 +10,30 @@ from torch import Tensor, BoolTensor
 from typing import *
 
 
-class BatchNorm0d(nn.BatchNorm1d):
-    r"""Creates a batch normalization (BatchNorm) layer for scalars.
+class LayerNorm(nn.Module):
+    r"""Creates a normalization layer that standardizes features along a dimension.
+
+    .. math:: y = \frac{x - \mathrm{E}[x]}{\sqrt{\mathrm{Var}[x] + \epsilon}}
 
     References:
-        | Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift (Ioffe et al., 2015)
-        | https://arxiv.org/abs/1502.03167
+       Layer Normalization (Lei Ba et al., 2016)
+       https://arxiv.org/abs/1607.06450
 
     Arguments:
-        args: Positional arguments passed to :class:`torch.nn.BatchNorm1d`.
-        kwargs: Keyword arguments passed to :class:`torch.nn.BatchNorm1d`.
+        dim: The dimension(s) to standardize.
+        eps: A numerical stability term.
     """
 
+    def __init__(self, dim: Union[int, Iterable[int]] = -1, eps: float = 1e-5):
+        super().__init__()
+
+        self.dim = dim if type(dim) is int else tuple(dim)
+        self.eps = eps
+
     def forward(self, x: Tensor) -> Tensor:
-        shape = x.shape
+        variance, mean = torch.var_mean(x, unbiased=True, dim=self.dim, keepdim=True)
 
-        x = x.reshape(-1, shape[-1])
-        x = super().forward(x)
-        x = x.reshape(shape)
-
-        return x
+        return (x - mean) / (variance + self.eps).sqrt()
 
 
 class MLP(nn.Sequential):
@@ -54,8 +58,7 @@ class MLP(nn.Sequential):
         hidden_features: The numbers of hidden features.
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
-        batchnorm: Whether to use batch normalization or not.
-        dropout: The dropout rate.
+        normalize: Whether features are normalized between layers or not.
         kwargs: Keyword arguments passed to :class:`torch.nn.Linear`.
 
     Example:
@@ -76,15 +79,13 @@ class MLP(nn.Sequential):
         out_features: int,
         hidden_features: List[int] = [64, 64],
         activation: Callable[[], nn.Module] = None,
-        batchnorm: bool = False,
-        dropout: float = 0.0,
+        normalize: bool = False,
         **kwargs,
     ):
         if activation is None:
             activation = nn.ReLU
 
-        batchnorm = BatchNorm0d if batchnorm else lambda _: None
-        dropout = nn.Dropout(dropout) if dropout > 0 else None
+        normalization = LayerNorm if normalize else lambda: None
 
         layers = []
 
@@ -94,12 +95,11 @@ class MLP(nn.Sequential):
         ):
             layers.extend([
                 nn.Linear(before, after, **kwargs),
-                batchnorm(after),
                 activation(),
-                dropout,
+                normalization(),
             ])
 
-        layers = layers[:-3]
+        layers = layers[:-2]
         layers = filter(lambda l: l is not None, layers)
 
         super().__init__(*layers)
@@ -123,16 +123,11 @@ class MaskedLinear(nn.Linear):
 
         self.register_buffer('mask', adjacency)
 
-        degree = adjacency.sum(dim=-1)
-        rescale = adjacency.shape[-1] / torch.clip(degree, min=1)
-
-        self.weight.data *= rescale[:, None]
-
     def forward(self, x: Tensor) -> Tensor:
         return F.linear(x, self.mask * self.weight, self.bias)
 
 
-class MaskedMLP(MLP):
+class MaskedMLP(nn.Sequential):
     r"""Creates a masked multi-layer perceptron (MaskedMLP).
 
     The resulting MLP is a transformation :math:`y = f(x)` whose Jacobian entries
@@ -140,8 +135,9 @@ class MaskedMLP(MLP):
 
     Arguments:
         adjacency: The adjacency matrix :math:`A \in \{0, 1\}^{M \times N}`.
-        args: Positional arguments passed to :class:`MLP`.
-        kwargs: Keyword arguments passed to :class:`MLP`.
+        hidden_features: The numbers of hidden features.
+        activation: The activation function constructor. If :py:`None`, use
+            :class:`torch.nn.ReLU` instead.
 
     Example:
         >>> adjacency = torch.randn(4, 3) < 0
@@ -167,33 +163,53 @@ class MaskedMLP(MLP):
                 [ 0.0000,  0.0060, -0.0063]])
     """
 
-    def __init__(self, adjacency: BoolTensor, *args, **kwargs):
-        super().__init__(*reversed(adjacency.shape), *args, **kwargs)
+    def __init__(
+        self,
+        adjacency: BoolTensor,
+        hidden_features: List[int] = [64, 64],
+        activation: Callable[[], nn.Module] = None,
+    ):
+        out_features, in_features = adjacency.shape
+
+        if activation is None:
+            activation = nn.ReLU
 
         # Merge outputs with the same dependencies
         adjacency, inverse = torch.unique(adjacency, dim=0, return_inverse=True)
 
-        # j precedes i if A_ik = 1 for all k such that A_jk = 1
+        # P_ij = 1 if A_ik = 1 for all k such that A_jk = 1
         precedence = adjacency.int() @ adjacency.int().t() == adjacency.sum(dim=-1)
 
-        for i, layer in enumerate(self):
-            if isinstance(layer, nn.Linear):
-                if i > 0:
-                    mask = precedence[:, indices]
-                else:
-                    mask = adjacency
+        # Layers
+        layers = []
 
-                if (~mask).all():
-                    raise ValueError("The adjacency matrix leads to a null Jacobian.")
+        for i, features in enumerate(hidden_features + [out_features]):
+            if i > 0:
+                mask = precedence[:, indices]
+            else:
+                mask = adjacency
 
-                if i < len(self) - 1:
-                    reachable = mask.sum(dim=-1).nonzero().squeeze(dim=-1)
-                    indices = reachable[torch.arange(layer.out_features) % len(reachable)]
-                    mask = mask[indices]
-                else:
-                    mask = mask[inverse]
+            if (~mask).all():
+                raise ValueError("The adjacency matrix leads to a null Jacobian.")
 
-                self[i] = MaskedLinear(adjacency=mask)
+            if i < len(hidden_features):
+                reachable = mask.sum(dim=-1).nonzero().squeeze(dim=-1)
+                indices = reachable[torch.arange(features) % len(reachable)]
+                mask = mask[indices]
+            else:
+                mask = mask[inverse]
+
+            layers.extend([
+                MaskedLinear(adjacency=mask),
+                activation(),
+            ])
+
+        layers = layers[:-1]
+
+        super().__init__(*layers)
+
+        self.in_features = in_features
+        self.out_features = out_features
 
 
 class MonotonicLinear(nn.Linear):
@@ -258,7 +274,7 @@ class MonotonicMLP(MLP):
 
     def __init__(self, *args, **kwargs):
         kwargs['activation'] = nn.ELU
-        kwargs['batchnorm'] = False
+        kwargs['normalize'] = False
 
         super().__init__(*args, **kwargs)
 

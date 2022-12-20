@@ -14,6 +14,7 @@ def test_flows(tmp_path):
         SOSPF(3, 5),
         NAF(3, 5),
         NAF(3, 5, unconstrained=True),
+        CNF(3, 5),
     ]
 
     for flow in flows:
@@ -24,16 +25,27 @@ def test_flows(tmp_path):
         assert log_p.shape == (256,), flow
         assert log_p.requires_grad, flow
 
+        flow.zero_grad(set_to_none=True)
         loss = -log_p.mean()
         loss.backward()
 
         for p in flow.parameters():
-            assert hasattr(p, 'grad'), flow
+            assert p.grad is not None, flow
 
         # Sampling
-        z = flow(y).sample((32,))
+        x = flow(y).sample((32,))
 
-        assert z.shape == (32, 3), flow
+        assert x.shape == (32, 3), flow
+
+        # Reparameterization trick
+        x = flow(y).rsample()
+
+        flow.zero_grad(set_to_none=True)
+        loss = x.square().sum().sqrt()
+        loss.backward()
+
+        for p in flow.parameters():
+            assert p.grad is not None, flow
 
         # Invertibility
         x, y = randn(256, 3), randn(256, 5)
@@ -58,7 +70,9 @@ def test_flows(tmp_path):
 
         x, y = randn(3), randn(5)
 
+        seed = torch.seed()
         log_p = flow(y).log_prob(x)
+        torch.manual_seed(seed)
         log_p_bis = flow_bis(y).log_prob(x)
 
         assert torch.allclose(log_p, log_p_bis), flow

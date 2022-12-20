@@ -1,4 +1,4 @@
-r"""Parametrizable probability distributions."""
+r"""Parameterizable probability distributions."""
 
 import math
 import torch
@@ -7,6 +7,7 @@ from textwrap import indent
 from torch import Tensor, Size
 from torch.distributions import *
 from torch.distributions import constraints
+from torch.distributions.utils import _sum_rightmost
 from typing import *
 
 
@@ -14,7 +15,7 @@ Distribution._validate_args = False
 Distribution.arg_constraints = {}
 
 
-class NormalizingFlow(TransformedDistribution):
+class NormalizingFlow(Distribution):
     r"""Creates a normalizing flow for a random variable :math:`X` towards a base
     distribution :math:`p(Z)` through a series of :math:`n` invertible and differentiable
     transformations :math:`f_1, f_2, \dots, f_n`.
@@ -49,18 +50,77 @@ class NormalizingFlow(TransformedDistribution):
         transforms: List[Transform],
         base: Distribution,
     ):
-        super().__init__(base, [t.inv for t in reversed(transforms)])
+        super().__init__()
+
+        codomain_dim = ComposeTransform(transforms).codomain.event_dim
+        reinterpreted = codomain_dim - len(base.event_shape)
+
+        if reinterpreted > 0:
+            base = Independent(base, reinterpreted)
+
+        self.transforms = transforms
+        self.base = base
 
     def __repr__(self) -> str:
-        lines = [f'({i+1}): {t.inv}' for i, t in enumerate(reversed(self.transforms))]
-        lines.append(f'(base): {self.base_dist}')
+        lines = [f'({i + 1}): {t}' for i, t in enumerate(self.transforms)]
+        lines.append(f'(base): {self.base}')
         lines = indent('\n'.join(lines), '  ')
 
         return self.__class__.__name__ + '(\n' + lines + '\n)'
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    @property
+    def batch_shape(self) -> Size:
+        return self.base.batch_shape
+
+    @property
+    def event_shape(self) -> Size:
+        shape = self.base.event_shape
+
+        for t in reversed(self.transforms):
+            shape = t.inverse_shape(shape)
+
+        return shape
+
+    def expand(self, batch_shape: Size, new: Distribution = None):
         new = self._get_checked_instance(NormalizingFlow, new)
-        return super().expand(batch_shape, new)
+        new.transforms = self.transforms
+        new.base = self.base.expand(batch_shape)
+
+        Distribution.__init__(new, batch_shape=batch_shape, validate_args=False)
+
+        return new
+
+    def log_prob(self, x: Tensor) -> Tensor:
+        acc = 0
+        event_dim = len(self.event_shape)
+
+        for t in self.transforms:
+            x, ladj = t.call_and_ladj(x)
+            acc = acc + _sum_rightmost(ladj, event_dim - t.domain.event_dim)
+            event_dim += t.codomain.event_dim - t.domain.event_dim
+
+        return self.base.log_prob(x) + acc
+
+    @property
+    def has_rsample(self) -> bool:
+        return self.base.has_rsample
+
+    def rsample(self, shape: Size = ()):
+        x = self.base.rsample(shape)
+
+        for t in reversed(self.transforms):
+            x = t.inv(x)
+
+        return x
+
+    def sample(self, shape: Size = ()):
+        with torch.no_grad():
+            x = self.base.sample(shape)
+
+            for t in reversed(self.transforms):
+                x = t.inv(x)
+
+            return x
 
 
 class Joint(Distribution):
