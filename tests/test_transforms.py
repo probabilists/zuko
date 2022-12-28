@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from torch import randn
+from torch.distributions import *
 from zuko.transforms import *
 
 

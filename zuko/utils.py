@@ -6,7 +6,6 @@ __all__ = ['bisection', 'broadcast', 'gauss_legendre', 'odeint']
 
 import numpy as np
 import torch
-import torch.nn as nn
 
 from functools import lru_cache
 from torch import Tensor
@@ -22,7 +21,7 @@ def bisection(
     phi: Iterable[Tensor] = (),
 ) -> Tensor:
     r"""Applies the bisection method to find :math:`x` between the bounds :math:`a`
-    an :math:`b` such that :math:`f_\phi(x)` is close to :math:`y`.
+    and :math:`b` such that :math:`f_\phi(x)` is close to :math:`y`.
 
     Gradients are propagated through :math:`y` and :math:`\phi` via implicit
     differentiation.

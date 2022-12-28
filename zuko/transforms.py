@@ -1,12 +1,30 @@
 r"""Parameterizable transformations."""
 
+__all__ = [
+    'ComposedTransform',
+    'IdentityTransform',
+    'CosTransform',
+    'SinTransform',
+    'SoftclipTransform',
+    'MonotonicAffineTransform',
+    'MonotonicRQSTransform',
+    'MonotonicTransform',
+    'UnconstrainedMonotonicTransform',
+    'SOSPolynomialTransform',
+    'FFJTransform',
+    'AutoregressiveTransform',
+    'PermutationTransform',
+]
+
 import math
 import torch
 import torch.nn.functional as F
 
-from torch import Tensor, LongTensor
+from textwrap import indent
+from torch import Tensor, LongTensor, Size
 from torch.distributions import *
 from torch.distributions import constraints
+from torch.distributions.utils import _sum_rightmost
 from typing import *
 
 from .utils import bisection, broadcast, gauss_legendre, odeint
@@ -26,6 +44,97 @@ def _call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
 
 
 Transform.call_and_ladj = _call_and_ladj
+
+
+class ComposedTransform(Transform):
+    r"""Creates a transformation :math:`f(x) = f_n \circ \dots \circ f_0(x)`.
+
+    Arguments:
+        transforms: A sequence of transformations :math:`f_i`.
+    """
+
+    def __init__(self, *transforms: Transform, **kwargs):
+        super().__init__(**kwargs)
+
+        assert transforms, "'transforms' cannot be empty"
+
+        event_dim = 0
+
+        for t in reversed(transforms):
+            event_dim = t.domain.event_dim + max(event_dim - t.codomain.event_dim, 0)
+
+        self.domain_dim = event_dim
+
+        for t in transforms:
+            event_dim += t.codomain.event_dim - t.domain.event_dim
+
+        self.codomain_dim = event_dim
+        self.transforms = transforms
+
+    def __repr__(self) -> str:
+        lines = [f'({i}): {t}' for i, t in enumerate(self.transforms)]
+        lines = indent('\n'.join(lines), '  ')
+
+        return f'{self.__class__.__name__}(\n' + lines + '\n)'
+
+    @property
+    def domain(self) -> constraints.Constraint:
+        domain = self.transforms[0].domain
+        reinterpreted = self.domain_dim - domain.event_dim
+
+        if reinterpreted > 0:
+            return constraints.independent(domain, reinterpreted)
+        else:
+            return domain
+
+    @property
+    def codomain(self) -> constraints.Constraint:
+        codomain = self.transforms[-1].codomain
+        reinterpreted = self.codomain_dim - codomain.event_dim
+
+        if reinterpreted > 0:
+            return constraints.independent(codomain, reinterpreted)
+        else:
+            return codomain
+
+    @property
+    def bijective(self) -> bool:
+        return all(t.bijective for t in self.transforms)
+
+    def _call(self, x: Tensor) -> Tensor:
+        for t in self.transforms:
+            x = t(x)
+        return x
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        for t in reversed(self.transforms):
+            y = t.inv(y)
+        return y
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        _, ladj = self.call_and_ladj(x)
+        return ladj
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        event_dim = self.domain_dim
+        acc = 0
+
+        for t in self.transforms:
+            x, ladj = t.call_and_ladj(x)
+            acc = acc + _sum_rightmost(ladj, event_dim - t.domain.event_dim)
+            event_dim += t.codomain.event_dim - t.domain.event_dim
+
+        return x, acc
+
+    def forward_shape(self, shape: Size) -> Size:
+        for t in self.transforms:
+            shape = t.forward_shape(shape)
+        return shape
+
+    def inverse_shape(self, shape: Size) -> Size:
+        for t in reversed(self.transforms):
+            shape = t.inverse_shape(shape)
+        return shape
 
 
 class IdentityTransform(Transform):

@@ -1,5 +1,19 @@
 r"""Parameterizable probability distributions."""
 
+__all__ = [
+    'NormalizingFlow',
+    'Joint',
+    'GeneralizedNormal',
+    'DiagNormal',
+    'BoxUniform',
+    'TransformedUniform',
+    'Truncated',
+    'Sort',
+    'TopK',
+    'Minimum',
+    'Maximum',
+]
+
 import math
 import torch
 
@@ -17,14 +31,12 @@ Distribution.arg_constraints = {}
 
 class NormalizingFlow(Distribution):
     r"""Creates a normalizing flow for a random variable :math:`X` towards a base
-    distribution :math:`p(Z)` through a series of :math:`n` invertible and differentiable
-    transformations :math:`f_1, f_2, \dots, f_n`.
+    distribution :math:`p(Z)` through a transformation :math:`f`.
 
     The density of a realization :math:`x` is given by the change of variables
 
-    .. math:: p(X = x) = p(Z = f(x)) \left| \det \frac{\partial f(x)}{\partial x} \right|
+    .. math:: p(X = x) = p(Z = f(x)) \left| \det \frac{\partial f(x)}{\partial x} \right| .
 
-    where :math:`f = f_1 \circ \dots \circ f_n` is the transformations' composition.
     To sample from :math:`p(X)`, realizations :math:`z \sim p(Z)` are mapped through
     the inverse transformation :math:`g = f^{-1}`.
 
@@ -36,34 +48,38 @@ class NormalizingFlow(Distribution):
         | https://arxiv.org/abs/1912.02762
 
     Arguments:
-        transforms: A list of transformations :math:`f_i`.
+        transforms: A transformation :math:`f`.
         base: A base distribution :math:`p(Z)`.
 
     Example:
-        >>> d = NormalizingFlow([ExpTransform()], Gamma(2.0, 1.0))
+        >>> d = NormalizingFlow(ExpTransform(), Gamma(2.0, 1.0))
         >>> d.sample()
         tensor(1.1316)
     """
 
+    has_rsample = True
+
     def __init__(
         self,
-        transforms: List[Transform],
+        transform: Transform,
         base: Distribution,
     ):
         super().__init__()
 
-        codomain_dim = ComposeTransform(transforms).codomain.event_dim
-        reinterpreted = codomain_dim - len(base.event_shape)
+        reinterpreted = transform.codomain.event_dim - len(base.event_shape)
 
         if reinterpreted > 0:
             base = Independent(base, reinterpreted)
 
-        self.transforms = transforms
+        self.transform = transform
         self.base = base
+        self.reinterpreted = max(-reinterpreted, 0)
 
     def __repr__(self) -> str:
-        lines = [f'({i + 1}): {t}' for i, t in enumerate(self.transforms)]
-        lines.append(f'(base): {self.base}')
+        lines = [
+            f'(transform): {self.transform}',
+            f'(base): {self.base}',
+        ]
         lines = indent('\n'.join(lines), '  ')
 
         return self.__class__.__name__ + '(\n' + lines + '\n)'
@@ -74,53 +90,31 @@ class NormalizingFlow(Distribution):
 
     @property
     def event_shape(self) -> Size:
-        shape = self.base.event_shape
-
-        for t in reversed(self.transforms):
-            shape = t.inverse_shape(shape)
-
-        return shape
+        return self.transform.inverse_shape(self.base.event_shape)
 
     def expand(self, batch_shape: Size, new: Distribution = None):
         new = self._get_checked_instance(NormalizingFlow, new)
-        new.transforms = self.transforms
+        new.transform = self.transform
         new.base = self.base.expand(batch_shape)
+        new.reinterpreted = self.reinterpreted
 
-        Distribution.__init__(new, batch_shape=batch_shape, validate_args=False)
+        Distribution.__init__(new, validate_args=False)
 
         return new
 
     def log_prob(self, x: Tensor) -> Tensor:
-        acc = 0
-        event_dim = len(self.event_shape)
+        z, ladj = self.transform.call_and_ladj(x)
+        ladj = _sum_rightmost(ladj, self.reinterpreted)
 
-        for t in self.transforms:
-            x, ladj = t.call_and_ladj(x)
-            acc = acc + _sum_rightmost(ladj, event_dim - t.domain.event_dim)
-            event_dim += t.codomain.event_dim - t.domain.event_dim
-
-        return self.base.log_prob(x) + acc
-
-    @property
-    def has_rsample(self) -> bool:
-        return self.base.has_rsample
+        return self.base.log_prob(z) + ladj
 
     def rsample(self, shape: Size = ()):
-        x = self.base.rsample(shape)
+        if self.base.has_rsample:
+            z = self.base.rsample(shape)
+        else:
+            z = self.base.sample(shape)
 
-        for t in reversed(self.transforms):
-            x = t.inv(x)
-
-        return x
-
-    def sample(self, shape: Size = ()):
-        with torch.no_grad():
-            x = self.base.sample(shape)
-
-            for t in reversed(self.transforms):
-                x = t.inv(x)
-
-            return x
+        return self.transform.inv(z)
 
 
 class Joint(Distribution):
@@ -334,7 +328,7 @@ class TransformedUniform(NormalizingFlow):
     """
 
     def __init__(self, f: Transform, lower: Tensor, upper: Tensor):
-        super().__init__([f], Uniform(*map(f, map(torch.as_tensor, (lower, upper)))))
+        super().__init__(f, Uniform(*map(f, map(torch.as_tensor, (lower, upper)))))
 
     def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(TransformedUniform, new)
@@ -372,7 +366,7 @@ class Truncated(Distribution):
     ):
         super().__init__(batch_shape=base.batch_shape)
 
-        assert len(base.event_shape) < 1, "'base' has to be univariate"
+        assert not base.event_shape, "'base' has to be univariate"
 
         self.base = base
         self.uniform = Uniform(base.cdf(lower), base.cdf(upper))
@@ -430,7 +424,7 @@ class Sort(Distribution):
     ):
         super().__init__(batch_shape=base.batch_shape)
 
-        assert len(base.event_shape) < 1, "'base' has to be univariate"
+        assert not base.event_shape, "'base' has to be univariate"
 
         self.base = base
         self.n = n

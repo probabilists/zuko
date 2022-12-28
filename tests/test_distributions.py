@@ -3,12 +3,13 @@ r"""Tests for the zuko.distributions module."""
 import pytest
 import torch
 
+from torch.distributions import *
 from zuko.distributions import *
 
 
 def test_distributions():
     ds = [
-        NormalizingFlow([ExpTransform()], Gamma(2.0, 1.0)),
+        NormalizingFlow(ExpTransform(), Gamma(2.0, 1.0)),
         Joint(Uniform(0.0, 1.0), Normal(0.0, 1.0)),
         GeneralizedNormal(2.0),
         DiagNormal(torch.zeros(2), torch.ones(2)),

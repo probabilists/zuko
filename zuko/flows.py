@@ -22,6 +22,7 @@ import torch.nn as nn
 from functools import partial
 from math import ceil
 from torch import Tensor, LongTensor, Size
+from torch.distributions import *
 from typing import *
 
 from .distributions import *
@@ -89,14 +90,14 @@ class FlowModule(DistributionModule):
             A normalizing flow :math:`p(X | y)`.
         """
 
-        transforms = [t(y) for t in self.transforms]
+        transform = ComposedTransform(*(t(y) for t in self.transforms))
 
         if y is None:
             base = self.base(y)
         else:
             base = self.base(y).expand(y.shape[:-1])
 
-        return NormalizingFlow(transforms, base)
+        return NormalizingFlow(transform, base)
 
 
 class Unconditional(nn.Module):

@@ -39,7 +39,7 @@ class LayerNorm(nn.Module):
 class MLP(nn.Sequential):
     r"""Creates a multi-layer perceptron (MLP).
 
-    Also known as fully connected feedforward network, an MLP is a series of
+    Also known as fully connected feedforward network, an MLP is a sequence of
     non-linear parametric functions
 
     .. math:: h_{i + 1} = a_{i + 1}(h_i W_{i + 1}^T + b_{i + 1}),
