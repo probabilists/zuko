@@ -70,3 +70,20 @@ def test_MonotonicMLP():
     J = torch.autograd.functional.jacobian(net, x)
 
     assert (J >= 0).all()
+
+
+def test_FCN():
+    net = FCN(3, 5)
+
+    # Non-batched
+    x = randn(3, 64, 64)
+    y = net(x)
+
+    assert y.shape == (5, 64, 64)
+    assert y.requires_grad
+
+    # Batched
+    x = randn(8, 3, 32, 32)
+    y = net(x)
+
+    assert y.shape == (8, 5, 32, 32)

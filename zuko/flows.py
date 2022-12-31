@@ -13,6 +13,8 @@ __all__ = [
     'NAF',
     'FreeFormJacobianTransform',
     'CNF',
+    'ConvCouplingTransform',
+    'Glow',
 ]
 
 import abc
@@ -753,3 +755,193 @@ class CNF(FlowModule):
         )
 
         super().__init__(transforms, base)
+
+
+class ConvCouplingTransform(TransformModule):
+    r"""Creates a convolution coupling transformation.
+
+    Arguments:
+        channels: The number of channels.
+        context: The number of context channels.
+        spatial: The number of spatial dimensions.
+        univariate: The univariate transformation constructor.
+        shapes: The shapes of the univariate transformation parameters.
+        kwargs: Keyword arguments passed to :class:`zuko.nn.FCN`.
+    """
+
+    def __init__(
+        self,
+        channels: int,
+        context: int = 0,
+        spatial: int = 2,
+        univariate: Callable[..., Transform] = MonotonicAffineTransform,
+        shapes: List[Size] = [(), ()],
+        **kwargs,
+    ):
+        super().__init__()
+
+        self.d = channels // 2
+        self.dim = -(spatial + 1)
+
+        # Univariate transformation
+        self.univariate = univariate
+        self.shapes = list(map(Size, shapes))
+        self.sizes = [s.numel() for s in self.shapes]
+
+        # Hyper network
+        kwargs.setdefault('activation', nn.ELU)
+        kwargs.setdefault('normalize', True)
+
+        self.hyper = FCN(
+            in_channels=self.d + context,
+            out_channels=(channels - self.d) * sum(self.sizes),
+            spatial=spatial,
+            **kwargs,
+        )
+
+    def extra_repr(self) -> str:
+        base = self.univariate(*map(torch.randn, self.shapes))
+
+        return f'(base): {base}'
+
+    def meta(self, y: Tensor, x: Tensor) -> Transform:
+        if y is not None:
+            x = torch.cat(broadcast(x, y, ignore=abs(self.dim)), dim=self.dim)
+
+        total = sum(self.sizes)
+
+        phi = self.hyper(x)
+        phi = phi.unflatten(self.dim, (phi.shape[self.dim] // total, total))
+        phi = phi.movedim(self.dim, -1)
+        phi = phi.split(self.sizes, -1)
+        phi = (p.unflatten(-1, s + (1,)) for p, s in zip(phi, self.shapes))
+        phi = (p.squeeze(-1) for p in phi)
+
+        return self.univariate(*phi)
+
+    def forward(self, y: Tensor = None) -> Transform:
+        return CouplingTransform(partial(self.meta, y), self.d, self.dim)
+
+
+class Glow(DistributionModule):
+    r"""Creates a Glow-like multi-scale flow.
+
+    References:
+        | Glow: Generative Flow with Invertible 1x1 Convolutions (Kingma et al., 2018)
+        | https://arxiv.org/abs/1807.03039
+
+    Arguments:
+        shape: The shape of a sample.
+        context: The number of context channels at each scale.
+        transforms: The number of coupling transformations at each scale.
+        kwargs: Keyword arguments passed to :class:`ConvCouplingTransform`.
+    """
+
+    def __init__(
+        self,
+        shape: Size,
+        context: Union[int, List[int]] = 0,
+        transforms: List[int] = [8, 8, 8],
+        **kwargs,
+    ):
+        super().__init__()
+
+        channels, *space = shape
+        spatial = len(space)
+        dim = -len(shape)
+        scales = len(transforms)
+
+        assert all(s % 2**scales == 0 for s in space), (
+            f"'shape' cannot be downscaled {scales} times"
+        )
+
+        if isinstance(context, int):
+            context = [context] * len(transforms)
+
+        self.flows = nn.ModuleList()
+        self.bases = nn.ModuleList()
+
+        for i, K in enumerate(transforms):
+            flow = []
+            flow.append(Unconditional(PixelShuffleTransform, dim=dim))
+
+            channels = channels * 2**spatial
+            space = [s // 2 for s in space]
+
+            for _ in range(K):
+                flow.extend([
+                    Unconditional(
+                        PermutationTransform,
+                        torch.randperm(channels),
+                        dim=dim,
+                        buffer=True,
+                    ),
+                    Unconditional(
+                        LULinearTransform,
+                        torch.eye(channels),
+                        dim=dim,
+                    ),
+                    ConvCouplingTransform(
+                        channels=channels,
+                        context=context[i],
+                        spatial=spatial,
+                        **kwargs,
+                    ),
+                ])
+
+            if i < len(transforms) - 1:
+                drop = channels // 2
+            else:
+                drop = channels
+
+            self.flows.append(nn.ModuleList(flow))
+            self.bases.append(
+                Unconditional(
+                    DiagNormal,
+                    torch.zeros(drop, *space),
+                    torch.ones(drop, *space),
+                    ndims=spatial + 1,
+                    buffer=True,
+                )
+            )
+
+            channels = channels - drop
+
+    def forward(self, y: Iterable[Tensor] = None) -> NormalizingFlow:
+        r"""
+        Arguments:
+            y: A sequence of contexts :math:`y_i`. There should be one context
+                per scale, but a context can be :py:`None`.
+
+        Returns:
+            A multi-scale flow :math:`p(X | y)`.
+        """
+
+        if y is None:
+            y = [None] * len(self.flows)
+
+        # Transforms
+        transforms = []
+        context_shapes = []
+
+        for flow, base, y_i in zip(self.flows, self.bases, y):
+            for t in flow:
+                transforms.append(t(y_i))
+
+            transforms.append(DropTransform(base(y_i)))
+
+            if y_i is not None:
+                context_shapes.append(y_i.shape)
+
+        transform = ComposedTransform(*transforms[:-1])
+
+        # Base
+        base = transforms[-1].dist
+        dim = -len(base.event_shape)
+
+        batch_shapes = (shape[:dim] for shape in context_shapes)
+        batch_shape = torch.broadcast_shapes(*batch_shapes)
+
+        base = base.expand(batch_shape)
+
+        return NormalizingFlow(transform, base)

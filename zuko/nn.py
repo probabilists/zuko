@@ -1,6 +1,6 @@
 r"""Neural networks, layers and modules."""
 
-__all__ = ['MLP', 'MaskedMLP', 'MonotonicMLP']
+__all__ = ['MLP', 'MaskedMLP', 'MonotonicMLP', 'FCN']
 
 import torch
 import torch.nn as nn
@@ -283,3 +283,126 @@ class MonotonicMLP(MLP):
                 layer.__class__ = MonotonicLinear
             elif isinstance(layer, nn.ELU):
                 layer.__class__ = TwoWayELU
+
+
+class FCN(nn.Sequential):
+    r"""Creates a fully convolutional neural network (FCN).
+
+    The architecture is inspired by ConvNeXt blocks which mix depthwise and 1 by 1
+    convolutions to improve the efficiency/accuracy trade-off.
+
+    References:
+        | A ConvNet for the 2020s (Lui et al., 2022)
+        | https://arxiv.org/abs/2201.03545
+
+    Arguments:
+        in_channels: The number of input channels.
+        out_channels: The number of output channels.
+        hidden_channels: The number of hidden channels.
+        hidden_blocks: The number of hidden blocks. Each block consists in an optional
+            normalization, a depthwise convolution, an activation and a 1 by 1
+            convolution.
+        kernel_size: The size of the convolution kernels.
+        activation: The activation function constructor. If :py:`None`, use
+            :class:`torch.nn.ReLU` instead.
+        normalize: Whether channels are normalized or not.
+        spatial: The number of spatial dimensions. Can be either 1, 2 or 3.
+        kwargs: Keyword arguments passed to :class:`torch.nn.Conv2d`.
+
+    Example:
+        >>> net = FCN(3, 16, 64, activation=nn.ELU)
+        >>> net
+        FCN(
+          (0): Conv2d(3, 64, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+          (1): Conv2d(64, 256, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2), groups=64)
+          (2): ELU(alpha=1.0)
+          (3): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1))
+          (4): Conv2d(64, 256, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2), groups=64)
+          (5): ELU(alpha=1.0)
+          (6): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1))
+          (7): Conv2d(64, 256, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2), groups=64)
+          (8): ELU(alpha=1.0)
+          (9): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1))
+          (10): Conv2d(64, 16, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        )
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        hidden_channels: int = 64,
+        hidden_blocks: int = 3,
+        kernel_size: int = 5,
+        activation: Callable[[], nn.Module] = None,
+        normalize: bool = False,
+        spatial: int = 2,
+        **kwargs,
+    ):
+        # Components
+        convolution = {
+            1: nn.Conv1d,
+            2: nn.Conv2d,
+            3: nn.Conv3d,
+        }.get(spatial)
+
+        if activation is None:
+            activation = nn.ReLU
+
+        if normalize:
+            normalization = lambda: LayerNorm(dim=-(spatial + 1))
+        else:
+            normalization = lambda: None
+
+        layers = [
+            convolution(
+                in_channels,
+                hidden_channels,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
+                **kwargs,
+            )
+        ]
+
+        for i in range(hidden_blocks):
+            layers.extend([
+                normalization(),
+                convolution(
+                    hidden_channels,
+                    hidden_channels * 4,
+                    groups=hidden_channels,
+                    kernel_size=kernel_size,
+                    padding=kernel_size // 2,
+                    **kwargs,
+                ),
+                activation(),
+                convolution(hidden_channels * 4, hidden_channels, kernel_size=1),
+            ])
+
+        layers.append(
+            convolution(
+                hidden_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
+                **kwargs,
+            )
+        )
+
+        layers = filter(lambda l: l is not None, layers)
+
+        super().__init__(*layers)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.spatial = spatial
+
+    def forward(self, x: Tensor) -> Tensor:
+        dim = -(self.spatial + 1)
+        batch_shape = x.shape[:dim]
+
+        x = x.reshape(-1, *x.shape[dim:])
+        y = super().forward(x)
+        y = y.reshape(*batch_shape, *y.shape[dim:])
+
+        return y

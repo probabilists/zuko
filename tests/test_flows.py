@@ -121,3 +121,51 @@ def test_autoregressive_transforms():
         assert (torch.triu(J, diagonal=1) == 0).all(), t
         assert (torch.tril(J[:4, :4], diagonal=-1) == 0).all(), t
         assert (torch.tril(J[4:, 4:], diagonal=-1) == 0).all(), t
+
+
+def test_Glow(tmp_path):
+    flow = Glow((3, 32, 32), context=[5, 0, 5])
+
+    # Evaluation of log_prob
+    x, y = randn(8, 3, 32, 32), [randn(5, 16, 16), None, randn(8, 5, 4, 4)]
+    log_p = flow(y).log_prob(x)
+
+    assert log_p.shape == (8,)
+    assert log_p.requires_grad
+
+    flow.zero_grad(set_to_none=True)
+    loss = -log_p.mean()
+    loss.backward()
+
+    for p in flow.parameters():
+        assert p.grad is not None
+
+    # Sampling
+    x = flow(y).sample()
+
+    assert x.shape == (8, 3, 32, 32)
+
+    # Reparameterization trick
+    x = flow(y).rsample()
+
+    flow.zero_grad(set_to_none=True)
+    loss = x.square().sum().sqrt()
+    loss.backward()
+
+    for p in flow.parameters():
+        assert p.grad is not None
+
+    # Saving
+    torch.save(flow, tmp_path / 'flow.pth')
+
+    # Loading
+    flow_bis = torch.load(tmp_path / 'flow.pth')
+
+    x, y = randn(3, 32, 32), [randn(5, 16, 16), None, randn(5, 4, 4)]
+
+    seed = torch.seed()
+    log_p = flow(y).log_prob(x)
+    torch.manual_seed(seed)
+    log_p_bis = flow_bis(y).log_prob(x)
+
+    assert torch.allclose(log_p, log_p_bis)
