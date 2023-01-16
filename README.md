@@ -6,7 +6,7 @@ Zuko is a Python package that implements normalizing flows in PyTorch. It relies
 
 To solve this problem, `zuko` defines two abstract classes: `DistributionModule` and `TransformModule`. The former is any `Module` whose forward pass returns a `Distribution` and the latter is any `Module` whose forward pass returns a `Transform`. Then, a normalizing flow is the composition of a list of `TransformModule` and a base `DistributionModule`. This design allows for flows that behave like distributions while retaining the benefits of `Module`. It also makes the implementations easy to understand and extend.
 
-> In the [Avatar](https://wikipedia.org/wiki/Avatar:_The_Last_Airbender) cartoon, Zuko is a powerful firebender 🔥
+> In the [Avatar](https://wikipedia.org/wiki/Avatar:_The_Last_Airbender) cartoon, [Zuko](https://en.wikipedia.org/wiki/Zuko) is a powerful firebender 🔥
 
 ## Installation
 
