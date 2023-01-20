@@ -1,14 +1,20 @@
 # Configuration file for the Sphinx documentation builder
 
+import glob
 import inspect
 import importlib
+import re
+import subprocess
+import zuko
 
 ## Project
 
 package = 'zuko'
 project = 'Zuko'
-copyright = '2022, François Rozet'
+version = zuko.__version__
+copyright = '2022-2023, François Rozet'
 repository = 'https://github.com/francois-rozet/zuko'
+commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 
 ## Extensions
 
@@ -33,7 +39,6 @@ autodoc_typehints_format = 'short'
 autosummary_ignore_module_all = False
 
 intersphinx_mapping = {
-    'matplotlib': ('https://matplotlib.org/stable', None),
     'numpy': ('https://numpy.org/doc/stable', None),
     'python': ('https://docs.python.org/3', None),
     'torch': ('https://pytorch.org/docs/stable', None),
@@ -60,7 +65,7 @@ def linkcode_resolve(domain: str, info: dict) -> str:
     except Exception as e:
         return None
     else:
-        return f'{repository}/tree/docs/{file}#L{start}-L{end}'
+        return f'{repository}/blob/{commit}/{file}#L{start}-L{end}'
 
 
 napoleon_custom_sections = [
@@ -105,7 +110,7 @@ html_theme_options = {
     },
     'sidebar_hide_name': True,
 }
-html_title = project
+html_title = f'{project} {version}'
 pygments_style = 'sphinx'
 pygments_dark_style = 'monokai'
 rst_prolog = """
@@ -114,3 +119,23 @@ rst_prolog = """
     :language: python
 """
 templates_path = ['templates']
+
+## Edit HTML
+
+def edit_html(app, exception):
+    if exception:
+        raise exception
+
+    for file in glob.glob(f'{app.outdir}/**/*.html', recursive=True):
+        with open(file, 'r') as f:
+            text = f.read()
+
+        text = text.replace('<a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>\'s', '')
+        text = text.replace('<span class="pre">[source]</span>', '<i class="fa-solid fa-code"></i>')
+        text = re.sub(r'(<a class="reference external".*</a>)(<a class="headerlink".*</a>)', r'\2\1', text)
+
+        with open(file, 'w') as f:
+            f.write(text)
+
+def setup(app):
+    app.connect('build-finished', edit_html)

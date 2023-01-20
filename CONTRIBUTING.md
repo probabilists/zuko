@@ -6,7 +6,7 @@ This document is a set of guidelines for contributing to the `zuko` package, whi
 
 ## I just have a question
 
-Please **don't file an issue** to ask a question. We use [GitHub discussions](https://github.com/francois-rozet/zuko/discussions) as community forum for people to ask questions, share ideas or seek help. Before submitting your question, check whether it is addressed by the [documentation](https://francois-rozet.github.io/zuko) or has already been asked in the discussions. If it has but the answer does not satisfy you, add a comment to the existing discussion instead of opening a new one.
+Please **don't file an issue** to ask a question. We use [GitHub discussions](https://github.com/francois-rozet/zuko/discussions) as community forum for people to ask questions, share ideas or seek help. Before submitting your question, check whether it is addressed by the [documentation](https://zuko.readthedocs.io) or has already been asked in the discussions. If it has but the answer does not satisfy you, add a comment to the existing discussion instead of opening a new one.
 
 ## Submit an issue
 
@@ -45,11 +45,12 @@ When you submit a pull request, tests are automatically (upon approval) executed
 
 ### Documentation
 
-The package's [documentation](https://francois-rozet.github.io/zuko) is automatically built by [Sphinx](https://www.sphinx-doc.org) using type hints and docstrings. All classes and functions accessible to the user should be documented with [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) docstrings. After installing the documentation dependencies (`sphinx` and `furo`), you can build it with
+The package's [documentation](https://zuko.readthedocs.io) is automatically built by [Sphinx](https://www.sphinx-doc.org) using type hints and docstrings. All classes and functions accessible to the user should be documented with [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) docstrings. You can build it locally with
 
 ```
-cd sphinx
-bash build.sh
+cd docs
+pip install -r requirements.txt
+sphinx-build . html
 ```
 
 ### Commits

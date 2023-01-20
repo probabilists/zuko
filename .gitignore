@@ -6,7 +6,8 @@
 .DS_Store
 
 # Docs
-docs/
+docs/api/
+docs/html/
 
 
 ##########

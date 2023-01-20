@@ -1,4 +1,4 @@
-![Zuko's banner](https://raw.githubusercontent.com/francois-rozet/zuko/master/sphinx/images/banner.svg)
+![Zuko's banner](https://raw.githubusercontent.com/francois-rozet/zuko/master/docs/images/banner.svg)
 
 # Zuko - Normalizing flows in PyTorch
 
@@ -43,8 +43,8 @@ log_p = flow(y).log_prob(x)
 x = flow(y).sample((64,))
 ```
 
-For more information about the available features check out the documentation at [francois-rozet.github.io/zuko](https://francois-rozet.github.io/zuko).
+For more information about the available features check out the documentation at [zuko.readthedocs.io](https://zuko.readthedocs.io).
 
 ## Contributing
 
-If you have a question, an issue or would like to contribute, please read our [contributing guidelines](CONTRIBUTING.md).
+If you have a question, an issue or would like to contribute, please read our [contributing guidelines](https://github.com/francois-rozet/zuko/blob/master/CONTRIBUTING.md).
