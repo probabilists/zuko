@@ -58,13 +58,13 @@ def test_univariate_transforms():
         assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
 
 
-def test_FFJTransform():
-    a = torch.randn(3)
-    f = lambda x, t: a * x
-    t = FFJTransform(f, time=torch.tensor(1.0))
+def test_FreeFormJacobianTransform():
+    A, B = torch.randn(5, 16), torch.randn(16, 5)
+    f = lambda t, x: torch.sigmoid(x @ A) @ B
+    t = FreeFormJacobianTransform(f, time=torch.tensor(1.0))
 
     # Call
-    x = randn(256, 3)
+    x = randn(256, 5)
     y = t(x)
 
     assert x.shape == y.shape
@@ -75,9 +75,13 @@ def test_FFJTransform():
     assert torch.allclose(x, z, atol=1e-4)
 
     # Jacobian
-    ladj = t.log_abs_det_jacobian(x, y)
+    x = randn(5)
+    y = t(x)
 
-    assert ladj.shape == x.shape[:-1]
+    J = torch.autograd.functional.jacobian(t, x)
+    ladj = torch.linalg.slogdet(J).logabsdet
+
+    assert torch.allclose(t.log_abs_det_jacobian(x, y), ladj, atol=1e-4), t
 
 
 def test_PermutationTransform():

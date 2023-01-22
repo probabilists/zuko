@@ -37,6 +37,9 @@ def bisection(
         n: The number of iterations.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
 
+    Returns:
+        The solution :math:`x`.
+
     Example:
         >>> f = torch.cos
         >>> y = torch.tensor(0.0)
@@ -104,7 +107,11 @@ def broadcast(*tensors: Tensor, ignore: Union[int, List[int]] = 0) -> List[Tenso
     different sizes are expanded (without making copies) to be compatible.
 
     Arguments:
+        tensors: The tensors to broadcast.
         ignore: The number(s) of dimensions not to broadcast.
+
+    Returns:
+        The broadcasted tensors.
 
     Example:
         >>> x = torch.rand(3, 1, 2)
@@ -146,6 +153,9 @@ def gauss_legendre(
         b: The upper limit :math:`b`.
         n: The number of points :math:`n` at which the function is evaluated.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
+
+    Returns:
+        The definite integral estimation.
 
     Example:
         >>> f = lambda x: torch.exp(-x**2)
@@ -237,19 +247,19 @@ class GaussLegendre(torch.autograd.Function):
 
 def odeint(
     f: Callable[[Tensor, Tensor], Tensor],
-    x: Tensor,
+    x: Union[Tensor, Tuple[Tensor, ...]],
     t0: Union[float, Tensor],
     t1: Union[float, Tensor],
     phi: Iterable[Tensor] = (),
-) -> Tensor:
+) -> Union[Tensor, Tuple[Tensor, ...]]:
     r"""Integrates a system of first-order ordinary differential equations (ODEs)
 
-    .. math:: \frac{\mathrm{d} x}{\mathrm{d} t} = f_\phi(x, t) ,
+    .. math:: \frac{dx}{dt} = f_\phi(t, x) ,
 
     from :math:`t_0` to :math:`t_1` using the adaptive Dormand-Prince method. The
     output is the final state
 
-    .. math:: x(t_1) = x_0 + \int_{t_0}^{t_1} f_\phi(x(t), t) ~ dt .
+    .. math:: x(t_1) = x_0 + \int_{t_0}^{t_1} f_\phi(t, x(t)) ~ dt .
 
     Gradients are propagated through :math:`x_0`, :math:`t_0`, :math:`t_1` and
     :math:`\phi` via the adaptive checkpoint adjoint (ACA) method.
@@ -268,19 +278,40 @@ def odeint(
         t1: The final integration time :math:`t_1`.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
 
+    Returns:
+        The final state :math:`x(t_1)`.
+
     Example:
         >>> A = torch.randn(3, 3)
-        >>> f = lambda x, t: x @ A
+        >>> f = lambda t, x: x @ A
         >>> x0 = torch.randn(3)
         >>> x1 = odeint(f, x0, 0.0, 1.0)
         >>> x1
         tensor([-3.7454, -0.4140,  0.2677])
     """
 
+    if isinstance(x, tuple):
+        shapes = [y.shape for y in x]
+        sizes = [y.numel() for y in x]
+
+        def pack(x: Iterable[Tensor]) -> Tensor:
+            return torch.cat([y.flatten() for y in x])
+
+        def unpack(x: Tensor) -> Iterable[Tensor]:
+            return (y.reshape(s) for y, s in zip(x.split(sizes), shapes))
+
+        x = pack(x)
+        g = lambda t, x: pack(f(t, *unpack(x)))
+    else:
+        g = None
+
     t0 = torch.as_tensor(t0).to(x)
     t1 = torch.as_tensor(t1).to(x)
 
-    return AdaptiveCheckpointAdjoint.apply(f, x, t0, t1, *phi)
+    if g is None:
+        return AdaptiveCheckpointAdjoint.apply(f, x, t0, t1, *phi)
+    else:
+        return tuple(unpack(AdaptiveCheckpointAdjoint.apply(g, x, t0, t1, *phi)))
 
 
 def dopri45(
@@ -296,22 +327,22 @@ def dopri45(
         https://wikipedia.org/wiki/Dormand-Prince_method
     """
 
-    k1 = dt * f(x, t)
-    k2 = dt * f(x + 1 / 5 * k1, t + 1 / 5 * dt)
-    k3 = dt * f(x + 3 / 40 * k1 + 9 / 40 * k2, t + 3 / 10 * dt)
-    k4 = dt * f(x + 44 / 45 * k1 - 56 / 15 * k2 + 32 / 9 * k3, t + 4 / 5 * dt)
+    k1 = dt * f(t, x)
+    k2 = dt * f(t + 1 / 5 * dt, x + 1 / 5 * k1)
+    k3 = dt * f(t + 3 / 10 * dt, x + 3 / 40 * k1 + 9 / 40 * k2)
+    k4 = dt * f(t + 4 / 5 * dt, x + 44 / 45 * k1 - 56 / 15 * k2 + 32 / 9 * k3)
     k5 = dt * f(
-        x + 19372 / 6561 * k1 - 25360 / 2187 * k2 + 64448 / 6561 * k3 - 212 / 729 * k4,
         t + 8 / 9 * dt,
+        x + 19372 / 6561 * k1 - 25360 / 2187 * k2 + 64448 / 6561 * k3 - 212 / 729 * k4,
     )
     k6 = dt * f(
+        t + dt,
         x
         + 9017 / 3168 * k1
         - 355 / 33 * k2
         + 46732 / 5247 * k3
         + 49 / 176 * k4
         - 5103 / 18656 * k5,
-        t + dt,
     )
     x_next = (
         x
@@ -325,7 +356,7 @@ def dopri45(
     if not error:
         return x_next
 
-    k7 = dt * f(x_next, t + dt)
+    k7 = dt * f(t + dt, x_next)
     x_star = (
         x
         + 5179 / 57600 * k1
@@ -404,19 +435,19 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
 
         # Final time
         if ctx.needs_input_grad[3]:
-            grad_t1 = f(x1, t1) * grad_x
+            grad_t1 = f(t1, x1) * grad_x
         else:
             grad_t1 = None
 
         # Adjoint
         grad_phi = tuple(map(torch.zeros_like, phi))
 
-        def g(x: NestedTensor, t: Tensor) -> NestedTensor:
+        def g(t: Tensor, x: NestedTensor) -> NestedTensor:
             x, grad_x, *_ = x
 
             with torch.enable_grad():
                 x = x.detach().requires_grad_()
-                dx = f(x, t)
+                dx = f(t, x)
 
             grad_x, *grad_phi = torch.autograd.grad(dx, (x, *phi), -grad_x, retain_graph=True)
 
@@ -428,7 +459,7 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
 
         # Initial time
         if ctx.needs_input_grad[2]:
-            grad_t0 = f(x0, t0) * grad_x
+            grad_t0 = f(t0, x0) * grad_x
         else:
             grad_t0 = None
 

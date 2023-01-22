@@ -78,18 +78,18 @@ def test_odeint():
     alpha = torch.tensor(1.0, requires_grad=True)
     t = torch.tensor(3.0, requires_grad=True)
 
-    f = lambda x, t: -alpha * x
-    F = lambda x, t: x * (-alpha * t).exp()
+    f = lambda t, x: -alpha * x
+    F = lambda t, x: x * (-alpha * t).exp()
 
     x0 = randn(256, 1, requires_grad=True)
     xt = odeint(f, x0, torch.zeros_like(t), t, phi=(alpha,))
 
     assert xt.shape == x0.shape
-    assert torch.allclose(xt, F(x0, t), atol=1e-4)
+    assert torch.allclose(xt, F(t, x0), atol=1e-4)
 
     # Gradients
     grad_x0, grad_t, grad_alpha = torch.autograd.grad(xt.sum(), (x0, t, alpha))
-    g_x0, g_t, g_alpha = torch.autograd.grad(F(x0, t).sum(), (x0, t, alpha))
+    g_x0, g_t, g_alpha = torch.autograd.grad(F(t, x0).sum(), (x0, t, alpha))
 
     assert torch.allclose(grad_x0, g_x0, atol=1e-4)
     assert torch.allclose(grad_t, g_t, atol=1e-4)

@@ -11,7 +11,7 @@ __all__ = [
     'MonotonicTransform',
     'UnconstrainedMonotonicTransform',
     'SOSPolynomialTransform',
-    'FFJTransform',
+    'FreeFormJacobianTransform',
     'AutoregressiveTransform',
     'PermutationTransform',
 ]
@@ -542,16 +542,13 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
         return p.squeeze(dim=-1).square().sum(dim=-1)
 
 
-class FFJTransform(Transform):
-    r"""Creates a free-form Jacobian (FFJ) transformation.
+class FreeFormJacobianTransform(Transform):
+    r"""Creates a free-form Jacobian transformation.
 
     The transformation is the integration of a system of first-order ordinary
     differential equations
 
-    .. math:: x(T) = \int_0^T f_\phi(x(t), t) ~ dt .
-
-    The log-determinant of the Jacobian is replaced by an unbiased stochastic
-    linear-time estimate.
+    .. math:: x(T) = \int_0^T f_\phi(t, x(t)) ~ dt .
 
     References:
         | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
@@ -561,6 +558,8 @@ class FFJTransform(Transform):
         f: A system of first-order ODEs :math:`f_\phi`.
         time: The integration time :math:`T`.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
+        exact: Whether the exact log-determinant of the Jacobian or an unbiased
+            stochastic estimate thereof is calculated.
     """
 
     domain = constraints.real_vector
@@ -572,6 +571,7 @@ class FFJTransform(Transform):
         f: Callable[[Tensor, Tensor], Tensor],
         time: Tensor,
         phi: Iterable[Tensor] = (),
+        exact: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -580,6 +580,7 @@ class FFJTransform(Transform):
         self.t0 = time.new_tensor(0.0)
         self.t1 = time
         self.phi = tuple(filter(lambda p: p.requires_grad, phi))
+        self.exact = exact
 
     def _call(self, x: Tensor) -> Tensor:
         return odeint(self.f, x, self.t0, self.t1, self.phi)
@@ -592,31 +593,36 @@ class FFJTransform(Transform):
         return ladj
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        shape = x.shape
-        size = x.numel()
+        if self.exact:
+            I = torch.eye(x.shape[:-1], dtype=x.dtype, device=x.device)
+            I = I.expand(*x.shape, x.shape[-1]).movedim(-1, 0)
 
-        eps = torch.randn_like(x)
+            def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
+                with torch.enable_grad():
+                    x = x.requires_grad_().expand(x.shape[-1], *x.shape)
+                    dx = self.f(t, x)
 
-        def f_aug(x_aug: Tensor, t: Tensor) -> Tensor:
-            x = x_aug[:size].reshape(shape)
+                jacobian = torch.autograd.grad(dx, x, I, create_graph=True)[0]
+                trace = torch.einsum('i...i', jacobian)
 
-            with torch.enable_grad():
-                x = x.requires_grad_()
-                dx = self.f(x, t)
+                return dx[0], trace
+        else:
+            eps = torch.randn_like(x)
 
-            epsjp = torch.autograd.grad(dx, x, eps, create_graph=True)[0]
-            trace = (epsjp * eps).sum(dim=-1)
+            def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
+                with torch.enable_grad():
+                    x = x.requires_grad_()
+                    dx = self.f(t, x)
 
-            return torch.cat((dx.flatten(), trace.flatten()))
+                epsjp = torch.autograd.grad(dx, x, eps, create_graph=True)[0]
+                trace = (epsjp * eps).sum(dim=-1)
 
-        zeros = x.new_zeros(shape[:-1])
+                return dx, trace
 
-        x_aug = torch.cat((x.flatten(), zeros.flatten()))
-        y_aug = odeint(f_aug, x_aug, self.t0, self.t1, self.phi)
+        ladj = torch.zeros_like(x[..., 0])
+        y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi)
 
-        y, score = y_aug[:size], y_aug[size:]
-
-        return y.reshape(shape), score.reshape(shape[:-1])
+        return y, ladj
 
 
 class AutoregressiveTransform(Transform):

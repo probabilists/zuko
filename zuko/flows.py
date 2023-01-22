@@ -11,7 +11,7 @@ __all__ = [
     'NeuralAutoregressiveTransform',
     'UnconstrainedNeuralAutoregressiveTransform',
     'NAF',
-    'FreeFormJacobianTransform',
+    'FFJTransform',
     'CNF',
 ]
 
@@ -645,8 +645,8 @@ class NAF(FlowModule):
         super().__init__(transforms, base)
 
 
-class FreeFormJacobianTransform(TransformModule):
-    r"""Creates a free-form Jacobian transformation.
+class FFJTransform(TransformModule):
+    r"""Creates a free-form Jacobian (FFJ) transformation.
 
     References:
         | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
@@ -655,15 +655,17 @@ class FreeFormJacobianTransform(TransformModule):
     Arguments:
         features: The number of features.
         context: The number of context features.
+        frequencies: The number of time embedding frequencies.
+        exact: Whether the exact log-determinant of the Jacobian or an unbiased
+            stochastic estimate thereof is calculated.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
 
     Example:
-        >>> t = FreeFormJacobianTranform(3, 4)
+        >>> t = FFJTransform(3, 4)
         >>> t
-        FreeFormJacobianTranform(
-          (time): 1.000
+        FFJTransform(
           (ode): MLP(
-            (0): Linear(in_features=8, out_features=64, bias=True)
+            (0): Linear(in_features=13, out_features=64, bias=True)
             (1): ELU(alpha=1.0)
             (2): Linear(in_features=64, out_features=64, bias=True)
             (3): ELU(alpha=1.0)
@@ -683,31 +685,38 @@ class FreeFormJacobianTransform(TransformModule):
         self,
         features: int,
         context: int = 0,
+        frequencies: int = 3,
+        exact: bool = True,
         **kwargs,
     ):
         super().__init__()
 
         kwargs.setdefault('activation', nn.ELU)
 
-        self.ode = MLP(features + 1 + context, features, **kwargs)
-        self.log_t = nn.Parameter(torch.tensor(0.0))
+        self.ode = MLP(features + context + 2 * frequencies, features, **kwargs)
 
-    def extra_repr(self) -> str:
-        return f'(time): {self.log_t.exp().item():.3f}'
+        self.register_buffer('time', torch.tensor(1.0))
+        self.register_buffer('frequencies', 2 ** torch.arange(frequencies) * pi)
 
-    def f(self, y: Tensor, x: Tensor, t: Tensor) -> Tensor:
+        self.exact = exact
+
+    def f(self, t: Tensor, x: Tensor, y: Tensor = None) -> Tensor:
+        t = self.frequencies * t[..., None]
+        t = torch.cat((t.cos(), t.sin()), dim=-1)
+
         if y is None:
-            x = torch.cat(broadcast(x, t[..., None], ignore=1), dim=-1)
+            x = torch.cat(broadcast(t, x, ignore=1), dim=-1)
         else:
-            x = torch.cat(broadcast(x, t[..., None], y, ignore=1), dim=-1)
+            x = torch.cat(broadcast(t, x, y, ignore=1), dim=-1)
 
         return self.ode(x)
 
     def forward(self, y: Tensor = None) -> Transform:
-        return FFJTransform(
-            f=partial(self.f, y),
-            time=self.log_t.exp(),
+        return FreeFormJacobianTransform(
+            f=partial(self.f, y=y),
+            time=self.time,
             phi=(y, *self.ode.parameters()),
+            exact=self.exact,
         )
 
 
@@ -726,7 +735,7 @@ class CNF(FlowModule):
         features: The number of features.
         context: The number of context features.
         transforms: The number of transformations.
-        kwargs: Keyword arguments passed to :class:`FreeFormJacobianTransform`.
+        kwargs: Keyword arguments passed to :class:`FFJTransform`.
     """
 
     def __init__(
@@ -737,7 +746,7 @@ class CNF(FlowModule):
         **kwargs,
     ):
         transforms = [
-            FreeFormJacobianTransform(
+            FFJTransform(
                 features=features,
                 context=context,
                 **kwargs,
