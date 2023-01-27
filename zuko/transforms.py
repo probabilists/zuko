@@ -13,7 +13,11 @@ __all__ = [
     'SOSPolynomialTransform',
     'FFJTransform',
     'AutoregressiveTransform',
+    'CouplingTransform',
+    'LULinearTransform',
     'PermutationTransform',
+    'PixelShuffleTransform',
+    'DropTransform',
 ]
 
 import math
@@ -662,21 +666,139 @@ class AutoregressiveTransform(Transform):
         return y, ladj.sum(dim=-1)
 
 
+class CouplingTransform(Transform):
+    r"""Transform via a coupling scheme.
+
+    .. math:: \begin{cases}
+            y_{<d} = x_{<d} \\
+            y_{\geq d} = f(x_{\geq d}; x_{<d})
+        \end{cases}
+
+    Arguments:
+        meta: A meta function which returns a transformation :math:`f`.
+        d: The number of unaltered elements :math:`d`.
+        dim: The dimension along which the elements are split.
+    """
+
+    bijective = True
+
+    def __init__(
+        self,
+        meta: Callable[[Tensor], Transform],
+        d: int,
+        dim: int = -1,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.meta = meta
+        self.d = d
+        self.dim = dim
+        self.domain = constraints.independent(constraints.real, abs(dim))
+        self.codomain = constraints.independent(constraints.real, abs(dim))
+
+    def _call(self, x: Tensor) -> Tensor:
+        x0, x1 = x.tensor_split((self.d,), dim=self.dim)
+        y1 = self.meta(x0)(x1)
+
+        return torch.cat((x0, y1), dim=self.dim)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        x0, y1 = y.tensor_split((self.d,), dim=self.dim)
+        x1 = self.meta(x0).inv(y1)
+
+        return torch.cat((x0, x1), dim=self.dim)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        x0, x1 = x.tensor_split((self.d,), dim=self.dim)
+        _, y1 = y.tensor_split((self.d,), dim=self.dim)
+
+        return self.meta(x0).log_abs_det_jacobian(x1, y1).flatten(self.dim).sum(dim=-1)
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        x0, x1 = x.tensor_split((self.d,), dim=self.dim)
+        y1, ladj = self.meta(x0).call_and_ladj(x1)
+
+        return torch.cat((x0, y1), dim=self.dim), ladj.flatten(self.dim).sum(dim=-1)
+
+
+class LULinearTransform(Transform):
+    r"""Creates a transformation :math:`f(x) = LU x`.
+
+    Arguments:
+        LU: A matrix whose lower and upper triangular parts are the non-zero elements
+            of :math:`L` and :math:`U`, with shape :math:`(*, D, D)`.
+        dim: The dimension along which the product is applied.
+    """
+
+    bijective = True
+
+    def __init__(
+        self,
+        LU: Tensor,
+        dim: int = -1,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        I = torch.eye(LU.shape[-1]).to(LU)
+
+        self.L = torch.tril(LU, diagonal=-1) + I
+        self.U = torch.triu(LU, diagonal=+1) + I
+
+        if hasattr(torch.linalg, 'solve_triangular'):
+            self.solve = torch.linalg.solve_triangular
+        else:
+            self.solve = lambda A, B, **kws: torch.triangular_solve(B, A, **kws).solution
+
+        self.dim = dim
+        self.domain = constraints.independent(constraints.real, abs(dim))
+        self.codomain = constraints.independent(constraints.real, abs(dim))
+
+    def _call(self, x: Tensor) -> Tensor:
+        shape = x.shape
+        flat = shape[: self.dim] + (shape[self.dim], -1)
+
+        return ((self.L @ self.U) @ x.reshape(flat)).reshape(shape)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        shape = y.shape
+        flat = shape[: self.dim] + (shape[self.dim], -1)
+
+        return self.solve(
+            self.U,
+            self.solve(
+                self.L,
+                y.reshape(flat),
+                upper=False,
+                unitriangular=True,
+            ),
+            upper=True,
+            unitriangular=True,
+        ).reshape(shape)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return x.new_zeros(x.shape[: self.dim])
+
+
 class PermutationTransform(Transform):
-    r"""Creates a transformation that permutes the elements.
+    r"""Creates a transformation that permutes the elements along a dimension.
 
     Arguments:
         order: The permutation order, with shape :math:`(*, D)`.
+        dim: The dimension along which the elements are permuted.
     """
 
-    domain = constraints.real_vector
-    codomain = constraints.real_vector
     bijective = True
 
-    def __init__(self, order: LongTensor, **kwargs):
+    def __init__(self, order: LongTensor, dim: int = -1, **kwargs):
         super().__init__(**kwargs)
 
         self.order = order
+        self.dim = dim
+
+        self.domain = constraints.independent(constraints.real, abs(dim))
+        self.codomain = constraints.independent(constraints.real, abs(dim))
 
     def __repr__(self) -> str:
         order = self.order.tolist()
@@ -687,10 +809,126 @@ class PermutationTransform(Transform):
         return f'{self.__class__.__name__}({order})'
 
     def _call(self, x: Tensor) -> Tensor:
-        return x[..., self.order]
+        return x.index_select(self.dim, self.order)
 
     def _inverse(self, y: Tensor) -> Tensor:
-        return y[..., torch.argsort(self.order)]
+        return y.index_select(self.dim, torch.argsort(self.order))
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return x.new_zeros(x.shape[:-1])
+        return x.new_zeros(x.shape[: self.dim])
+
+
+class PixelShuffleTransform(Transform):
+    r"""Creates a transformation that rearranges pixels into channels.
+
+    See :class:`torch.nn.PixelShuffle` for a 2-d equivalent.
+
+    Arguments:
+        dim: The channel dimension.
+    """
+
+    bijective = True
+
+    def __init__(self, dim: int = -3, **kwargs):
+        super().__init__(**kwargs)
+
+        self.dim = dim
+        self.src = [i * 2 + 1 for i in range(dim + 1, 0)]
+        self.dst = [i + dim + 1 for i in range(dim + 1, 0)]
+
+        self.domain = constraints.independent(constraints.real, abs(dim))
+        self.codomain = constraints.independent(constraints.real, abs(dim))
+
+    def _call(self, x: Tensor) -> Tensor:
+        space = ((s // 2, 2) for s in x.shape[self.dim + 1 :])
+        space = (b for a in space for b in a)
+
+        x = x.reshape(*x.shape[: self.dim], -1, *space)
+        x = x.movedim(self.src, self.dst)
+        x = x.flatten(self.dim * 2 + 1, self.dim)
+
+        return x
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        shape = self.inverse_shape(y.shape)
+
+        y = y.unflatten(self.dim, [shape[self.dim]] + [2] * (abs(self.dim) - 1))
+        y = y.movedim(self.dst, self.src)
+        y = y.reshape(shape)
+
+        return y
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return x.new_zeros(x.shape[: self.dim])
+
+    def forward_shape(self, shape: Size) -> Size:
+        shape = list(shape)
+        shape[self.dim] *= 2 ** (abs(self.dim) - 1)
+
+        for i in range(self.dim + 1, 0):
+            shape[i] //= 2
+
+        return Size(shape)
+
+    def inverse_shape(self, shape: Size) -> Size:
+        shape = list(shape)
+        shape[self.dim] //= 2 ** (abs(self.dim) - 1)
+
+        for i in range(self.dim + 1, 0):
+            shape[i] *= 2
+
+        return Size(shape)
+
+
+class DropTransform(Transform):
+    r"""Creates a transformation that drops elements along a dimension.
+
+    The :py:`log_abs_det_jacobian` method returns the log-density of the dropped
+    elements :math:`z` within a distribution :math:`p(Z)`. The inverse transformation
+    augments the dimension with a random variable :math:`z \sim p(Z)`.
+
+    References:
+        | Augmented Normalizing Flows: Bridging the Gap Between Generative Flows and Latent Variable Models (Huang et al., 2020)
+        | https://arxiv.org/abs/2002.07101
+
+    Arguments:
+        dist: The distribution :math:`p(Z)`.
+    """
+
+    bijective = False
+
+    def __init__(self, dist: Distribution, **kwargs):
+        super().__init__(**kwargs)
+
+        if dist.batch_shape:
+            dist = Independent(dist, len(dist.batch_shape))
+
+        assert dist.event_shape, "'dist' has to be multivariate"
+
+        self.dist = dist
+        self.d = dist.event_shape[0]
+        self.dim = -len(dist.event_shape)
+        self.domain = constraints.independent(constraints.real, len(dist.event_shape))
+        self.codomain = constraints.independent(constraints.real, len(dist.event_shape))
+
+    def _call(self, x: Tensor) -> Tensor:
+        z, x = x.tensor_split((self.d,), dim=self.dim)
+        return x
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        z = self.dist.sample(y.shape[: self.dim])
+        return torch.cat((z, y), dim=self.dim)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        z, x = x.tensor_split((self.d,), dim=self.dim)
+        return self.dist.log_prob(z)
+
+    def forward_shape(self, shape: Size) -> Size:
+        shape = list(shape)
+        shape[self.dim] -= self.d
+        return Size(shape)
+
+    def inverse_shape(self, shape: Size) -> Size:
+        shape = list(shape)
+        shape[self.dim] += self.d
+        return Size(shape)

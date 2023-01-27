@@ -58,6 +58,49 @@ def test_univariate_transforms():
         assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
 
 
+def test_multivariate_transforms():
+    ts = [
+        LULinearTransform(randn(3, 3), dim=-2),
+        PermutationTransform(torch.randperm(3), dim=-2),
+        PixelShuffleTransform(dim=-2),
+    ]
+
+    for t in ts:
+        # Shapes
+        x = randn(256, 3, 8)
+        y = t(x)
+
+        assert t.forward_shape(x.shape) == y.shape, t
+        assert t.inverse_shape(y.shape) == x.shape, t
+
+        # Inverse
+        z = t.inv(y)
+
+        assert x.shape == z.shape, t
+        assert torch.allclose(x, z, atol=1e-4), t
+
+        # Jacobian
+        x = randn(3, 8)
+        y = t(x)
+
+        jacobian = torch.autograd.functional.jacobian(t, x)
+        jacobian = jacobian.reshape(3 * 8, 3 * 8)
+
+        _, ladj = torch.slogdet(jacobian)
+
+        assert torch.allclose(t.log_abs_det_jacobian(x, y), ladj, atol=1e-4), t
+
+        # Inverse Jacobian
+        z = t.inv(y)
+
+        jacobian = torch.autograd.functional.jacobian(t.inv, y)
+        jacobian = jacobian.reshape(3 * 8, 3 * 8)
+
+        _, ladj = torch.slogdet(jacobian)
+
+        assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
+
+
 def test_FFJTransform():
     a = torch.randn(3)
     f = lambda x, t: a * x
@@ -80,20 +123,24 @@ def test_FFJTransform():
     assert ladj.shape == x.shape[:-1]
 
 
-def test_PermutationTransform():
-    t = PermutationTransform(torch.randperm(8))
+def test_DropTransform():
+    dist = Normal(randn(3), abs(randn(3)) + 1)
+    t = DropTransform(dist)
 
-    x = torch.randn(256, 8)
+    # Call
+    x = randn(256, 5)
     y = t(x)
 
-    assert x.shape == y.shape
+    assert t.forward_shape(x.shape) == y.shape
+    assert t.inverse_shape(y.shape) == x.shape
 
-    match = x[:, :, None] == y[:, None, :]
-
-    assert (match.sum(dim=-1) == 1).all()
-    assert (match.sum(dim=-2) == 1).all()
-
+    # Inverse
     z = t.inv(y)
 
     assert x.shape == z.shape
-    assert (x == z).all()
+    assert not torch.allclose(x, z)
+
+    # Jacobian
+    ladj = t.log_abs_det_jacobian(x, y)
+
+    assert ladj.shape == (256,)
