@@ -9,8 +9,9 @@ __all__ = [
     'NSF',
     'SOSPF',
     'NeuralAutoregressiveTransform',
-    'UnconstrainedNeuralAutoregressiveTransform',
     'NAF',
+    'UnconstrainedNeuralAutoregressiveTransform',
+    'UNAF',
     'FFJTransform',
     'CNF',
 ]
@@ -497,6 +498,60 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         )
 
 
+class NAF(FlowModule):
+    r"""Creates a neural autoregressive flow (NAF).
+
+    References:
+        | Neural Autoregressive Flows (Huang et al., 2018)
+        | https://arxiv.org/abs/1804.00779
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        transforms: The number of autoregressive transformations.
+        randperm: Whether features are randomly permuted between transformations or not.
+            If :py:`False`, features are in ascending (descending) order for even
+            (odd) transformations.
+        unconstrained: Whether to use unconstrained or regular monotonic networks.
+        kwargs: Keyword arguments passed to :class:`NeuralAutoregressiveTransform`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        transforms: int = 3,
+        randperm: bool = False,
+        **kwargs,
+    ):
+        orders = [
+            torch.arange(features),
+            torch.flipud(torch.arange(features)),
+        ]
+
+        transforms = [
+            NeuralAutoregressiveTransform(
+                features=features,
+                context=context,
+                order=torch.randperm(features) if randperm else orders[i % 2],
+                **kwargs,
+            )
+            for i in range(transforms)
+        ]
+
+        for i in reversed(range(len(transforms))):
+            transforms.insert(i, Unconditional(SoftclipTransform))
+
+        base = Unconditional(
+            DiagNormal,
+            torch.zeros(features),
+            torch.ones(features),
+            buffer=True,
+        )
+
+        super().__init__(transforms, base)
+
+
 class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
     r"""Creates an unconstrained neural autoregressive transformation.
 
@@ -581,13 +636,10 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         )
 
 
-class NAF(FlowModule):
-    r"""Creates a neural autoregressive flow (NAF).
+class UNAF(FlowModule):
+    r"""Creates an unconstrained neural autoregressive flow (UNAF).
 
     References:
-        | Neural Autoregressive Flows (Huang et al., 2018)
-        | https://arxiv.org/abs/1804.00779
-
         | Unconstrained Monotonic Neural Networks (Wehenkel et al., 2019)
         | https://arxiv.org/abs/1908.05164
 
@@ -598,9 +650,7 @@ class NAF(FlowModule):
         randperm: Whether features are randomly permuted between transformations or not.
             If :py:`False`, features are in ascending (descending) order for even
             (odd) transformations.
-        unconstrained: Whether to use unconstrained or regular monotonic networks.
-        kwargs: Keyword arguments passed to :class:`NeuralAutoregressiveTransform` or
-            :class:`UnconstrainedNeuralAutoregressiveTransform`.
+        kwargs: Keyword arguments passed to :class:`UnconstrainedNeuralAutoregressiveTransform`.
     """
 
     def __init__(
@@ -609,21 +659,15 @@ class NAF(FlowModule):
         context: int = 0,
         transforms: int = 3,
         randperm: bool = False,
-        unconstrained: bool = False,
         **kwargs,
     ):
-        if unconstrained:
-            build = UnconstrainedNeuralAutoregressiveTransform
-        else:
-            build = NeuralAutoregressiveTransform
-
         orders = [
             torch.arange(features),
             torch.flipud(torch.arange(features)),
         ]
 
         transforms = [
-            build(
+            UnconstrainedNeuralAutoregressiveTransform(
                 features=features,
                 context=context,
                 order=torch.randperm(features) if randperm else orders[i % 2],

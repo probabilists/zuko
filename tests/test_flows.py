@@ -13,7 +13,7 @@ def test_flows(tmp_path):
         NSF(3, 5),
         SOSPF(3, 5),
         NAF(3, 5),
-        NAF(3, 5, unconstrained=True),
+        UNAF(3, 5),
         CNF(3, 5),
     ]
 

@@ -44,6 +44,9 @@ class NormalizingFlow(Distribution):
         | A Family of Non-parametric Density Estimation Algorithms (Tabak et al., 2013)
         | https://onlinelibrary.wiley.com/doi/abs/10.1002/cpa.21423
 
+        | Variational Inference with Normalizing Flows (Rezende et al., 2015)
+        | https://arxiv.org/abs/1505.05770
+
         | Normalizing Flows for Probabilistic Modeling and Inference (Papamakarios et al., 2021)
         | https://arxiv.org/abs/1912.02762
 

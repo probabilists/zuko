@@ -36,23 +36,28 @@ Normalizing flows are provided in the :mod:`zuko.flows` module. To build one, su
     import torch
     import zuko
 
-    x = torch.randn(3)
-    y = torch.randn(5)
-
-    # Neural spline flow (NSF) with 3 transformations
+    # Neural spline flow (NSF) with 3 sample features and 5 context features
     flow = zuko.flows.NSF(3, 5, transforms=3, hidden_features=[128] * 3)
 
-    # Evaluate log p(x | y)
-    log_p = flow(y).log_prob(x)
+    # Train to maximize the log-likelihood
+    optimizer = torch.optim.AdamW(flow.parameters(), lr=1e-3)
 
-    # Sample 64 points x ~ p(x | y)
-    x = flow(y).sample((64,))
+    for x, y in trainset:
+        loss = -flow(y).log_prob(x)  # -log p(x | y)
+        loss = loss.mean()
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    # Sample 64 points x ~ p(x | y*)
+    x = flow(y_star).sample((64,))
 
 References
 ----------
 
-| Normalizing Flows for Probabilistic Modeling and Inference (Papamakarios et al., 2021)
-| https://arxiv.org/abs/1912.02762
+| Variational Inference with Normalizing Flows (Rezende et al., 2015)
+| https://arxiv.org/abs/1505.05770
 
 | Masked Autoregressive Flow for Density Estimation (Papamakarios et al., 2017)
 | https://arxiv.org/abs/1705.07057

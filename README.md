@@ -30,20 +30,36 @@ Normalizing flows are provided in the `zuko.flows` module. To build one, supply 
 import torch
 import zuko
 
-x = torch.randn(3)
-y = torch.randn(5)
-
-# Neural spline flow (NSF) with 3 transformations
+# Neural spline flow (NSF) with 3 sample features and 5 context features
 flow = zuko.flows.NSF(3, 5, transforms=3, hidden_features=[128] * 3)
 
-# Evaluate log p(x | y)
-log_p = flow(y).log_prob(x)
+# Train to maximize the log-likelihood
+optimizer = torch.optim.AdamW(flow.parameters(), lr=1e-3)
 
-# Sample 64 points x ~ p(x | y)
-x = flow(y).sample((64,))
+for x, y in trainset:
+    loss = -flow(y).log_prob(x)  # -log p(x | y)
+    loss = loss.mean()
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+# Sample 64 points x ~ p(x | y*)
+x = flow(y_star).sample((64,))
 ```
 
 For more information about the available features check out the documentation at [zuko.readthedocs.io](https://zuko.readthedocs.io).
+
+### Available flows
+
+| Class   | Year | Reference |
+|:-------:|:----:|-----------|
+| `MAF`   | 2017 | [Masked Autoregressive Flow for Density Estimation](https://arxiv.org/abs/1705.07057) |
+| `NSF`   | 2019 | [Neural Spline Flows](https://arxiv.org/abs/1906.04032) |
+| `SOSPF` | 2019 | [Sum-of-Squares Polynomial Flow](https://arxiv.org/abs/1905.02325) |
+| `NAF`   | 2018 | [Neural Autoregressive Flows](https://arxiv.org/abs/1804.00779) |
+| `UNAF`  | 2019 | [Unconstrained Monotonic Neural Networks](https://arxiv.org/abs/1908.05164) |
+| `CNF`   | 2018 | [Neural Ordinary Differential Equations](https://arxiv.org/abs/1806.07366) |
 
 ## Contributing
 
