@@ -6,6 +6,7 @@ __all__ = [
     'CosTransform',
     'SinTransform',
     'SoftclipTransform',
+    'CircularShiftTransform',
     'MonotonicAffineTransform',
     'MonotonicRQSTransform',
     'MonotonicTransform',
@@ -201,7 +202,8 @@ class SinTransform(Transform):
 
 
 class SoftclipTransform(Transform):
-    r"""Creates a transform that maps :math:`\mathbb{R}` to the inverval :math:`[-B, B]`.
+    r"""Creates a transformation that maps :math:`\mathbb{R}` to the interval
+    :math:`[-B, B]`.
 
     .. math:: f(x) = \frac{x}{1 + \left| \frac{x}{B} \right|}
 
@@ -230,6 +232,41 @@ class SoftclipTransform(Transform):
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return -2 * torch.log1p(abs(x / self.bound))
+
+
+class CircularShiftTransform(Transform):
+    r"""Creates a transformation that circularly shifts the interval :math:`[-B, B]`.
+
+    .. math:: f(x) = (x \bmod 2B) - B
+
+    Note:
+        This transformation is only bijective over its domain :math:`[-B, B]` as
+        :math:`f(x) = f(x + 2kB)` for all :math:`k \in \mathbb{Z}`.
+
+    Arguments:
+        bound: The domain bound :math:`B`.
+    """
+
+    domain = constraints.real
+    codomain = constraints.real
+    bijective = True
+
+    def __init__(self, bound: float = 5.0, **kwargs):
+        super().__init__(**kwargs)
+
+        self.bound = bound
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(bound={self.bound})'
+
+    def _call(self, x: Tensor) -> Tensor:
+        return torch.remainder(x, 2 * self.bound) - self.bound
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return torch.remainder(y, 2 * self.bound) - self.bound
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return torch.zeros_like(x)
 
 
 class MonotonicAffineTransform(Transform):
@@ -594,7 +631,7 @@ class FreeFormJacobianTransform(Transform):
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         if self.exact:
-            I = torch.eye(x.shape[:-1], dtype=x.dtype, device=x.device)
+            I = torch.eye(x.shape[-1], dtype=x.dtype, device=x.device)
             I = I.expand(*x.shape, x.shape[-1]).movedim(-1, 0)
 
             def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
