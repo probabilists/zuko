@@ -49,16 +49,8 @@ def test_flows(tmp_path):
 
         # Invertibility
         x, y = randn(256, 3), randn(256, 5)
-
-        transforms = [t(y) for t in flow.transforms]
-
-        z = x
-
-        for t in transforms:
-            z = t(z)
-
-        for t in reversed(transforms):
-            z = t.inv(z)
+        t = flow(y).transform
+        z = t.inv(t(x))
 
         assert torch.allclose(x, z, atol=1e-4), flow
 

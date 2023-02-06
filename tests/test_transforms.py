@@ -14,6 +14,7 @@ def test_univariate_transforms():
         CosTransform(),
         SinTransform(),
         SoftclipTransform(),
+        CircularShiftTransform(),
         MonotonicAffineTransform(randn(256), randn(256)),
         MonotonicRQSTransform(randn(256, 8), randn(256, 8), randn(256, 7)),
         MonotonicTransform(lambda x: x**3),
@@ -26,7 +27,7 @@ def test_univariate_transforms():
         if hasattr(t.domain, 'lower_bound'):
             x = torch.linspace(t.domain.lower_bound + 1e-2, t.domain.upper_bound - 1e-2, 256)
         else:
-            x = torch.linspace(-5.0, 5.0, 256)
+            x = torch.linspace(-4.999, 4.999, 256)
 
         y = t(x)
 
