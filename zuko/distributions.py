@@ -3,6 +3,7 @@ r"""Parameterizable probability distributions."""
 __all__ = [
     'NormalizingFlow',
     'Joint',
+    'Mixture',
     'GeneralizedNormal',
     'DiagNormal',
     'BoxUniform',
@@ -111,7 +112,7 @@ class NormalizingFlow(Distribution):
 
         return self.base.log_prob(z) + ladj
 
-    def rsample(self, shape: Size = ()):
+    def rsample(self, shape: Size = ()) -> Tensor:
         if self.base.has_rsample:
             z = self.base.rsample(shape)
         else:
@@ -137,18 +138,24 @@ class Joint(Distribution):
         tensor([ 0.8969, -2.6717])
     """
 
-    def __init__(self, *marginals: Distribution):
-        super().__init__(
-            batch_shape=torch.broadcast_shapes(*(m.batch_shape for m in marginals))
-        )
+    has_rsample = True
 
-        self.marginals = [m.expand(self.batch_shape) for m in marginals]
+    def __init__(self, *marginals: Distribution):
+        super().__init__()
+
+        batch_shape = torch.broadcast_shapes(*(m.batch_shape for m in marginals))
+
+        self.marginals = [m.expand(batch_shape) for m in marginals]
 
     def __repr__(self) -> str:
         lines = map(repr, self.marginals)
         lines = indent('\n'.join(lines), '  ')
 
         return self.__class__.__name__ + '(\n' + lines + '\n)'
+
+    @property
+    def batch_shape(self) -> Size:
+        return self.marginals[0].batch_shape
 
     @property
     def event_shape(self) -> Size:
@@ -158,7 +165,7 @@ class Joint(Distribution):
         new = self._get_checked_instance(Joint, new)
         new.marginals = [m.expand(batch_shape) for m in self.marginals]
 
-        Distribution.__init__(new, batch_shape=batch_shape, validate_args=False)
+        Distribution.__init__(new, validate_args=False)
 
         return new
 
@@ -174,29 +181,92 @@ class Joint(Distribution):
 
         return lp
 
+    def rsample(self, shape: Size = ()) -> Tensor:
+        x = []
+
+        for m in self.marginals:
+            if m.has_rsample:
+                z = m.rsample(shape)
+            else:
+                z = m.sample(shape)
+
+            z = z.reshape(shape + m.batch_shape + (-1,))
+            x.append(z)
+
+        return torch.cat(x, dim=-1)
+
+
+class Mixture(Distribution):
+    r"""Creates a mixture of distributions for a random variable :math:`X`.
+
+    .. math:: p(X = x) = \frac{1}{\sum_i w_i} \sum_i w_i \, p(Z_i = x)
+
+    Wikipedia:
+        https://wikipedia.org/wiki/Mixture_model
+
+    Arguments:
+        base: A batch of base distributions :math:`p(Z_i)`.
+        logits: The unnormalized log-weights :math:`\log w_i`.
+
+    Example:
+        >>> d = Mixture(Normal(torch.randn(2), torch.ones(2)), torch.randn(2))
+        >>> d.event_shape
+        torch.Size([])
+        >>> d.sample()
+        tensor(2.8732)
+    """
+
+    has_rsample = False
+
+    def __init__(self, base: Distribution, logits: Tensor):
+        super().__init__()
+
+        assert base.batch_shape[-1] == logits.shape[-1]
+        assert len(base.batch_shape) >= len(logits.shape)
+
+        self.base = base
+        self.logits = logits
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.base})'
+
     @property
-    def has_rsample(self) -> bool:
-        return all(m.has_rsample for m in self.marginals)
+    def batch_shape(self) -> Size:
+        return self.base.batch_shape[:-1]
 
-    def rsample(self, shape: Size = ()):
-        x = []
+    @property
+    def event_shape(self) -> Size:
+        return self.base.event_shape
 
-        for m in self.marginals:
-            z = m.rsample(shape)
-            z = z.reshape(shape + m.batch_shape + (-1,))
-            x.append(z)
+    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+        new = self._get_checked_instance(Mixture, new)
+        new.base = self.base.expand(batch_shape + self.base.batch_shape[-1:])
+        new.logits = self.logits
 
-        return torch.cat(x, dim=-1)
+        Distribution.__init__(new, validate_args=False)
 
-    def sample(self, shape: Size = ()):
-        x = []
+        return new
 
-        for m in self.marginals:
-            z = m.sample(shape)
-            z = z.reshape(shape + m.batch_shape + (-1,))
-            x.append(z)
+    def log_prob(self, x: Tensor) -> Tensor:
+        x = x.unsqueeze(dim=-(len(self.event_shape) + 1))
 
-        return torch.cat(x, dim=-1)
+        log_w = torch.log_softmax(self.logits, dim=-1)
+        log_p = self.base.log_prob(x)
+
+        return torch.logsumexp(log_w + log_p, dim=-1)
+
+    def sample(self, shape: Size = ()) -> Tensor:
+        with torch.no_grad():
+            x = self.base.sample(shape)
+            i = Categorical(logits=self.logits).expand(self.batch_shape).sample(shape)
+
+            if i.dim() > 0:
+                x = x.flatten(0, i.dim() - 1)
+                x = x[torch.arange(i.numel(), device=i.device), i.flatten()]
+
+                return x.reshape(shape + self.batch_shape + self.event_shape)
+            else:
+                return x[i]
 
 
 class GeneralizedNormal(Distribution):
@@ -221,14 +291,19 @@ class GeneralizedNormal(Distribution):
     has_rsample = True
 
     def __init__(self, beta: Tensor):
+        super().__init__()
+
         self.beta = torch.as_tensor(beta)
-        super().__init__(batch_shape=self.beta.shape)
+
+    @property
+    def batch_shape(self) -> Size:
+        return self.beta.shape
 
     def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(GeneralizedNormal, new)
         new.beta = self.beta.expand(batch_shape)
 
-        Distribution.__init__(new, batch_shape=batch_shape, validate_args=False)
+        Distribution.__init__(new, validate_args=False)
 
         return new
 
@@ -367,7 +442,7 @@ class Truncated(Distribution):
         lower: Tensor = float('-inf'),
         upper: Tensor = float('+inf'),
     ):
-        super().__init__(batch_shape=base.batch_shape)
+        super().__init__()
 
         assert not base.event_shape, "'base' has to be univariate"
 
@@ -377,12 +452,16 @@ class Truncated(Distribution):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.base})'
 
+    @property
+    def batch_shape(self) -> Size:
+        return self.base.batch_shape
+
     def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(Truncated, new)
         new.base = self.base.expand(batch_shape)
         new.uniform = self.uniform.expand(batch_shape)
 
-        Distribution.__init__(new, batch_shape=batch_shape, validate_args=False)
+        Distribution.__init__(new, validate_args=False)
 
         return new
 
@@ -425,7 +504,7 @@ class Sort(Distribution):
         n: int = 2,
         descending: bool = False,
     ):
-        super().__init__(batch_shape=base.batch_shape)
+        super().__init__()
 
         assert not base.event_shape, "'base' has to be univariate"
 
@@ -438,6 +517,10 @@ class Sort(Distribution):
         return f'{self.__class__.__name__}({self.base}, {self.n})'
 
     @property
+    def batch_shape(self) -> Size:
+        return self.base.batch_shape
+
+    @property
     def event_shape(self) -> Size:
         return Size([self.n])
 
@@ -448,7 +531,7 @@ class Sort(Distribution):
         new.descending = self.descending
         new.log_fact = self.log_fact
 
-        Distribution.__init__(new, batch_shape=batch_shape, validate_args=False)
+        Distribution.__init__(new, validate_args=False)
 
         return new
 

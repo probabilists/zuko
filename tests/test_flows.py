@@ -9,6 +9,7 @@ from zuko.flows import *
 
 def test_flows(tmp_path):
     flows = [
+        GMM(3, 5),
         MAF(3, 5),
         NSF(3, 5),
         SOSPF(3, 5),
@@ -38,21 +39,23 @@ def test_flows(tmp_path):
         assert x.shape == (32, 3), flow
 
         # Reparameterization trick
-        x = flow(y).rsample()
+        if flow(y).has_rsample:
+            x = flow(y).rsample()
 
-        flow.zero_grad(set_to_none=True)
-        loss = x.square().sum().sqrt()
-        loss.backward()
+            flow.zero_grad(set_to_none=True)
+            loss = x.square().sum().sqrt()
+            loss.backward()
 
-        for p in flow.parameters():
-            assert p.grad is not None, flow
+            for p in flow.parameters():
+                assert p.grad is not None, flow
 
         # Invertibility
-        x, y = randn(256, 3), randn(256, 5)
-        t = flow(y).transform
-        z = t.inv(t(x))
+        if isinstance(flow, FlowModule):
+            x, y = randn(256, 3), randn(256, 5)
+            t = flow(y).transform
+            z = t.inv(t(x))
 
-        assert torch.allclose(x, z, atol=1e-4), flow
+            assert torch.allclose(x, z, atol=1e-4), flow
 
         # Saving
         torch.save(flow, tmp_path / 'flow.pth')

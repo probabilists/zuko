@@ -11,6 +11,7 @@ def test_distributions():
     ds = [
         NormalizingFlow(ExpTransform(), Gamma(2.0, 1.0)),
         Joint(Uniform(0.0, 1.0), Normal(0.0, 1.0)),
+        Mixture(Normal(torch.randn(2), torch.ones(2)), torch.randn(2)),
         GeneralizedNormal(2.0),
         DiagNormal(torch.zeros(2), torch.ones(2)),
         BoxUniform(-torch.ones(2), torch.ones(2)),

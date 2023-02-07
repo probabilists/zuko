@@ -4,6 +4,7 @@ __all__ = [
     'DistributionModule',
     'TransformModule',
     'FlowModule',
+    'GMM',
     'MaskedAutoregressiveTransform',
     'MAF',
     'NSF',
@@ -23,6 +24,7 @@ import torch.nn as nn
 
 from functools import partial
 from math import ceil, pi
+from textwrap import indent
 from torch import Tensor, LongTensor, Size
 from torch.distributions import *
 from typing import *
@@ -141,6 +143,71 @@ class Unconditional(nn.Module):
             *self._buffers.values(),
             **self.kwargs,
         )
+
+
+class Parameters(nn.ParameterList):
+    r"""Creates a list of parameters."""
+
+    def extra_repr(self) -> str:
+        lines = [
+            f'({i}): tensor of shape {tuple(p.shape)}'
+            for i, p in enumerate(self)
+        ]
+
+        return indent('\n'.join(lines), '  ')
+
+
+class GMM(DistributionModule):
+    r"""Creates a Gaussian mixture model (GMM).
+
+    .. math:: p(X | y) = \sum_{i = 1}^K w_i(y) \, \mathcal{N}(X | \mu_i(y), \Sigma_i(y))
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        components: The number of components :math:`K` in the mixture.
+        **kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        components: int = 2,
+        **kwargs,
+    ):
+        super().__init__()
+
+        shapes = [
+            (components,),  # probabilities
+            (components, features),  # mean
+            (components, features),  # diagonal
+            (components, features * (features - 1) // 2),  # off diagonal
+        ]
+
+        self.shapes = list(map(Size, shapes))
+        self.sizes = [s.numel() for s in self.shapes]
+
+        if context > 0:
+            self.hyper = MLP(context, sum(self.sizes), **kwargs)
+        else:
+            self.phi = Parameters(torch.randn(*s) for s in shapes)
+
+    def forward(self, y: Tensor = None) -> Distribution:
+        if y is None:
+            phi = self.phi
+        else:
+            phi = self.hyper(y)
+            phi = phi.split(self.sizes, -1)
+            phi = (p.unflatten(-1, s) for p, s in zip(phi, self.shapes))
+
+        logits, loc, diag, tril = phi
+
+        scale = torch.diag_embed(diag.exp() + 1e-5)
+        mask = torch.tril(torch.ones_like(scale, dtype=bool), diagonal=-1)
+        scale = torch.masked_scatter(scale, mask, tril)
+
+        return Mixture(MultivariateNormal(loc=loc, scale_tril=scale), logits)
 
 
 class MaskedAutoregressiveTransform(TransformModule):
