@@ -618,6 +618,7 @@ class FreeFormJacobianTransform(Transform):
         self.t1 = time
         self.phi = tuple(filter(lambda p: p.requires_grad, phi))
         self.exact = exact
+        self.trace_scale = 1e-2  # relax jacobian tolerances
 
     def _call(self, x: Tensor) -> Tensor:
         return odeint(self.f, x, self.t0, self.t1, self.phi)
@@ -636,13 +637,13 @@ class FreeFormJacobianTransform(Transform):
 
             def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
                 with torch.enable_grad():
-                    x = x.requires_grad_().expand(x.shape[-1], *x.shape)
+                    x = x.requires_grad_().expand(I.shape)
                     dx = self.f(t, x)
 
                 jacobian = torch.autograd.grad(dx, x, I, create_graph=True)[0]
                 trace = torch.einsum('i...i', jacobian)
 
-                return dx[0], trace
+                return dx[0], trace * self.trace_scale
         else:
             eps = torch.randn_like(x)
 
@@ -654,12 +655,12 @@ class FreeFormJacobianTransform(Transform):
                 epsjp = torch.autograd.grad(dx, x, eps, create_graph=True)[0]
                 trace = (epsjp * eps).sum(dim=-1)
 
-                return dx, trace
+                return dx, trace * self.trace_scale
 
         ladj = torch.zeros_like(x[..., 0])
         y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi)
 
-        return y, ladj
+        return y, ladj * (1 / self.trace_scale)
 
 
 class AutoregressiveTransform(Transform):
