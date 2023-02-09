@@ -869,7 +869,7 @@ class FFJTransform(TransformModule):
         return FreeFormJacobianTransform(
             f=partial(self.f, y=y),
             time=self.time,
-            phi=(y, *self.ode.parameters()),
+            phi=self.ode.parameters() if y is None else (y, *self.ode.parameters()),
             exact=self.exact,
         )
 
