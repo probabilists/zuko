@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: Zuko
+type: software
+authors:
+  - given-names: François
+    family-names: Rozet
+    email: francois.rozet@outlook.com
+    affiliation: University of Liège
+    orcid: 'https://orcid.org/0000-0002-8846-8761'
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.7625672
+    description: Zenodo's DOI
+repository-code: 'https://github.com/francois-rozet/zuko'
+url: 'https://github.com/francois-rozet/zuko'
+abstract: Normalizing flows in PyTorch
+license: MIT
