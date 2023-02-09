@@ -1,6 +1,6 @@
 r"""Zuko - Normalizing flows in PyTorch"""
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 from . import distributions
 from . import flows
