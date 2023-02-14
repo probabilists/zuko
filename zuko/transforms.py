@@ -38,7 +38,7 @@ def _call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
     r"""Returns both the transformed value and the log absolute determinant of the
     transformation's Jacobian."""
 
-    y = self(x)
+    y = self.__call__(x)
     ladj = self.log_abs_det_jacobian(x, y)
 
     return y, ladj
