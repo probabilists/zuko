@@ -47,8 +47,13 @@ def test_univariate_transforms():
 
         ladj = torch.diag(J).abs().log()
 
-        ladj_direct = t.log_abs_det_jacobian(x, y)
-        assert torch.allclose(ladj_direct, ladj, atol=1e-4), t
+        assert torch.allclose(t.log_abs_det_jacobian(x, y), ladj, atol=1e-4), t
+
+        # Compound call
+        y_comp, ladj_comp = t.call_and_ladj(x)
+
+        assert torch.allclose(y_comp, y, atol=1e-4), t
+        assert torch.allclose(ladj_comp, ladj, atol=1e-4), t
 
         # Inverse Jacobian
         J = torch.autograd.functional.jacobian(t.inv, y)
@@ -59,11 +64,6 @@ def test_univariate_transforms():
         ladj = torch.diag(J).abs().log()
 
         assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
-
-        # Compound call
-        y_comb, ladj_comb = t.call_and_ladj(x)
-        assert torch.allclose(y_comb, y, atol=1e-4), t
-        assert torch.allclose(ladj_comb, ladj_direct, atol=1e-4), t
 
 
 def test_FreeFormJacobianTransform():
@@ -90,6 +90,12 @@ def test_FreeFormJacobianTransform():
     ladj = torch.linalg.slogdet(J).logabsdet
 
     assert torch.allclose(t.log_abs_det_jacobian(x, y), ladj, atol=1e-4), t
+
+    # Compound call
+    y_comp, ladj_comp = t.call_and_ladj(x)
+
+    assert torch.allclose(y_comp, y, atol=1e-4), t
+    assert torch.allclose(ladj_comp, ladj, atol=1e-4), t
 
 
 def test_PermutationTransform():
