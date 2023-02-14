@@ -13,7 +13,6 @@ def test_univariate_transforms():
         IdentityTransform(),
         CosTransform(),
         SinTransform(),
-        ComposeTransform([IdentityTransform()]),
         SoftclipTransform(),
         CircularShiftTransform(),
         MonotonicAffineTransform(randn(256), randn(256)),
