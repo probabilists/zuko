@@ -77,7 +77,7 @@ class FlowModule(DistributionModule):
 
     def __init__(
         self,
-        transforms: List[TransformModule],
+        transforms: Sequence[TransformModule],
         base: DistributionModule,
     ):
         super().__init__()
@@ -258,7 +258,7 @@ class MaskedAutoregressiveTransform(TransformModule):
         passes: int = None,
         order: LongTensor = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
-        shapes: List[Size] = [(), ()],
+        shapes: Sequence[Size] = ((), ()),
         **kwargs,
     ):
         super().__init__()

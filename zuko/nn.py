@@ -77,7 +77,7 @@ class MLP(nn.Sequential):
         self,
         in_features: int,
         out_features: int,
-        hidden_features: List[int] = [64, 64],
+        hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
         normalize: bool = False,
         **kwargs,
@@ -90,8 +90,8 @@ class MLP(nn.Sequential):
         layers = []
 
         for before, after in zip(
-            [in_features] + hidden_features,
-            hidden_features + [out_features],
+            (in_features, *hidden_features),
+            (*hidden_features, out_features),
         ):
             layers.extend([
                 nn.Linear(before, after, **kwargs),
@@ -166,7 +166,7 @@ class MaskedMLP(nn.Sequential):
     def __init__(
         self,
         adjacency: BoolTensor,
-        hidden_features: List[int] = [64, 64],
+        hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
     ):
         out_features, in_features = adjacency.shape
@@ -183,7 +183,7 @@ class MaskedMLP(nn.Sequential):
         # Layers
         layers = []
 
-        for i, features in enumerate(hidden_features + [out_features]):
+        for i, features in enumerate((*hidden_features, out_features)):
             if i > 0:
                 mask = precedence[:, indices]
             else:

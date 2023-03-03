@@ -99,7 +99,7 @@ class Bisection(torch.autograd.Function):
         return (None, grad_y, None, None, None, *grad_phi)
 
 
-def broadcast(*tensors: Tensor, ignore: Union[int, List[int]] = 0) -> List[Tensor]:
+def broadcast(*tensors: Tensor, ignore: Union[int, Sequence[int]] = 0) -> List[Tensor]:
     r"""Broadcasts tensors together.
 
     The term broadcasting describes how PyTorch treats tensors with different shapes
@@ -247,11 +247,11 @@ class GaussLegendre(torch.autograd.Function):
 
 def odeint(
     f: Callable[[Tensor, Tensor], Tensor],
-    x: Union[Tensor, Tuple[Tensor, ...]],
+    x: Union[Tensor, Sequence[Tensor]],
     t0: Union[float, Tensor],
     t1: Union[float, Tensor],
     phi: Iterable[Tensor] = (),
-) -> Union[Tensor, Tuple[Tensor, ...]]:
+) -> Union[Tensor, Sequence[Tensor]]:
     r"""Integrates a system of first-order ordinary differential equations (ODEs)
 
     .. math:: \frac{dx}{dt} = f_\phi(t, x) ,
@@ -290,20 +290,20 @@ def odeint(
         tensor([-3.7454, -0.4140,  0.2677])
     """
 
-    if isinstance(x, tuple):
+    if torch.is_tensor(x):
+        g = None
+    else:
         shapes = [y.shape for y in x]
         sizes = [y.numel() for y in x]
 
-        def pack(x: Iterable[Tensor]) -> Tensor:
+        def pack(x: Sequence[Tensor]) -> Tensor:
             return torch.cat([y.flatten() for y in x])
 
-        def unpack(x: Tensor) -> Iterable[Tensor]:
-            return (y.reshape(s) for y, s in zip(x.split(sizes), shapes))
+        def unpack(x: Tensor) -> Sequence[Tensor]:
+            return [y.reshape(s) for y, s in zip(x.split(sizes), shapes)]
 
         x = pack(x)
         g = lambda t, x: pack(f(t, *unpack(x)))
-    else:
-        g = None
 
     t0 = torch.as_tensor(t0).to(x)
     t1 = torch.as_tensor(t1).to(x)
@@ -311,7 +311,7 @@ def odeint(
     if g is None:
         return AdaptiveCheckpointAdjoint.apply(f, x, t0, t1, *phi)
     else:
-        return tuple(unpack(AdaptiveCheckpointAdjoint.apply(g, x, t0, t1, *phi)))
+        return unpack(AdaptiveCheckpointAdjoint.apply(g, x, t0, t1, *phi))
 
 
 def dopri45(
