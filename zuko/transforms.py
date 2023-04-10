@@ -14,6 +14,7 @@ __all__ = [
     'SOSPolynomialTransform',
     'FreeFormJacobianTransform',
     'AutoregressiveTransform',
+    'LULinearTransform',
     'PermutationTransform',
 ]
 
@@ -729,6 +730,46 @@ class AutoregressiveTransform(Transform):
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         y, ladj = self.meta(x).call_and_ladj(x)
         return y, ladj.sum(dim=-1)
+
+
+class LULinearTransform(Transform):
+    r"""Creates a transformation :math:`f(x) = L U x`.
+
+    Arguments:
+        LU: A matrix whose lower and upper triangular parts are the non-zero elements
+            of :math:`L` and :math:`U`, with shape :math:`(*, D, D)`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(self, LU: Tensor, **kwargs):
+        super().__init__(**kwargs)
+
+        I = torch.eye(LU.shape[-1], dtype=LU.dtype, device=LU.device)
+
+        self.L = torch.tril(LU, diagonal=-1) + I
+        self.U = torch.triu(LU, diagonal=+1) + I
+
+    def _call(self, x: Tensor) -> Tensor:
+        return (self.L @ self.U @ x.unsqueeze(-1)).squeeze(-1)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return torch.linalg.solve_triangular(
+            self.U,
+            torch.linalg.solve_triangular(
+                self.L,
+                y.unsqueeze(-1),
+                upper=False,
+                unitriangular=True,
+            ),
+            upper=True,
+            unitriangular=True,
+        ).squeeze(-1)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return x.new_zeros(x.shape[:-1])
 
 
 class PermutationTransform(Transform):
