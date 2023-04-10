@@ -107,6 +107,17 @@ class ComposedTransform(Transform):
             x = t(x)
         return x
 
+    @property
+    def inv(self) -> Transform:
+        new = self.__new__(ComposedTransform)
+        new.transforms = [t.inv for t in reversed(self.transforms)]
+        new.domain_dim = self.codomain_dim
+        new.codomain_dim = self.domain_dim
+
+        Transform.__init__(new)
+
+        return new
+
     def _inverse(self, y: Tensor) -> Tensor:
         for t in reversed(self.transforms):
             y = t.inv(y)
@@ -622,6 +633,20 @@ class FreeFormJacobianTransform(Transform):
 
     def _call(self, x: Tensor) -> Tensor:
         return odeint(self.f, x, self.t0, self.t1, self.phi)
+
+    @property
+    def inv(self) -> Transform:
+        new = self.__new__(FreeFormJacobianTransform)
+        new.f = self.f
+        new.t0 = self.t1
+        new.t1 = self.t0
+        new.phi = self.phi
+        new.exact = self.exact
+        new.trace_scale = self.trace_scale
+
+        Transform.__init__(new)
+
+        return new
 
     def _inverse(self, y: Tensor) -> Tensor:
         return odeint(self.f, y, self.t1, self.t0, self.phi)

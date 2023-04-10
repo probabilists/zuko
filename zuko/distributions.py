@@ -120,6 +120,17 @@ class NormalizingFlow(Distribution):
 
         return self.transform.inv(z)
 
+    def rsample_and_log_prob(self, shape: Size = ()) -> Tuple[Tensor, Tensor]:
+        if self.base.has_rsample:
+            z = self.base.rsample(shape)
+        else:
+            z = self.base.sample(shape)
+
+        x, ladj = self.transform.inv.call_and_ladj(z)
+        ladj = _sum_rightmost(ladj, self.reinterpreted)
+
+        return x, self.base.log_prob(z) - ladj
+
 
 class Joint(Distribution):
     r"""Creates a distribution for a multivariate random variable :math:`X` which
