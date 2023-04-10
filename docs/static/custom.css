@@ -36,7 +36,7 @@ div[class^=highlight-] {
 .highlight,
 .highlight span,
 .literal {
-    background: var(--color-api-background) !important;
+    background: var(--color-background-secondary) !important;
     border: none !important;
     font-style: normal !important;
     font-weight: normal !important;
@@ -49,8 +49,12 @@ div[class^=highlight-] {
 
 /* Lists */
 
-dl.field-list > dd strong {
-    font-family: var(--font-stack--monospace);
+span.colon {
+    display: none;
+}
+
+dl.field-list > dd em {
+    font-style: normal;
 }
 
 /* Math */
@@ -123,7 +127,7 @@ table.autosummary tr {
 }
 
 table.autosummary tr.row-odd {
-    background: var(--color-api-background);
+    background: var(--color-background-secondary);
 }
 
 table.autosummary tr td {
