@@ -597,7 +597,7 @@ class FreeFormJacobianTransform(Transform):
     The transformation is the integration of a system of first-order ordinary
     differential equations
 
-    .. math:: x(T) = \int_0^T f_\phi(t, x(t)) ~ dt .
+    .. math:: x(T) = x(0) + \int_0^T f_\phi(t, x(t)) ~ dt .
 
     References:
         | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
@@ -660,28 +660,22 @@ class FreeFormJacobianTransform(Transform):
         if self.exact:
             I = torch.eye(x.shape[-1], dtype=x.dtype, device=x.device)
             I = I.expand(*x.shape, x.shape[-1]).movedim(-1, 0)
-
-            def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
-                with torch.enable_grad():
-                    x = x.requires_grad_().expand(I.shape)
-                    dx = self.f(t, x)
-
-                jacobian = torch.autograd.grad(dx, x, I, create_graph=True)[0]
-                trace = torch.einsum('i...i', jacobian)
-
-                return dx[0], trace * self.trace_scale
         else:
             eps = torch.randn_like(x)
 
-            def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
-                with torch.enable_grad():
-                    x = x.requires_grad_()
-                    dx = self.f(t, x)
+        def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
+            with torch.enable_grad():
+                x = x.requires_grad_()
+                dx = self.f(t, x)
 
+            if self.exact:
+                jacobian = torch.autograd.grad(dx, x, I, create_graph=True, is_grads_batched=True)[0]
+                trace = torch.einsum('i...i', jacobian)
+            else:
                 epsjp = torch.autograd.grad(dx, x, eps, create_graph=True)[0]
                 trace = (epsjp * eps).sum(dim=-1)
 
-                return dx, trace * self.trace_scale
+            return dx, trace * self.trace_scale
 
         ladj = torch.zeros_like(x[..., 0])
         y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi)
