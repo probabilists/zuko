@@ -2,4 +2,4 @@
 
 import setuptools
 
-setuptools.setup()
+setuptools.setup(name='zuko')
