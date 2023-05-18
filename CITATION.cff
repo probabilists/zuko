@@ -1,7 +1,6 @@
 cff-version: 1.2.0
 type: software
-title: Zuko
-abstract: Normalizing flows in PyTorch
+title: "Zuko: Normalizing flows in PyTorch"
 authors:
   - given-names: François
     family-names: Rozet
