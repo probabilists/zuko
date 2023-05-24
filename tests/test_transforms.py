@@ -70,7 +70,7 @@ def test_multivariate_transforms():
     f = lambda t, x: torch.sigmoid(x @ A) @ B
 
     ts = [
-        FreeFormJacobianTransform(f, time=torch.tensor(1.0)),
+        FreeFormJacobianTransform(f, 0.0, 1.0),
         LULinearTransform(randn(5, 5)),
         PermutationTransform(torch.randperm(5)),
     ]

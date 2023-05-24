@@ -809,7 +809,7 @@ class FFJTransform(TransformModule):
     Arguments:
         features: The number of features.
         context: The number of context features.
-        frequencies: The number of time embedding frequencies.
+        freqs: The number of time embedding frequencies.
         exact: Whether the exact log-determinant of the Jacobian or an unbiased
             stochastic estimate thereof is calculated.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
@@ -839,7 +839,7 @@ class FFJTransform(TransformModule):
         self,
         features: int,
         context: int = 0,
-        frequencies: int = 3,
+        freqs: int = 3,
         exact: bool = True,
         **kwargs,
     ):
@@ -847,15 +847,15 @@ class FFJTransform(TransformModule):
 
         kwargs.setdefault('activation', nn.ELU)
 
-        self.ode = MLP(features + context + 2 * frequencies, features, **kwargs)
+        self.ode = MLP(features + context + 2 * freqs, features, **kwargs)
 
-        self.register_buffer('time', torch.tensor(1.0))
-        self.register_buffer('frequencies', 2 ** torch.arange(frequencies) * pi)
+        self.register_buffer('times', torch.tensor((0.0, 1.0)))
+        self.register_buffer('freqs', torch.arange(1, freqs + 1) * pi)
 
         self.exact = exact
 
     def f(self, t: Tensor, x: Tensor, y: Tensor = None) -> Tensor:
-        t = self.frequencies * t[..., None]
+        t = self.freqs * t[..., None]
         t = torch.cat((t.cos(), t.sin()), dim=-1)
 
         if y is None:
@@ -868,8 +868,9 @@ class FFJTransform(TransformModule):
     def forward(self, y: Tensor = None) -> Transform:
         return FreeFormJacobianTransform(
             f=partial(self.f, y=y),
-            time=self.time,
-            phi=self.ode.parameters() if y is None else (y, *self.ode.parameters()),
+            t0=self.times[0],
+            t1=self.times[1],
+            phi=self.parameters() if y is None else (y, *self.parameters()),
             exact=self.exact,
         )
 
@@ -888,7 +889,6 @@ class CNF(FlowModule):
     Arguments:
         features: The number of features.
         context: The number of context features.
-        transforms: The number of transformations.
         kwargs: Keyword arguments passed to :class:`FFJTransform`.
     """
 
@@ -896,7 +896,6 @@ class CNF(FlowModule):
         self,
         features: int,
         context: int = 0,
-        transforms: int = 1,
         **kwargs,
     ):
         transforms = [
@@ -905,7 +904,6 @@ class CNF(FlowModule):
                 context=context,
                 **kwargs,
             )
-            for _ in range(transforms)
         ]
 
         base = Unconditional(

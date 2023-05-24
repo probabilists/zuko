@@ -597,7 +597,7 @@ class FreeFormJacobianTransform(Transform):
     The transformation is the integration of a system of first-order ordinary
     differential equations
 
-    .. math:: x(T) = x(0) + \int_0^T f_\phi(t, x(t)) ~ dt .
+    .. math:: x(t_1) = x_0 + \int_{t_0}^{t_1} f_\phi(t, x(t)) ~ dt .
 
     References:
         | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
@@ -605,7 +605,8 @@ class FreeFormJacobianTransform(Transform):
 
     Arguments:
         f: A system of first-order ODEs :math:`f_\phi`.
-        time: The integration time :math:`T`.
+        t0: The initial integration time :math:`t_0`.
+        t1: The final integration time :math:`t_1`.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
         exact: Whether the exact log-determinant of the Jacobian or an unbiased
             stochastic estimate thereof is calculated.
@@ -618,7 +619,8 @@ class FreeFormJacobianTransform(Transform):
     def __init__(
         self,
         f: Callable[[Tensor, Tensor], Tensor],
-        time: Tensor,
+        t0: Union[float, Tensor] = 0.0,
+        t1: Union[float, Tensor] = 1.0,
         phi: Iterable[Tensor] = (),
         exact: bool = True,
         **kwargs,
@@ -626,8 +628,8 @@ class FreeFormJacobianTransform(Transform):
         super().__init__(**kwargs)
 
         self.f = f
-        self.t0 = time.new_tensor(0.0)
-        self.t1 = time
+        self.t0 = t0
+        self.t1 = t1
         self.phi = tuple(filter(lambda p: p.requires_grad, phi))
         self.exact = exact
         self.trace_scale = 1e-2  # relax jacobian tolerances
@@ -637,17 +639,13 @@ class FreeFormJacobianTransform(Transform):
 
     @property
     def inv(self) -> Transform:
-        new = self.__new__(FreeFormJacobianTransform)
-        new.f = self.f
-        new.t0 = self.t1
-        new.t1 = self.t0
-        new.phi = self.phi
-        new.exact = self.exact
-        new.trace_scale = self.trace_scale
-
-        Transform.__init__(new)
-
-        return new
+        return FreeFormJacobianTransform(
+            f=self.f,
+            t0=self.t1,
+            t1=self.t0,
+            phi=self.phi,
+            exact=self.exact,
+        )
 
     def _inverse(self, y: Tensor) -> Tensor:
         return odeint(self.f, y, self.t1, self.t0, self.phi)
