@@ -526,7 +526,7 @@ class SOSPF(MAF):
         )
 
         for i in reversed(range(len(self.transforms))):
-            self.transforms.insert(i, Unconditional(SoftclipTransform))
+            self.transforms.insert(i, Unconditional(SoftclipTransform, bound=6.0))
 
 
 class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
@@ -650,7 +650,7 @@ class NAF(FlowModule):
         ]
 
         for i in reversed(range(len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform))
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=6.0))
 
         base = Unconditional(
             DiagNormal,
@@ -787,7 +787,7 @@ class UNAF(FlowModule):
         ]
 
         for i in reversed(range(len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform))
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=6.0))
 
         base = Unconditional(
             DiagNormal,
