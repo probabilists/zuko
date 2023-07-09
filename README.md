@@ -24,7 +24,7 @@ pip install git+https://github.com/francois-rozet/zuko
 
 ## Getting started
 
-Normalizing flows are provided in the `zuko.flows` module. To build one, supply the number of sample and context features as well as the transformations' hyperparameters. Then, feeding a context `y` to the flow returns a conditional distribution `p(x | y)` which can be evaluated and sampled from.
+Normalizing flows are provided in the `zuko.flows` module. To build one, supply the number of sample and context features as well as the transformations' hyperparameters. Then, feeding a context $c$ to the flow returns a conditional distribution $p(x | c)$ which can be evaluated and sampled from.
 
 ```python
 import torch
@@ -36,16 +36,38 @@ flow = zuko.flows.NSF(3, 5, transforms=3, hidden_features=[128] * 3)
 # Train to maximize the log-likelihood
 optimizer = torch.optim.AdamW(flow.parameters(), lr=1e-3)
 
-for x, y in trainset:
-    loss = -flow(y).log_prob(x)  # -log p(x | y)
+for x, c in trainset:
+    loss = -flow(c).log_prob(x)  # -log p(x | c)
     loss = loss.mean()
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-# Sample 64 points x ~ p(x | y*)
-x = flow(y_star).sample((64,))
+# Sample 64 points x ~ p(x | c*)
+x = flow(c_star).sample((64,))
+```
+
+Alternatively, flows can be built as custom `FlowModule` objects.
+
+```python
+from zuko.flows import FlowModule, MaskedAutoregressiveTransform, Unconditional
+from zuko.distributions import DiagNormal
+from zuko.transforms import PermutationTransform
+
+flow = FlowModule(
+    transforms=[
+        MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
+        Unconditional(PermutationTransform, torch.randperm(3), buffer=True),
+        MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
+    ],
+    base=Unconditional(
+        DiagNormal,
+        torch.zeros(3),
+        torch.ones(3),
+        buffer=True,
+    ),
+)
 ```
 
 For more information, check out the documentation at [zuko.readthedocs.io](https://zuko.readthedocs.io).

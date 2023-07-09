@@ -784,7 +784,8 @@ class PermutationTransform(Transform):
         order = self.order.tolist()
 
         if len(order) > 10:
-            order = str(order[:5] + [...] + order[-5:]).replace('Ellipsis', '...')
+            order = order[:5] + [...] + order[-5:]
+            order = str(order).replace('Ellipsis', '...')
 
         return f'{self.__class__.__name__}({order})'
 

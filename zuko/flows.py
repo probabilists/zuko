@@ -39,13 +39,13 @@ class DistributionModule(nn.Module, abc.ABC):
     r"""Abstract distribution module."""
 
     @abc.abstractmethod
-    def forward(y: Tensor = None) -> Distribution:
+    def forward(c: Tensor = None) -> Distribution:
         r"""
         Arguments:
-            y: A context :math:`y`.
+            c: A context :math:`c`.
 
         Returns:
-            A distribution :math:`p(X | y)`.
+            A distribution :math:`p(X | c)`.
         """
 
         pass
@@ -55,13 +55,13 @@ class TransformModule(nn.Module, abc.ABC):
     r"""Abstract transformation module."""
 
     @abc.abstractmethod
-    def forward(y: Tensor = None) -> Transform:
+    def forward(c: Tensor = None) -> Transform:
         r"""
         Arguments:
-            y: A context :math:`y`.
+            c: A context :math:`c`.
 
         Returns:
-            A transformation :math:`z = f(x | y)`.
+            A transformation :math:`y = f(x | c)`.
         """
 
         pass
@@ -85,21 +85,21 @@ class FlowModule(DistributionModule):
         self.transforms = nn.ModuleList(transforms)
         self.base = base
 
-    def forward(self, y: Tensor = None) -> NormalizingFlow:
+    def forward(self, c: Tensor = None) -> NormalizingFlow:
         r"""
         Arguments:
-            y: A context :math:`y`.
+            c: A context :math:`c`.
 
         Returns:
-            A normalizing flow :math:`p(X | y)`.
+            A normalizing flow :math:`p(X | c)`.
         """
 
-        transform = ComposedTransform(*(t(y) for t in self.transforms))
+        transform = ComposedTransform(*(t(c) for t in self.transforms))
 
-        if y is None:
-            base = self.base(y)
+        if c is None:
+            base = self.base(c)
         else:
-            base = self.base(y).expand(y.shape[:-1])
+            base = self.base(c).expand(c.shape[:-1])
 
         return NormalizingFlow(transform, base)
 
@@ -137,7 +137,7 @@ class Unconditional(nn.Module):
     def __repr__(self) -> str:
         return repr(self.forward())
 
-    def forward(self, y: Tensor = None) -> Any:
+    def forward(self, c: Tensor = None) -> Any:
         return self.meta(
             *self._parameters.values(),
             *self._buffers.values(),
@@ -160,7 +160,7 @@ class Parameters(nn.ParameterList):
 class GMM(DistributionModule):
     r"""Creates a Gaussian mixture model (GMM).
 
-    .. math:: p(X | y) = \sum_{i = 1}^K w_i(y) \, \mathcal{N}(X | \mu_i(y), \Sigma_i(y))
+    .. math:: p(X | c) = \sum_{i = 1}^K w_i(c) \, \mathcal{N}(X | \mu_i(c), \Sigma_i(c))
 
     Arguments:
         features: The number of features.
@@ -193,11 +193,11 @@ class GMM(DistributionModule):
         else:
             self.phi = Parameters(torch.randn(*s) for s in shapes)
 
-    def forward(self, y: Tensor = None) -> Distribution:
-        if y is None:
+    def forward(self, c: Tensor = None) -> Distribution:
+        if c is None:
             phi = self.phi
         else:
-            phi = self.hyper(y)
+            phi = self.hyper(c)
             phi = phi.split(self.sizes, -1)
             phi = (p.unflatten(-1, s) for p, s in zip(phi, self.shapes))
 
@@ -245,9 +245,9 @@ class MaskedAutoregressiveTransform(TransformModule):
         >>> x = torch.randn(3)
         >>> x
         tensor([-0.9485,  1.5290,  0.2018])
-        >>> y = torch.randn(4)
-        >>> z = t(y)(x)
-        >>> t(y).inv(z)
+        >>> c = torch.randn(4)
+        >>> y = t(c)(x)
+        >>> t(c).inv(y)
         tensor([-0.9485,  1.5290,  0.2018])
     """
 
@@ -294,16 +294,17 @@ class MaskedAutoregressiveTransform(TransformModule):
         order = self.order.tolist()
 
         if len(order) > 10:
-            order = str(order[:5] + [...] + order[-5:]).replace('Ellipsis', '...')
+            order = order[:5] + [...] + order[-5:]
+            order = str(order).replace('Ellipsis', '...')
 
         return '\n'.join([
             f'(base): {base}',
             f'(order): {order}',
         ])
 
-    def meta(self, y: Tensor, x: Tensor) -> Transform:
-        if y is not None:
-            x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
+    def meta(self, c: Tensor, x: Tensor) -> Transform:
+        if c is not None:
+            x = torch.cat(broadcast(x, c, ignore=1), dim=-1)
 
         total = sum(self.sizes)
 
@@ -315,8 +316,8 @@ class MaskedAutoregressiveTransform(TransformModule):
 
         return self.univariate(*phi)
 
-    def forward(self, y: Tensor = None) -> Transform:
-        return AutoregressiveTransform(partial(self.meta, y), self.passes)
+    def forward(self, c: Tensor = None) -> Transform:
+        return AutoregressiveTransform(partial(self.meta, c), self.passes)
 
 
 class MAF(FlowModule):
@@ -376,11 +377,11 @@ class MAF(FlowModule):
           )
           (base): DiagNormal(loc: torch.Size([3]), scale: torch.Size([3]))
         )
-        >>> y = torch.randn(4)
-        >>> x = flow(y).sample()
+        >>> c = torch.randn(4)
+        >>> x = flow(c).sample()
         >>> x
         tensor([-1.7154, -0.4401,  0.7505])
-        >>> flow(y).log_prob(x)
+        >>> flow(c).log_prob(x)
         tensor(-4.4630, grad_fn=<AddBackward0>)
     """
 
@@ -572,9 +573,9 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         >>> x = torch.randn(3)
         >>> x
         tensor([-2.3267,  1.4581, -1.6776])
-        >>> y = torch.randn(4)
-        >>> z = t(y)(x)
-        >>> t(y).inv(z)
+        >>> c = torch.randn(4)
+        >>> y = t(c)(x)
+        >>> t(c).inv(y)
         tensor([-2.3267,  1.4581, -1.6776])
     """
 
@@ -706,9 +707,9 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         >>> x = torch.randn(3)
         >>> x
         tensor([-0.0103, -1.0871, -0.0667])
-        >>> y = torch.randn(4)
-        >>> z = t(y)(x)
-        >>> t(y).inv(z)
+        >>> c = torch.randn(4)
+        >>> y = t(c)(x)
+        >>> t(c).inv(y)
         tensor([-0.0103, -1.0871, -0.0667])
     """
 
@@ -829,9 +830,9 @@ class FFJTransform(TransformModule):
         >>> x = torch.randn(3)
         >>> x
         tensor([ 0.1777,  1.0139, -1.0370])
-        >>> y = torch.randn(4)
-        >>> z = t(y)(x)
-        >>> t(y).inv(z)
+        >>> c = torch.randn(4)
+        >>> y = t(c)(x)
+        >>> t(c).inv(y)
         tensor([ 0.1777,  1.0139, -1.0370])
     """
 
@@ -854,23 +855,23 @@ class FFJTransform(TransformModule):
 
         self.exact = exact
 
-    def f(self, t: Tensor, x: Tensor, y: Tensor = None) -> Tensor:
+    def f(self, t: Tensor, x: Tensor, c: Tensor = None) -> Tensor:
         t = self.freqs * t[..., None]
         t = torch.cat((t.cos(), t.sin()), dim=-1)
 
-        if y is None:
+        if c is None:
             x = torch.cat(broadcast(t, x, ignore=1), dim=-1)
         else:
-            x = torch.cat(broadcast(t, x, y, ignore=1), dim=-1)
+            x = torch.cat(broadcast(t, x, c, ignore=1), dim=-1)
 
         return self.ode(x)
 
-    def forward(self, y: Tensor = None) -> Transform:
+    def forward(self, c: Tensor = None) -> Transform:
         return FreeFormJacobianTransform(
-            f=partial(self.f, y=y),
+            f=partial(self.f, c=c),
             t0=self.times[0],
             t1=self.times[1],
-            phi=self.parameters() if y is None else (y, *self.parameters()),
+            phi=self.parameters() if c is None else (c, *self.parameters()),
             exact=self.exact,
         )
 

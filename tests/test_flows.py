@@ -20,8 +20,8 @@ def test_flows(tmp_path):
 
     for flow in flows:
         # Evaluation of log_prob
-        x, y = randn(256, 3), randn(5)
-        log_p = flow(y).log_prob(x)
+        x, c = randn(256, 3), randn(5)
+        log_p = flow(c).log_prob(x)
 
         assert log_p.shape == (256,), flow
         assert log_p.requires_grad, flow
@@ -34,13 +34,13 @@ def test_flows(tmp_path):
             assert p.grad is not None, flow
 
         # Sampling
-        x = flow(y).sample((32,))
+        x = flow(c).sample((32,))
 
         assert x.shape == (32, 3), flow
 
         # Reparameterization trick
-        if flow(y).has_rsample:
-            x = flow(y).rsample()
+        if flow(c).has_rsample:
+            x = flow(c).rsample()
 
             flow.zero_grad(set_to_none=True)
             loss = x.square().sum().sqrt()
@@ -51,8 +51,8 @@ def test_flows(tmp_path):
 
         # Invertibility
         if isinstance(flow, FlowModule):
-            x, y = randn(256, 3), randn(256, 5)
-            t = flow(y).transform
+            x, c = randn(256, 3), randn(256, 5)
+            t = flow(c).transform
             z = t.inv(t(x))
 
             assert torch.allclose(x, z, atol=1e-4), flow
@@ -63,12 +63,12 @@ def test_flows(tmp_path):
         # Loading
         flow_bis = torch.load(tmp_path / 'flow.pth')
 
-        x, y = randn(3), randn(5)
+        x, c = randn(3), randn(5)
 
         seed = torch.seed()
-        log_p = flow(y).log_prob(x)
+        log_p = flow(c).log_prob(x)
         torch.manual_seed(seed)
-        log_p_bis = flow_bis(y).log_prob(x)
+        log_p_bis = flow_bis(c).log_prob(x)
 
         assert torch.allclose(log_p, log_p_bis), flow
 
@@ -84,20 +84,20 @@ def test_autoregressive_transforms():
         # Without context
         t = AT(3)
         x = randn(3)
-        z = t()(x)
+        y = t()(x)
 
-        assert z.shape == x.shape, t
-        assert z.requires_grad, t
-        assert torch.allclose(t().inv(z), x, atol=1e-4), t
+        assert y.shape == x.shape, t
+        assert y.requires_grad, t
+        assert torch.allclose(t().inv(y), x, atol=1e-4), t
 
         # With context
         t = AT(3, 5)
-        x, y = randn(256, 3), randn(5)
-        z = t(y)(x)
+        x, c = randn(256, 3), randn(5)
+        y = t(c)(x)
 
-        assert z.shape == x.shape, t
-        assert z.requires_grad, t
-        assert torch.allclose(t(y).inv(z), x, atol=1e-4), t
+        assert y.shape == x.shape, t
+        assert y.requires_grad, t
+        assert torch.allclose(t(c).inv(y), x, atol=1e-4), t
 
         # Passes
 
