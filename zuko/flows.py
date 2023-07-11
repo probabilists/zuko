@@ -14,6 +14,8 @@ __all__ = [
     'NAF',
     'UnconstrainedNeuralAutoregressiveTransform',
     'UNAF',
+    'MaskedCouplingTransform',
+    'CouplingFlow',
     'FFJTransform',
     'CNF',
 ]
@@ -32,7 +34,7 @@ from typing import *
 from .distributions import *
 from .transforms import *
 from .nn import *
-from .utils import broadcast
+from .utils import broadcast, random_mask
 
 
 class DistributionModule(nn.Module, abc.ABC):
@@ -418,6 +420,8 @@ class MAF(FlowModule):
         super().__init__(transforms, base)
 
 
+
+
 class NSF(MAF):
     r"""Creates a neural spline flow (NSF) with monotonic rational-quadratic spline
     transformations.
@@ -799,6 +803,145 @@ class UNAF(FlowModule):
 
         super().__init__(transforms, base)
 
+
+class MaskedCouplingTransform(TransformModule):
+    r"""Creates a coupling transformation module.
+
+    References:
+        | NICE: Non-linear Independent Components Estimation (Dinh et al., 2014)
+        | https://arxiv.org/abs/1410.8516v6
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        mask: The mask that splits the features.
+        univariate: The univariate transformation constructor.
+        shapes: The shapes of the univariate transformation parameters.
+        kwargs: Keyword arguments passed to conditioner networks.
+    """ 
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        mask: Tensor = None,
+        univariate: Callable[..., Transform] = MonotonicAffineTransform,
+        shapes: Sequence[Size] = ((), ()),
+        hyper_network: nn.Module = MLP, 
+        **kwargs,
+    ):
+        super().__init__()
+
+
+        # Univariate transformation
+        self.univariate = univariate
+        self.shapes = list(map(Size, shapes))
+        self.sizes = [s.numel() for s in self.shapes]
+
+        idx = torch.arange(features)
+        if mask is None:
+            self.register_buffer('features_identity', idx[:len(idx) // 2])
+            self.register_buffer('features_transform', idx[len(idx) // 2:])
+        else:
+            self.register_buffer('features_identity', idx[mask])
+            self.register_buffer('features_transform', idx[~mask])
+
+        in_features = len(self.features_identity) + context
+        out_features = len(self.features_transform) * sum(self.sizes)
+
+        self.hyper = hyper_network(
+            in_features  = in_features,
+            out_features = out_features,
+            **kwargs
+        )
+
+    def extra_repr(self) -> str:
+        base = self.univariate(*map(torch.randn, self.shapes))
+        order = self.order.tolist()
+
+        if len(order) > 10:
+            order = str(order[:5] + [...] + order[-5:]).replace('Ellipsis', '...')
+
+        return '\n'.join([
+            f'(base): {base}',
+            f'(order): {order}',
+        ])
+
+    def meta(self, y: Tensor, x: Tensor) -> Transform:
+        if y is not None:
+            x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
+
+        total = sum(self.sizes)
+
+        phi = self.hyper(x)
+        phi = phi.unflatten(-1, (phi.shape[-1] // total, total))
+        phi = phi.split(self.sizes, -1)
+        phi = (p.unflatten(-1, s + (1,)) for p, s in zip(phi, self.shapes))
+        phi = (p.squeeze(-1) for p in phi)
+
+        return self.univariate(*phi)
+
+    def forward(self, y: Tensor = None) -> Transform:
+        return CouplingTransform(
+            partial(self.meta, y), 
+            self.features_identity,
+            self.features_transform,
+        )
+
+class CouplingFlow(FlowModule):
+    r"""Creates a masked coupling flow (CouplingFlow). 
+
+    References:
+        | NICE: Non-linear Independent Components Estimation (Dinh et al., 2014)
+        | https://arxiv.org/abs/1410.8516v6
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        transforms: The number of coupling transformations.
+        randperm: Whether features are randomly permuted between transformations or not.
+            If :py:`False`, features are in ascending (descending) order for even
+            (odd) transformations.
+        kwargs: Keyword arguments passed to :class:`MaskedCouplingTransform`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        transforms: int = 3,
+        randperm: bool = False,
+        **kwargs,
+    ):
+        transforms = []
+
+        for i in range(transforms):
+            if randperm:
+                mask = random_mask(features)
+            else:
+                mask = torch.ones(features, dtype=torch.bool)
+                if i % 2 == 0:
+                    mask[:len(features) // 2] = False
+                else:
+                    mask[len(features) // 2:] = False
+
+            transforms.append(
+                MaskedCouplingTransform(
+                    features=features,
+                    context=context,
+                    mask=mask,
+                    **kwargs,
+                )
+            )
+
+        base = Unconditional(
+            DiagNormal,
+            torch.zeros(features),
+            torch.ones(features),
+            buffer=True,
+        )
+
+        super().__init__(transforms, base)
 
 class FFJTransform(TransformModule):
     r"""Creates a free-form Jacobian (FFJ) transformation.

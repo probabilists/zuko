@@ -116,3 +116,38 @@ def test_autoregressive_transforms():
         assert (torch.triu(J, diagonal=1) == 0).all(), t
         assert (torch.tril(J[:4, :4], diagonal=-1) == 0).all(), t
         assert (torch.tril(J[4:, 4:], diagonal=-1) == 0).all(), t
+
+
+def test_coupling_transforms():
+    CTs = [
+        MaskedCouplingTransform,
+    ]
+
+    for CT in CTs:
+        # Without context
+        t = CT(4)
+        x = randn(4)
+        z = t()(x)
+
+        assert z.shape == x.shape, t
+        assert z.requires_grad, t
+        assert torch.allclose(t().inv(z), x, atol=1e-4), t
+
+        # With context
+        t = CT(4, 5)
+        x, y = randn(256, 4), randn(5)
+        z = t(y)(x)
+
+        assert z.shape == x.shape, t
+        assert z.requires_grad, t
+        assert torch.allclose(t(y).inv(z), x, atol=1e-4), t
+
+        ## Test jacobian
+        t = CT(4)
+        x = randn(4)
+        J = torch.autograd.functional.jacobian(t(), x)
+
+        assert (torch.triu(J, diagonal=1) == 0).all(), t
+
+        assert (torch.tril(J[:2, :2], diagonal=-1) == 0).all(), t
+        assert (torch.tril(J[2:, 2:], diagonal=-1) == 0).all(), t
