@@ -25,7 +25,7 @@ import torch
 import torch.nn as nn
 
 from functools import partial
-from math import ceil, pi
+from math import ceil, pi, prod
 from textwrap import indent
 from torch import Tensor, LongTensor, Size
 from torch.distributions import *
@@ -34,7 +34,7 @@ from typing import *
 from .distributions import *
 from .transforms import *
 from .nn import *
-from .utils import broadcast, random_mask
+from .utils import broadcast, unpack, random_mask
 
 
 class DistributionModule(nn.Module, abc.ABC):
@@ -152,7 +152,7 @@ class Parameters(nn.ParameterList):
 
     def extra_repr(self) -> str:
         lines = [
-            f'({i}): tensor of shape {tuple(p.shape)}'
+            f'({i}): Tensor(shape={tuple(p.shape)})'
             for i, p in enumerate(self)
         ]
 
@@ -187,11 +187,11 @@ class GMM(DistributionModule):
             (components, features * (features - 1) // 2),  # off diagonal
         ]
 
-        self.shapes = list(map(Size, shapes))
-        self.sizes = [s.numel() for s in self.shapes]
+        self.shapes = shapes
+        self.total = sum(prod(s) for s in shapes)
 
         if context > 0:
-            self.hyper = MLP(context, sum(self.sizes), **kwargs)
+            self.hyper = MLP(context, self.total, **kwargs)
         else:
             self.phi = Parameters(torch.randn(*s) for s in shapes)
 
@@ -200,8 +200,7 @@ class GMM(DistributionModule):
             phi = self.phi
         else:
             phi = self.hyper(c)
-            phi = phi.split(self.sizes, -1)
-            phi = (p.unflatten(-1, s) for p, s in zip(phi, self.shapes))
+            phi = unpack(phi, self.shapes)
 
         logits, loc, diag, tril = phi
 
@@ -267,8 +266,8 @@ class MaskedAutoregressiveTransform(TransformModule):
 
         # Univariate transformation
         self.univariate = univariate
-        self.shapes = list(map(Size, shapes))
-        self.sizes = [s.numel() for s in self.shapes]
+        self.shapes = shapes
+        self.total = sum(prod(s) for s in shapes)
 
         # Adjacency
         self.register_buffer('order', None)
@@ -285,7 +284,7 @@ class MaskedAutoregressiveTransform(TransformModule):
         self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
 
         in_order = torch.cat((self.order, torch.full((context,), -1)))
-        out_order = torch.repeat_interleave(self.order, sum(self.sizes))
+        out_order = torch.repeat_interleave(self.order, self.total)
         adjacency = out_order[:, None] > in_order
 
         # Hyper network
@@ -308,13 +307,9 @@ class MaskedAutoregressiveTransform(TransformModule):
         if c is not None:
             x = torch.cat(broadcast(x, c, ignore=1), dim=-1)
 
-        total = sum(self.sizes)
-
         phi = self.hyper(x)
-        phi = phi.unflatten(-1, (phi.shape[-1] // total, total))
-        phi = phi.split(self.sizes, -1)
-        phi = (p.unflatten(-1, s + (1,)) for p, s in zip(phi, self.shapes))
-        phi = (p.squeeze(-1) for p in phi)
+        phi = phi.unflatten(-1, (-1, self.total))
+        phi = unpack(phi, self.shapes)
 
         return self.univariate(*phi)
 
