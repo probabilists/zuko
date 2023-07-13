@@ -2,13 +2,14 @@ r"""General purpose helpers."""
 
 from __future__ import annotations
 
-__all__ = ['bisection', 'broadcast', 'gauss_legendre', 'odeint']
+__all__ = ['bisection', 'broadcast', 'gauss_legendre', 'odeint', 'unpack']
 
+import math
 import numpy as np
 import torch
 
 from functools import lru_cache
-from torch import Tensor
+from torch import Tensor, Size
 from typing import *
 
 
@@ -294,16 +295,12 @@ def odeint(
         g = None
     else:
         shapes = [y.shape for y in x]
-        sizes = [y.numel() for y in x]
 
         def pack(x: Sequence[Tensor]) -> Tensor:
             return torch.cat([y.flatten() for y in x])
 
-        def unpack(x: Tensor) -> Sequence[Tensor]:
-            return [y.reshape(s) for y, s in zip(x.split(sizes), shapes)]
-
         x = pack(x)
-        g = lambda t, x: pack(f(t, *unpack(x)))
+        g = lambda t, x: pack(f(t, *unpack(x, shapes)))
 
     t0 = torch.as_tensor(t0).to(x)
     t1 = torch.as_tensor(t1).to(x)
@@ -311,7 +308,7 @@ def odeint(
     if g is None:
         return AdaptiveCheckpointAdjoint.apply(f, x, t0, t1, *phi)
     else:
-        return unpack(AdaptiveCheckpointAdjoint.apply(g, x, t0, t1, *phi))
+        return unpack(AdaptiveCheckpointAdjoint.apply(g, x, t0, t1, *phi), shapes)
 
 
 def dopri45(
@@ -464,3 +461,32 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
             grad_t0 = None
 
         return (None, grad_x, grad_t0, grad_t1, *grad_phi)
+
+
+def unpack(x: Tensor, shapes: Sequence[Size]) -> List[Tensor]:
+    r"""Unpacks a packed tensor.
+
+    Arguments:
+        x: A packed tensor, with shape :math:`(*, D)`.
+        shapes: A sequence of shapes :math:`S_i`, corresponding to the total number of
+            elements :math:`D`.
+
+    Returns:
+        The unpacked tensors, with shapes :math:`(*, S_i)`.
+
+    Example:
+        >>> x = torch.randn(26)
+        >>> y, z = unpack(x, ((1, 2, 3), (4, 5)))
+        >>> y.shape
+        torch.Size([1, 2, 3])
+        >>> z.shape
+        torch.Size([4, 5])
+    """
+
+    sizes = [math.prod(s) for s in shapes]
+
+    x = x.split(sizes, -1)
+    x = (y.unflatten(-1, (*s, 1)) for y, s in zip(x, shapes))
+    x = (y.squeeze(-1) for y in x)
+
+    return list(x)

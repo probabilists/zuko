@@ -94,3 +94,19 @@ def test_odeint():
     assert torch.allclose(grad_x0, g_x0, atol=1e-4)
     assert torch.allclose(grad_t, g_t, atol=1e-4)
     assert torch.allclose(grad_alpha, g_alpha, atol=1e-4)
+
+
+def test_unpack():
+    # Normal
+    x = randn(26)
+    y, z = unpack(x, ((1, 2, 3), (4, 5)))
+
+    assert y.shape == (1, 2, 3)
+    assert z.shape == (4, 5)
+
+    # Batched
+    x = randn(7, 26)
+    y, z = unpack(x, ((1, 2, 3), (4, 5)))
+
+    assert y.shape == (7, 1, 2, 3)
+    assert z.shape == (7, 4, 5)
