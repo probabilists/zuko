@@ -810,8 +810,7 @@ class GeneralCouplingTransform(TransformModule):
         mask: The coupling mask. If :py:`None`, use a checkered mask.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
-        hyper: The hyper network constructor.
-        kwargs: Keyword arguments passed to the constructor.
+        kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
 
     Example:
         >>> t = GeneralCouplingTransform(3, 4)
@@ -843,7 +842,6 @@ class GeneralCouplingTransform(TransformModule):
         mask: BoolTensor = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
-        hyper: Callable[[int, int], nn.Module] = MLP,
         **kwargs,
     ):
         super().__init__()
@@ -865,7 +863,7 @@ class GeneralCouplingTransform(TransformModule):
         features_b = features - features_a
 
         # Hyper network
-        self.hyper = hyper(features_a + context, features_b * self.total, **kwargs)
+        self.hyper = MLP(features_a + context, features_b * self.total, **kwargs)
 
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
