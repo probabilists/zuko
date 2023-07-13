@@ -14,8 +14,8 @@ __all__ = [
     'SOSPolynomialTransform',
     'FreeFormJacobianTransform',
     'AutoregressiveTransform',
-    'LULinearTransform',
     'CouplingTransform',
+    'LULinearTransform',
     'PermutationTransform',
 ]
 
@@ -24,7 +24,7 @@ import torch
 import torch.nn.functional as F
 
 from textwrap import indent
-from torch import Tensor, LongTensor, Size
+from torch import Tensor, BoolTensor, LongTensor, Size
 from torch.distributions import *
 from torch.distributions import constraints
 from torch.distributions.utils import _sum_rightmost
@@ -725,6 +725,70 @@ class AutoregressiveTransform(Transform):
         return y, ladj.sum(dim=-1)
 
 
+class CouplingTransform(Transform):
+    r"""Transform via a coupling scheme.
+
+    .. math::
+        y_a & = x_a \\
+        y_b & = f(x_b; x_a)
+
+    Arguments:
+        meta: A meta function which returns a transformation :math:`f`.
+        mask: A coupling mask defining the split $x \mapsto (x_a, x_b)$.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(
+        self,
+        meta: Callable[[Tensor], Transform],
+        mask: BoolTensor,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.meta = meta
+        self.idx_a = mask.nonzero().squeeze(-1)
+        self.idx_b = (~mask).nonzero().squeeze(-1)
+
+    def split(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        return x[..., self.idx_a], x[..., self.idx_b]
+
+    def merge(self, x_a: Tensor, x_b: Tensor, shape: Size) -> Tensor:
+        x = x_a.new_empty(shape)
+        x[..., self.idx_a] = x_a
+        x[..., self.idx_b] = x_b
+
+        return x
+
+    def _call(self, x: Tensor) -> Tensor:
+        x_a, x_b = self.split(x)
+        y_b = self.meta(x_a)(x_b)
+
+        return self.merge(x_a, y_b, x.shape)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        y_a, y_b = self.split(y)
+        x_b = self.meta(y_a).inv(y_b)
+
+        return self.merge(y_a, x_b, y.shape)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        x_a, x_b = self.split(x)
+        _, y_b = self.split(y)
+
+        return self.meta(x_a).log_abs_det_jacobian(x_b, y_b).sum(dim=-1)
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        x_a, x_b = self.split(x)
+        y_b, ladj = self.meta(x_a).call_and_ladj(x_b)
+        y = self.merge(x_a, y_b, x.shape)
+
+        return y, ladj.sum(dim=-1)
+
+
 class LULinearTransform(Transform):
     r"""Creates a transformation :math:`f(x) = L U x`.
 
@@ -763,78 +827,6 @@ class LULinearTransform(Transform):
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return x.new_zeros(x.shape[:-1])
-
-
-class CouplingTransform(Transform):
-    r"""Transform via a coupling scheme.
-
-    .. math:: \bar{m} y = \bar{m} x
-    .. math:: m y = f(mx, \bar{m} x)
-
-    Arguments:
-        meta: A meta function which returns a transformation :math:`f`.
-        features_identity: The features that are not transformed.
-        features_transform: The features that are transformed.
-    """
-
-    domain = constraints.real_vector
-    codomain = constraints.real_vector
-    bijective = True
-
-    def __init__(
-        self,
-        meta: Callable[[Tensor], Transform],
-        features_identity: LongTensor,
-        features_transform: LongTensor,
-        **kwargs,
-    ) -> None:
-        super().__init__(**kwargs)
-
-        self.meta= meta
-        self.features_identity = features_identity
-        self.features_transform = features_transform
-
-    def _split_features(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        return x[..., self.features_identity], x[..., self.features_transform]
-
-    def _call(self, x: Tensor) -> Tensor:
-        x_identity, x_transform = self._split_features(x)
-
-        y_transform = self.meta(x_identity)(x_transform)
-
-        y = torch.empty_like(x)
-        y[..., self.features_identity] = x_identity
-        y[..., self.features_transform] = y_transform
-
-        return y
-
-    def _inverse(self, y: Tensor) -> Tensor:
-        y_identity, y_transform = self._split_features(y)
-
-        x_transform = self.meta(y_identity).inv(y_transform)
-
-        x = torch.empty_like(y)
-        x[..., self.features_identity] = y_identity
-        x[..., self.features_transform] = x_transform
-        
-        return x
-
-    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        x_identity, x_transform = self._split_features(x)
-        _, y_transform = self._split_features(y)
-
-        return self.meta(x_identity).log_abs_det_jacobian(x_transform, y_transform).sum(dim=-1)
-        
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        x_identity, x_transform = self._split_features(x)
-
-        y_transform, ladj = self.meta(x_identity).call_and_ladj(x_transform)
-
-        y = torch.empty_like(x)
-        y[..., self.features_identity] = x_identity
-        y[..., self.features_transform] = y_transform
-
-        return y, ladj.sum(dim=-1)
 
 
 class PermutationTransform(Transform):

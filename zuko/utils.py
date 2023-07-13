@@ -463,36 +463,6 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
         return (None, grad_x, grad_t0, grad_t1, *grad_phi)
 
 
-def random_mask(features):
-    """
-    Create a random mask of a given number of features.
-    
-    Arguments:
-        features (int): Number of features.
-    
-    Returns:
-        torch.Tensor: A boolean mask with half of the values set to True and the other half set to False.
-    """
-
-    # Create a boolean mask of zeros with the given number of features
-    mask = torch.zeros(features, dtype=torch.bool)
-    
-    # Calculate the number of samples to set as True in the mask
-    num_samples = features // 2 if features % 2 == 0 else features // 2 + 1
-    
-    # Generate random indices to set as True in the mask
-    idx = torch.multinomial(
-        torch.ones(features), 
-        num_samples=num_samples,
-        replacement=False
-    )
-
-    # Set the selected indices as True in the mask
-    mask[idx] = True
-    
-    return mask
-
-
 def unpack(x: Tensor, shapes: Sequence[Size]) -> List[Tensor]:
     r"""Unpacks a packed tensor.
 
