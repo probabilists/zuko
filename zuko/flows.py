@@ -820,11 +820,11 @@ class GeneralCouplingTransform(TransformModule):
           (base): MonotonicAffineTransform()
           (order): [0, 1, 0]
           (hyper): MLP(
-            (0): Linear(in_features=7, out_features=64, bias=True)
+            (0): Linear(in_features=5, out_features=64, bias=True)
             (1): ReLU()
             (2): Linear(in_features=64, out_features=64, bias=True)
             (3): ReLU()
-            (4): Linear(in_features=64, out_features=6, bias=True)
+            (4): Linear(in_features=64, out_features=4, bias=True)
           )
         )
         >>> x = torch.randn(3)
@@ -880,9 +880,9 @@ class GeneralCouplingTransform(TransformModule):
             f'(mask): {mask}',
         ])
 
-    def meta(self, y: Tensor, x: Tensor) -> Transform:
+    def meta(self, c: Tensor, x: Tensor) -> Transform:
         if y is not None:
-            x = torch.cat(broadcast(x, y, ignore=1), dim=-1)
+            x = torch.cat(broadcast(x, c, ignore=1), dim=-1)
 
         phi = self.hyper(x)
         phi = phi.unflatten(-1, (-1, self.total))
@@ -890,8 +890,8 @@ class GeneralCouplingTransform(TransformModule):
 
         return self.univariate(*phi)
 
-    def forward(self, y: Tensor = None) -> Transform:
-        return CouplingTransform(partial(self.meta, y), self.mask)
+    def forward(self, c: Tensor = None) -> Transform:
+        return CouplingTransform(partial(self.meta, c), self.mask)
 
 
 class GCF(FlowModule):
