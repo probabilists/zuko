@@ -881,7 +881,7 @@ class GeneralCouplingTransform(TransformModule):
         ])
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:
-        if y is not None:
+        if c is not None:
             x = torch.cat(broadcast(x, c, ignore=1), dim=-1)
 
         phi = self.hyper(x)
