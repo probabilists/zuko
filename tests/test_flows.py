@@ -3,6 +3,7 @@ r"""Tests for the zuko.flows module."""
 import pytest
 import torch
 
+from functools import partial
 from torch import randn
 from zuko.flows import *
 
@@ -15,6 +16,7 @@ def test_flows(tmp_path):
         SOSPF(3, 5),
         NAF(3, 5),
         UNAF(3, 5),
+        GCF(3, 5),
         CNF(3, 5),
     ]
 
@@ -72,17 +74,23 @@ def test_flows(tmp_path):
 
         assert torch.allclose(log_p, log_p_bis), flow
 
+        # Printing
+        assert repr(flow), flow
 
-def test_autoregressive_transforms():
-    ATs = [
+
+def test_triangular_transforms():
+    Ts = [
         MaskedAutoregressiveTransform,
+        partial(MaskedAutoregressiveTransform, passes=2),
         NeuralAutoregressiveTransform,
+        partial(NeuralAutoregressiveTransform, passes=2),
         UnconstrainedNeuralAutoregressiveTransform,
+        GeneralCouplingTransform,
     ]
 
-    for AT in ATs:
+    for T in Ts:
         # Without context
-        t = AT(3)
+        t = T(3)
         x = randn(3)
         y = t()(x)
 
@@ -91,7 +99,7 @@ def test_autoregressive_transforms():
         assert torch.allclose(t().inv(y), x, atol=1e-4), t
 
         # With context
-        t = AT(3, 5)
+        t = T(3, 5)
         x, c = randn(256, 3), randn(5)
         y = t(c)(x)
 
@@ -99,20 +107,13 @@ def test_autoregressive_transforms():
         assert y.requires_grad, t
         assert torch.allclose(t(c).inv(y), x, atol=1e-4), t
 
-        # Passes
-
-        ## Fully autoregressive
-        t = AT(7)
+        # Jacobian
+        t = T(7)
         x = randn(7)
+        y = t()(x)
+
         J = torch.autograd.functional.jacobian(t(), x)
+        ladj = torch.linalg.slogdet(J).logabsdet
 
-        assert (torch.triu(J, diagonal=1) == 0).all(), t
-
-        ## Coupling
-        t = AT(7, passes=2)
-        x = randn(7)
-        J = torch.autograd.functional.jacobian(t(), x)
-
-        assert (torch.triu(J, diagonal=1) == 0).all(), t
-        assert (torch.tril(J[:4, :4], diagonal=-1) == 0).all(), t
-        assert (torch.tril(J[4:, 4:], diagonal=-1) == 0).all(), t
+        assert torch.allclose(t().log_abs_det_jacobian(x, y), ladj, atol=1e-4), t
+        assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), t

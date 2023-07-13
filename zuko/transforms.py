@@ -14,6 +14,7 @@ __all__ = [
     'SOSPolynomialTransform',
     'FreeFormJacobianTransform',
     'AutoregressiveTransform',
+    'CouplingTransform',
     'LULinearTransform',
     'PermutationTransform',
 ]
@@ -23,7 +24,7 @@ import torch
 import torch.nn.functional as F
 
 from textwrap import indent
-from torch import Tensor, LongTensor, Size
+from torch import Tensor, BoolTensor, LongTensor, Size
 from torch.distributions import *
 from torch.distributions import constraints
 from torch.distributions.utils import _sum_rightmost
@@ -721,6 +722,70 @@ class AutoregressiveTransform(Transform):
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         y, ladj = self.meta(x).call_and_ladj(x)
+        return y, ladj.sum(dim=-1)
+
+
+class CouplingTransform(Transform):
+    r"""Transform via a coupling scheme.
+
+    .. math::
+        y_a & = x_a \\
+        y_b & = f(x_b; x_a)
+
+    Arguments:
+        meta: A meta function which returns a transformation :math:`f`.
+        mask: A coupling mask defining the split $x \mapsto (x_a, x_b)$.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(
+        self,
+        meta: Callable[[Tensor], Transform],
+        mask: BoolTensor,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.meta = meta
+        self.idx_a = mask.nonzero().squeeze(-1)
+        self.idx_b = (~mask).nonzero().squeeze(-1)
+
+    def split(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        return x[..., self.idx_a], x[..., self.idx_b]
+
+    def merge(self, x_a: Tensor, x_b: Tensor, shape: Size) -> Tensor:
+        x = x_a.new_empty(shape)
+        x[..., self.idx_a] = x_a
+        x[..., self.idx_b] = x_b
+
+        return x
+
+    def _call(self, x: Tensor) -> Tensor:
+        x_a, x_b = self.split(x)
+        y_b = self.meta(x_a)(x_b)
+
+        return self.merge(x_a, y_b, x.shape)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        y_a, y_b = self.split(y)
+        x_b = self.meta(y_a).inv(y_b)
+
+        return self.merge(y_a, x_b, y.shape)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        x_a, x_b = self.split(x)
+        _, y_b = self.split(y)
+
+        return self.meta(x_a).log_abs_det_jacobian(x_b, y_b).sum(dim=-1)
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        x_a, x_b = self.split(x)
+        y_b, ladj = self.meta(x_a).call_and_ladj(x_b)
+        y = self.merge(x_a, y_b, x.shape)
+
         return y, ladj.sum(dim=-1)
 
 
