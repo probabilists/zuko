@@ -2,6 +2,7 @@ r"""Parameterizable transformations."""
 
 __all__ = [
     'ComposedTransform',
+    'DependentTransform',
     'IdentityTransform',
     'CosTransform',
     'SinTransform',
@@ -51,6 +52,8 @@ Transform.call_and_ladj = _call_and_ladj
 
 class ComposedTransform(Transform):
     r"""Creates a transformation :math:`f(x) = f_n \circ \dots \circ f_0(x)`.
+
+    Optimized version of :class:`torch.distributions.transforms.ComposeTransform`.
 
     Arguments:
         transforms: A sequence of transformations :math:`f_i`.
@@ -149,6 +152,66 @@ class ComposedTransform(Transform):
         for t in reversed(self.transforms):
             shape = t.inverse_shape(shape)
         return shape
+
+
+class DependentTransform(Transform):
+    r"""Wraps a base transformation to treat right-most dimensions as dependent.
+
+    Optimized version of :class:`torch.distributions.transforms.IndependentTransform`.
+
+    Arguments:
+        base: The base transformation.
+        reinterpreted: The number of dimensions to treat as dependent.
+    """
+
+    def __init__(self, base: Transform, reinterpreted: int, **kwargs):
+        super().__init__(**kwargs)
+
+        self.base = base
+        self.reinterpreted = reinterpreted
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.base}, {self.reinterpreted})'
+
+    @property
+    def domain(self) -> constraints.Constraint:
+        return constraints.independent(self.base.domain, self.reinterpreted)
+
+    @property
+    def codomain(self) -> constraints.Constraint:
+        return constraints.independent(self.base.codomain, self.reinterpreted)
+
+    @property
+    def bijective(self) -> bool:
+        return self.base.bijective
+
+    def _call(self, x: Tensor) -> Tensor:
+        return self.base(x)
+
+    @property
+    def inv(self) -> Transform:
+        return DependentTransform(self.base.inv, self.reinterpreted)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return self.base.inv(y)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        ladj = self.base.log_abs_det_jacobian(x, y)
+        ladj = _sum_rightmost(ladj, self.reinterpreted)
+
+        return ladj
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        y, ladj = self.base.call_and_ladj(x)
+        ladj = ladj = _sum_rightmost(ladj, self.reinterpreted)
+
+        return y, ladj
+
+    def forward_shape(self, shape: Size) -> Size:
+        return self.base.forward_shape(shape)
+
+    def inverse_shape(self, shape: Size) -> Size:
+        return self.base.inverse_shape(shape)
 
 
 class IdentityTransform(Transform):
@@ -718,11 +781,11 @@ class AutoregressiveTransform(Transform):
         return x
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return self.meta(x).log_abs_det_jacobian(x, y).sum(dim=-1)
+        return self.meta(x).log_abs_det_jacobian(x, y)
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         y, ladj = self.meta(x).call_and_ladj(x)
-        return y, ladj.sum(dim=-1)
+        return y, ladj
 
 
 class CouplingTransform(Transform):
@@ -779,14 +842,14 @@ class CouplingTransform(Transform):
         x_a, x_b = self.split(x)
         _, y_b = self.split(y)
 
-        return self.meta(x_a).log_abs_det_jacobian(x_b, y_b).sum(dim=-1)
+        return self.meta(x_a).log_abs_det_jacobian(x_b, y_b)
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         x_a, x_b = self.split(x)
         y_b, ladj = self.meta(x_a).call_and_ladj(x_b)
         y = self.merge(x_a, y_b, x.shape)
 
-        return y, ladj.sum(dim=-1)
+        return y, ladj
 
 
 class LULinearTransform(Transform):

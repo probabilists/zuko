@@ -273,13 +273,11 @@ class MonotonicMLP(MLP):
     """
 
     def __init__(self, *args, **kwargs):
-        kwargs['activation'] = nn.ELU
+        kwargs['activation'] = TwoWayELU
         kwargs['normalize'] = False
 
         super().__init__(*args, **kwargs)
 
-        for i, layer in enumerate(self):
+        for layer in self:
             if isinstance(layer, nn.Linear):
                 layer.__class__ = MonotonicLinear
-            elif isinstance(layer, nn.ELU):
-                layer.__class__ = TwoWayELU

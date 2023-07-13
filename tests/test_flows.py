@@ -80,6 +80,7 @@ def test_flows(tmp_path):
 
 def test_triangular_transforms():
     Ts = [
+        ElementWiseTransform,
         MaskedAutoregressiveTransform,
         partial(MaskedAutoregressiveTransform, passes=2),
         NeuralAutoregressiveTransform,
