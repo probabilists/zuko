@@ -887,7 +887,7 @@ class GeneralCouplingTransform(TransformModule):
         >>> t
         GeneralCouplingTransform(
           (base): MonotonicAffineTransform()
-          (order): [0, 1, 0]
+          (mask): [0, 1, 0]
           (hyper): MLP(
             (0): Linear(in_features=5, out_features=64, bias=True)
             (1): ReLU()
@@ -971,8 +971,6 @@ class GCF(FlowModule):
         transforms: The number of coupling transformations.
         randmask: Whether random coupling masks are used or not. If :py:`False`,
             use alternating checkered masks.
-        features are in ascending (descending) order for even
-            (odd) transformations.
         kwargs: Keyword arguments passed to :class:`GeneralCouplingTransform`.
     """
 
