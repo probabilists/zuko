@@ -5,6 +5,7 @@ API
 
 .. autosummary::
    :toctree: api
+   :recursive:
 
    zuko.distributions
    zuko.flows

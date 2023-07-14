@@ -15,6 +15,10 @@
    {% endif %}
    {% endblock %}
 
+   .. only:: never
+
+         nothing
+
    {% block functions %}
    {% if functions %}
    Functions
@@ -39,5 +43,9 @@
    {% endif %}
    {% endblock %}
 
+   {% block descriptions %}
+   {% if functions or classes %}
    Descriptions
    ------------
+   {% endif %}
+   {% endblock %}

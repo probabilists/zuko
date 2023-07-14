@@ -78,6 +78,9 @@ Alternatively, flows can be built as custom :class:`zuko.flows.FlowModule` objec
 References
 ----------
 
+| NICE: Non-linear Independent Components Estimation (Dinh et al., 2014)
+| https://arxiv.org/abs/1410.8516
+
 | Variational Inference with Normalizing Flows (Rezende et al., 2015)
 | https://arxiv.org/abs/1505.05770
 
