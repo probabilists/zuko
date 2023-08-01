@@ -8,6 +8,9 @@ from torch.distributions import *
 from zuko.transforms import *
 
 
+torch.set_default_dtype(torch.float64)
+
+
 def test_univariate_transforms():
     ts = [
         IdentityTransform(),
@@ -18,6 +21,7 @@ def test_univariate_transforms():
         MonotonicAffineTransform(randn(256), randn(256)),
         MonotonicRQSTransform(randn(256, 8), randn(256, 8), randn(256, 7)),
         MonotonicTransform(lambda x: x**3),
+        GaussianizationTransform(randn(256, 8), randn(256, 8)),
         UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(256)),
         SOSPolynomialTransform(randn(256, 2, 4), randn(256)),
     ]
@@ -27,7 +31,7 @@ def test_univariate_transforms():
         if hasattr(t.domain, 'lower_bound'):
             x = torch.linspace(t.domain.lower_bound + 1e-2, t.domain.upper_bound - 1e-2, 256)
         else:
-            x = torch.linspace(-4.999, 4.999, 256)
+            x = torch.linspace(-5.0, 5.0, 256)
 
         y = t(x)
 
@@ -71,8 +75,8 @@ def test_multivariate_transforms():
 
     ts = [
         FreeFormJacobianTransform(f, 0.0, 1.0),
-        LULinearTransform(randn(5, 5)),
         PermutationTransform(torch.randperm(5)),
+        RotationTransform(randn(5, 5)),
     ]
 
     for t in ts:

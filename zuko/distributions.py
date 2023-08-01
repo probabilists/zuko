@@ -483,7 +483,7 @@ class Truncated(Distribution):
         return self.uniform.log_prob(self.base.cdf(x)) + self.base.log_prob(x)
 
     def rsample(self, shape: Size = ()) -> Tensor:
-        return self.base.icdf(torch.clip(self.uniform.rsample(shape), 1e-6, 1 - 1e-6))
+        return self.base.icdf((1 - 2e-6) * self.uniform.rsample(shape) + 1e-6)
 
 
 class Sort(Distribution):
