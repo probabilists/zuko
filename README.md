@@ -4,7 +4,7 @@
 
 Zuko is a Python package that implements normalizing flows in [PyTorch](https://pytorch.org). It relies as much as possible on distributions and transformations already provided by PyTorch. Unfortunately, the `Distribution` and `Transform` classes of `torch` are not sub-classes of `torch.nn.Module`, which means you cannot send their internal tensors to GPU with `.to('cuda')` or retrieve their parameters with `.parameters()`. Worse, the concepts of conditional distribution and transformation, which are essential for probabilistic inference, are impossible to express.
 
-To solve these problems, `zuko` defines two abstract modules, `DistributionFactory` and `TransformFactory`, which represent parameterized recipes for building distributions and transformations, respectively. To condition a distribution or transformation simply means to consider the condition/context as part of the recipe, similar to [Pyro](http://pyro.ai)'s `ConditionalTransformModule`. A normalizing flow is a special `DistributionFactory` that contains a sequence of `TransformFactory` and a base `DistributionFactory`. This design allows for flows that behave like distributions while retaining the benefits of `Module`. It also makes the implementations easier to understand and extend.
+To solve these problems, `zuko` defines two abstract modules, `DistributionFactory` and `TransformFactory`, which represent parameterized recipes for building distributions and transformations, respectively. To condition a distribution or transformation simply means to consider the condition/context as part of the recipe, similar to [Pyro](http://pyro.ai)'s `ConditionalTransformModule`. A normalizing flow is a special `DistributionFactory` that contains a sequence of `TransformFactory` and a base `DistributionFactory`. This design enables flows to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easier to understand and extend.
 
 > In the [Avatar](https://wikipedia.org/wiki/Avatar:_The_Last_Airbender) cartoon, [Zuko](https://wikipedia.org/wiki/Zuko) is a powerful firebender 🔥
 
@@ -53,12 +53,12 @@ Alternatively, flows can be built as custom `Flow` objects.
 ```python
 from zuko.flows import Flow, MaskedAutoregressiveTransform, Unconditional
 from zuko.distributions import DiagNormal
-from zuko.transforms import PermutationTransform
+from zuko.transforms import RotationTransform
 
 flow = Flow(
     transforms=[
         MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
-        Unconditional(PermutationTransform, torch.randperm(3), buffer=True),
+        Unconditional(RotationTransform, torch.randn(3, 3)),
         MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
     ],
     base=Unconditional(

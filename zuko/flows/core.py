@@ -15,8 +15,8 @@ from torch import Tensor
 from torch.distributions import Distribution, Transform
 from typing import *
 
-from ..distributions import *
-from ..transforms import *
+from ..distributions import NormalizingFlow
+from ..transforms import ComposedTransform
 
 
 class DistributionFactory(nn.Module, abc.ABC):
@@ -97,10 +97,10 @@ class Flow(DistributionFactory):
 
 
 class Unconditional(nn.Module):
-    r"""Creates a factory from a recipe.
+    r"""Creates an unconditional factory from a recipe.
 
-    Typically, the recipe returns an unconditional distribution or transformation. The
-    positional arguments of the recipe are registered as buffers or parameters.
+    Typically, the recipe returns a distribution or transformation. The positional
+    arguments of the recipe are registered as buffers or parameters.
 
     Arguments:
         recipe: An arbitrary function.
@@ -147,6 +147,14 @@ class Unconditional(nn.Module):
         return repr(self.forward())
 
     def forward(self, c: Tensor = None) -> Any:
+        r"""
+        Arguments:
+            c: A context :math:`c`. This argument is always ignored.
+
+        Returns:
+            :py:`recipe(*args, **kwargs)`
+        """
+
         return self.recipe(
             *self._parameters.values(),
             *self._buffers.values(),

@@ -15,14 +15,17 @@ from torch.distributions import Transform
 from typing import *
 
 from .core import *
-from ..distributions import *
+from ..distributions import DiagNormal
 from ..transforms import *
 from ..nn import MaskedMLP
 from ..utils import broadcast, unpack
 
 
 class MaskedAutoregressiveTransform(TransformFactory):
-    r"""Creates a masked autoregressive transformation.
+    r"""Creates a masked autoregressive transformation factory.
+
+    See also:
+        :class:`zuko.transforms.AutoregressiveTransform`
 
     References:
         | Masked Autoregressive Flow for Density Estimation (Papamakarios et al., 2017)

@@ -27,7 +27,7 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import Tensor, BoolTensor, LongTensor, Size
-from torch.distributions import *
+from torch.distributions import Transform
 from torch.distributions import constraints
 from torch.distributions.utils import _sum_rightmost
 from typing import *
@@ -752,7 +752,7 @@ class CouplingTransform(Transform):
 
     Arguments:
         meta: A function which returns a transformation :math:`f` given :math:`x_a`.
-        mask: A coupling mask defining the split $x \mapsto (x_a, x_b)$.
+        mask: A coupling mask defining the split :math:`x \to (x_a, x_b)`.
     """
 
     domain = constraints.real_vector

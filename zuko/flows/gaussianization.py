@@ -14,7 +14,7 @@ from torch.distributions import Transform
 from typing import *
 
 from .core import *
-from ..distributions import *
+from ..distributions import DiagNormal
 from ..transforms import *
 from ..nn import MLP
 from ..utils import unpack
@@ -91,6 +91,14 @@ class ElementWiseTransform(TransformFactory):
 
 class GF(Flow):
     r"""Creates a gaussianization flow (GF).
+
+    Warning:
+        Invertibility is only guaranteed for features within the interval :math:`[-10,
+        10]`. It is recommended to standardize features (zero mean, unit variance)
+        before training.
+
+    See also:
+        :class:`zuko.transforms.GaussianizationTransform`
 
     References:
         | Gaussianization Flows (Meng et al., 2020)

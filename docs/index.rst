@@ -9,7 +9,7 @@ Zuko
 
 Zuko is a Python package that implements normalizing flows in `PyTorch <https://pytorch.org>`_. It relies as much as possible on distributions and transformations already provided by PyTorch. Unfortunately, the `Distribution` and `Transform` classes of :mod:`torch` are not sub-classes of :class:`torch.nn.Module`, which means you cannot send their internal tensors to GPU with :py:`.to('cuda')` or retrieve their parameters with :py:`.parameters()`. Worse, the concepts of conditional distribution and transformation, which are essential for probabilistic inference, are impossible to express.
 
-To solve these problems, :mod:`zuko` defines two abstract modules, :class:`zuko.flows.core.DistributionFactory` and :class:`zuko.flows.core.TransformFactory`, which represent parameterized recipes for building distributions and transformations, respectively. To condition a distribution or transformation simply means to consider the condition/context as part of the recipe, similar to `Pyro <http://pyro.ai>`_'s `ConditionalTransformModule`. A normalizing flow is a special `DistributionFactory` that contains a sequence of `TransformFactory` and a base `DistributionFactory`. This design allows for flows that behave like distributions while retaining the benefits of `Module`. It also makes the implementations easier to understand and extend.
+To solve these problems, :mod:`zuko` defines two abstract modules, :class:`zuko.flows.core.DistributionFactory` and :class:`zuko.flows.core.TransformFactory`, which represent parameterized recipes for building distributions and transformations, respectively. To condition a distribution or transformation simply means to consider the condition/context as part of the recipe, similar to `Pyro <http://pyro.ai>`_'s `ConditionalTransformModule`. A normalizing flow is a special `DistributionFactory` that contains a sequence of `TransformFactory` and a base `DistributionFactory`. This design enables flows to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easier to understand and extend.
 
 Installation
 ------------
@@ -59,12 +59,12 @@ Alternatively, flows can be built as custom :class:`zuko.flows.Flow` objects.
 
     from zuko.flows import Flow, MaskedAutoregressiveTransform, Unconditional
     from zuko.distributions import DiagNormal
-    from zuko.transforms import PermutationTransform
+    from zuko.transforms import RotationTransform
 
     flow = Flow(
         transforms=[
             MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
-            Unconditional(PermutationTransform, torch.randperm(3), buffer=True),
+            Unconditional(RotationTransform, torch.randn(3, 3)),
             MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
         ],
         base=Unconditional(

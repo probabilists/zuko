@@ -15,14 +15,17 @@ from torch.distributions import Transform
 from typing import *
 
 from .core import *
-from ..distributions import *
-from ..transforms import *
+from ..distributions import DiagNormal
+from ..transforms import FreeFormJacobianTransform
 from ..nn import MLP
 from ..utils import broadcast
 
 
 class FFJTransform(TransformFactory):
-    r"""Creates a free-form Jacobian (FFJ) transformation.
+    r"""Creates a free-form Jacobian (FFJ) transformation factory.
+
+    See also:
+        :class:`zuko.transforms.FreeFormJacobianTransform`
 
     References:
         | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)

@@ -15,21 +15,24 @@ from torch import Tensor
 from torch.distributions import Transform
 from typing import *
 
-from .autoregressive import *
+from .autoregressive import MaskedAutoregressiveTransform
 from .core import *
-from ..distributions import *
-from ..transforms import *
+from ..distributions import DiagNormal
+from ..transforms import MonotonicTransform, UnconstrainedMonotonicTransform
 from ..nn import MLP, MonotonicMLP
 from ..utils import broadcast
 
 
 class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
-    r"""Creates a neural autoregressive transformation.
+    r"""Creates a neural autoregressive transformation factory.
 
     The monotonic neural network is parametrized by its internal positive weights,
     which are independent of the features and context. To modulate its behavior, it
     receives as input a signal that is autoregressively dependent on the features
     and context.
+
+    See also:
+        :class:`zuko.transforms.MonotonicTransform`
 
     References:
         | Neural Autoregressive Flows (Huang et al., 2018)
@@ -105,6 +108,11 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
 class NAF(Flow):
     r"""Creates a neural autoregressive flow (NAF).
 
+    Warning:
+        Invertibility is only guaranteed for features within the interval :math:`[-10,
+        10]`. It is recommended to standardize features (zero mean, unit variance)
+        before training.
+
     References:
         | Neural Autoregressive Flows (Huang et al., 2018)
         | https://arxiv.org/abs/1804.00779
@@ -154,12 +162,15 @@ class NAF(Flow):
 
 
 class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
-    r"""Creates an unconstrained neural autoregressive transformation.
+    r"""Creates an unconstrained neural autoregressive transformation factory.
 
     The integrand neural network is parametrized by its internal weights, which are
     independent of the features and context. To modulate its behavior, it receives as
     input a signal that is autoregressively dependent on the features and context. The
     integration constant has the same dependencies as the signal.
+
+    See also:
+        :class:`zuko.transforms.UnconstrainedMonotonicTransform`
 
     References:
         | Unconstrained Monotonic Neural Networks (Wehenkel et al., 2019)
@@ -239,6 +250,11 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
 
 class UNAF(Flow):
     r"""Creates an unconstrained neural autoregressive flow (UNAF).
+
+    Warning:
+        Invertibility is only guaranteed for features within the interval :math:`[-10,
+        10]`. It is recommended to standardize features (zero mean, unit variance)
+        before training.
 
     References:
         | Unconstrained Monotonic Neural Networks (Wehenkel et al., 2019)

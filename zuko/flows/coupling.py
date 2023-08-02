@@ -14,14 +14,17 @@ from torch.distributions import Transform
 from typing import *
 
 from .core import *
-from ..distributions import *
+from ..distributions import DiagNormal
 from ..transforms import *
 from ..nn import MLP
 from ..utils import broadcast, unpack
 
 
 class GeneralCouplingTransform(TransformFactory):
-    r"""Creates a general coupling transformation.
+    r"""Creates a general coupling transformation factory.
+
+    See also:
+        :class:`zuko.transforms.CouplingTransform`
 
     References:
         | NICE: Non-linear Independent Components Estimation (Dinh et al., 2014)

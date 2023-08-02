@@ -7,4 +7,5 @@ from .core import *
 from .gaussianization import *
 from .mixture import *
 from .neural import *
-from .special import *
+from .polynomial import *
+from .spline import *

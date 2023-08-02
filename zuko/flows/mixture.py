@@ -9,12 +9,11 @@ import torch.nn as nn
 
 from math import prod
 from torch import Tensor
-from torch.distributions import *
+from torch.distributions import Distribution, MultivariateNormal
 from typing import *
 
 from .core import *
-from ..distributions import *
-from ..transforms import *
+from ..distributions import Mixture
 from ..nn import MLP
 from ..utils import unpack
 
