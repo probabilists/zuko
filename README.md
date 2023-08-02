@@ -2,9 +2,9 @@
 
 # Zuko - Normalizing flows in PyTorch
 
-Zuko is a Python package that implements normalizing flows in PyTorch. It relies as much as possible on distributions and transformations already provided by PyTorch. Unfortunately, the `Distribution` and `Transform` classes of `torch` are not sub-classes of `torch.nn.Module`, which means you cannot send their internal tensors to GPU with `.to('cuda')` or retrieve their parameters with `.parameters()`.
+Zuko is a Python package that implements normalizing flows in [PyTorch](https://pytorch.org). It relies as much as possible on distributions and transformations already provided by PyTorch. Unfortunately, the `Distribution` and `Transform` classes of `torch` are not sub-classes of `torch.nn.Module`, which means you cannot send their internal tensors to GPU with `.to('cuda')` or retrieve their parameters with `.parameters()`. Worse, the concepts of conditional distribution and transformation, which are essential for probabilistic inference, are impossible to express.
 
-To solve this problem, `zuko` defines two abstract classes: `DistributionModule` and `TransformModule`. The former is any `Module` whose forward pass returns a `Distribution` and the latter is any `Module` whose forward pass returns a `Transform`. A normalizing flow is just a `DistributionModule` which contains a list of `TransformModule` and a base `DistributionModule`. This design allows for flows that behave like distributions while retaining the benefits of `Module`. It also makes the implementations easier to understand and extend.
+To solve these problems, `zuko` defines two abstract modules, `DistributionFactory` and `TransformFactory`, which represent parameterized recipes for building distributions and transformations, respectively. To condition a distribution or transformation simply means to consider the condition/context as part of the recipe, similar to [Pyro](http://pyro.ai)'s `ConditionalTransformModule`. A normalizing flow is a special `DistributionFactory` that contains a sequence of `TransformFactory` and a base `DistributionFactory`. This design enables flows to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easier to understand and extend.
 
 > In the [Avatar](https://wikipedia.org/wiki/Avatar:_The_Last_Airbender) cartoon, [Zuko](https://wikipedia.org/wiki/Zuko) is a powerful firebender 🔥
 
@@ -48,17 +48,17 @@ for x, c in trainset:
 x = flow(c_star).sample((64,))
 ```
 
-Alternatively, flows can be built as custom `FlowModule` objects.
+Alternatively, flows can be built as custom `Flow` objects.
 
 ```python
-from zuko.flows import FlowModule, MaskedAutoregressiveTransform, Unconditional
+from zuko.flows import Flow, MaskedAutoregressiveTransform, Unconditional
 from zuko.distributions import DiagNormal
-from zuko.transforms import PermutationTransform
+from zuko.transforms import RotationTransform
 
-flow = FlowModule(
+flow = Flow(
     transforms=[
         MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
-        Unconditional(PermutationTransform, torch.randperm(3), buffer=True),
+        Unconditional(RotationTransform, torch.randn(3, 3)),
         MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
     ],
     base=Unconditional(
@@ -76,6 +76,8 @@ For more information, check out the documentation at [zuko.readthedocs.io](https
 
 | Class   | Year | Reference |
 |:-------:|:----:|-----------|
+| `GMM`   | -    | [Gaussian Mixture Model](https://wikipedia.org/wiki/Mixture_model#Gaussian_mixture_model) |
+| `NICE`  | 2014 | [Non-linear Independent Components Estimation](https://arxiv.org/abs/1410.8516) |
 | `MAF`   | 2017 | [Masked Autoregressive Flow for Density Estimation](https://arxiv.org/abs/1705.07057) |
 | `NSF`   | 2019 | [Neural Spline Flows](https://arxiv.org/abs/1906.04032) |
 | `NCSF`  | 2020 | [Normalizing Flows on Tori and Spheres](https://arxiv.org/abs/2002.02428) |
@@ -83,6 +85,7 @@ For more information, check out the documentation at [zuko.readthedocs.io](https
 | `NAF`   | 2018 | [Neural Autoregressive Flows](https://arxiv.org/abs/1804.00779) |
 | `UNAF`  | 2019 | [Unconstrained Monotonic Neural Networks](https://arxiv.org/abs/1908.05164) |
 | `CNF`   | 2018 | [Neural Ordinary Differential Equations](https://arxiv.org/abs/1806.07366) |
+| `GF`    | 2020 | [Gaussianization Flows](https://arxiv.org/abs/2003.01941) |
 
 ## Contributing
 

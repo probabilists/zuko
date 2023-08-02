@@ -11,13 +11,14 @@ __all__ = [
     'MonotonicAffineTransform',
     'MonotonicRQSTransform',
     'MonotonicTransform',
+    'GaussianizationTransform',
     'UnconstrainedMonotonicTransform',
     'SOSPolynomialTransform',
-    'FreeFormJacobianTransform',
     'AutoregressiveTransform',
     'CouplingTransform',
-    'LULinearTransform',
+    'FreeFormJacobianTransform',
     'PermutationTransform',
+    'RotationTransform',
 ]
 
 import math
@@ -26,7 +27,7 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import Tensor, BoolTensor, LongTensor, Size
-from torch.distributions import *
+from torch.distributions import Transform
 from torch.distributions import constraints
 from torch.distributions.utils import _sum_rightmost
 from typing import *
@@ -287,15 +288,15 @@ class SoftclipTransform(Transform):
         bound: The codomain bound :math:`B`.
     """
 
-    domain = constraints.real
-    codomain = constraints.real
     bijective = True
     sign = +1
 
-    def __init__(self, bound: float = 5.0, **kwargs):
+    def __init__(self, bound: float = 1.0, **kwargs):
         super().__init__(**kwargs)
 
         self.bound = bound
+        self.domain = constraints.real
+        self.codomain = constraints.interval(-bound, bound)
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(bound={self.bound})'
@@ -323,14 +324,14 @@ class CircularShiftTransform(Transform):
         bound: The domain bound :math:`B`.
     """
 
-    domain = constraints.real
-    codomain = constraints.real
     bijective = True
 
-    def __init__(self, bound: float = 5.0, **kwargs):
+    def __init__(self, bound: float = 1.0, **kwargs):
         super().__init__(**kwargs)
 
         self.bound = bound
+        self.domain = constraints.interval(-bound, bound)
+        self.codomain = constraints.interval(-bound, bound)
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(bound={self.bound})'
@@ -346,11 +347,11 @@ class CircularShiftTransform(Transform):
 
 
 class MonotonicAffineTransform(Transform):
-    r"""Creates a transformation :math:`f(x) = \alpha x + \beta`.
+    r"""Creates a transformation :math:`f(x) = \exp(a) x + b`.
 
     Arguments:
-        shift: The shift term :math:`\beta`, with shape :math:`(*,)`.
-        scale: The unconstrained scale factor :math:`\alpha`, with shape :math:`(*,)`.
+        shift: The shift term :math:`b`, with shape :math:`(*,)`.
+        scale: The unconstrained scale factor :math:`a`, with shape :math:`(*,)`.
         slope: The minimum slope of the transformation.
     """
 
@@ -417,13 +418,13 @@ class MonotonicRQSTransform(Transform):
         heights = heights / (1 + abs(2 * heights / math.log(slope)))
         derivatives = derivatives / (1 + abs(derivatives / math.log(slope)))
 
-        widths = 2 * F.softmax(widths, dim=-1)
-        heights = 2 * F.softmax(heights, dim=-1)
-        derivatives = derivatives.exp()
+        widths = F.pad(F.softmax(widths, dim=-1), (1, 0), value=0)
+        heights = F.pad(F.softmax(heights, dim=-1), (1, 0), value=0)
+        derivatives = F.pad(derivatives, (1, 1), value=0)
 
-        self.horizontal = bound * torch.cumsum(F.pad(widths, (1, 0), value=-1), dim=-1)
-        self.vertical = bound * torch.cumsum(F.pad(heights, (1, 0), value=-1), dim=-1)
-        self.derivatives = F.pad(derivatives, (1, 1), value=1)
+        self.horizontal = bound * (2 * torch.cumsum(widths, dim=-1) - 1)
+        self.vertical = bound * (2 * torch.cumsum(heights, dim=-1) - 1)
+        self.derivatives = torch.exp(derivatives)
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(bins={self.bins})'
@@ -530,7 +531,7 @@ class MonotonicTransform(Transform):
         self,
         f: Callable[[Tensor], Tensor],
         phi: Iterable[Tensor] = (),
-        bound: float = 5.0,
+        bound: float = 10.0,
         eps: float = 1e-6,
         **kwargs,
     ):
@@ -560,12 +561,56 @@ class MonotonicTransform(Transform):
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         with torch.enable_grad():
-            x = x.requires_grad_()
+            x = x.view_as(x).requires_grad_()  # shallow copy
             y = self.f(x)
 
         jacobian = torch.autograd.grad(y, x, torch.ones_like(y), create_graph=True)[0]
 
         return y, jacobian.log()
+
+
+class GaussianizationTransform(MonotonicTransform):
+    r"""Creates a gaussianization transformation.
+
+    .. math:: f(x) = \Phi^{-1}
+        \left( \frac{1}{K} \sum_{i=1}^K \Phi(\exp(a_i) x + b_i) \right)
+
+    where :math:`\Phi` is the cumulative distribution function (CDF) of the standard
+    normal :math:`\mathcal{N}(0, 1)`.
+
+    References:
+        | Gaussianization (Chen et al., 2000)
+        | https://papers.nips.cc/paper/1856-gaussianization
+
+    Arguments:
+        shift: The shift terms :math:`b`, with shape :math:`(*, K)`.
+        scale: The unconstrained scale factors :math:`a`, with shape :math:`(*, K)`.
+        kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
+    """
+
+    domain = constraints.real
+    codomain = constraints.real
+    bijective = True
+    sign = +1
+
+    def __init__(
+        self,
+        shift: Tensor,
+        scale: Tensor,
+        **kwargs,
+    ):
+        super().__init__(self.f, phi=(shift, scale), **kwargs)
+
+        self.shift = shift
+        self.scale = torch.exp(scale)
+
+    def f(self, x: Tensor) -> Tensor:
+        x = x[..., None] * self.scale + self.shift
+        x = torch.erf(x / math.sqrt(2))
+        x = torch.mean(x, dim=-1) * (1 - 1e-6)
+        x = torch.erfinv(x) * math.sqrt(2)
+
+        return x
 
 
 class UnconstrainedMonotonicTransform(MonotonicTransform):
@@ -623,7 +668,7 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     The transformation :math:`f(x)` is expressed as the primitive integral of the
     sum of :math:`K` squared polynomials of degree :math:`L`.
 
-    .. math:: f(x) = \int_0^x \sum_{i = 1}^K
+    .. math:: f(x) = \int_0^x \frac{1}{K} \sum_{i = 1}^K
         \left( 1 + \sum_{j = 0}^L a_{i,j} ~ u^j \right)^2 ~ du + C
 
     References:
@@ -652,7 +697,114 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
         x = x[..., None] ** self.i
         p = 1 + self.a @ x[..., None]
 
-        return p.squeeze(dim=-1).square().sum(dim=-1)
+        return p.squeeze(dim=-1).square().mean(dim=-1)
+
+
+class AutoregressiveTransform(Transform):
+    r"""Transform via an autoregressive scheme.
+
+    .. math:: y_i = f(x_i | x_{<i})
+
+    Arguments:
+        meta: A function which returns a transformation :math:`f` given :math:`x`.
+        passes: The number of passes for the inverse transformation.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(
+        self,
+        meta: Callable[[Tensor], Transform],
+        passes: int,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.meta = meta
+        self.passes = passes
+
+    def _call(self, x: Tensor) -> Tensor:
+        return self.meta(x)(x)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        x = torch.zeros_like(y)
+        for _ in range(self.passes):
+            x = self.meta(x).inv(y)
+
+        return x
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return self.meta(x).log_abs_det_jacobian(x, y)
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        y, ladj = self.meta(x).call_and_ladj(x)
+        return y, ladj
+
+
+class CouplingTransform(Transform):
+    r"""Transform via a coupling scheme.
+
+    .. math::
+        y_a & = x_a \\
+        y_b & = f(x_b | x_a)
+
+    Arguments:
+        meta: A function which returns a transformation :math:`f` given :math:`x_a`.
+        mask: A coupling mask defining the split :math:`x \to (x_a, x_b)`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(
+        self,
+        meta: Callable[[Tensor], Transform],
+        mask: BoolTensor,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.meta = meta
+        self.idx_a = mask.nonzero().squeeze(-1)
+        self.idx_b = (~mask).nonzero().squeeze(-1)
+
+    def split(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        return x[..., self.idx_a], x[..., self.idx_b]
+
+    def merge(self, x_a: Tensor, x_b: Tensor, shape: Size) -> Tensor:
+        x = x_a.new_empty(shape)
+        x[..., self.idx_a] = x_a
+        x[..., self.idx_b] = x_b
+
+        return x
+
+    def _call(self, x: Tensor) -> Tensor:
+        x_a, x_b = self.split(x)
+        y_b = self.meta(x_a)(x_b)
+
+        return self.merge(x_a, y_b, x.shape)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        y_a, y_b = self.split(y)
+        x_b = self.meta(y_a).inv(y_b)
+
+        return self.merge(y_a, x_b, y.shape)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        x_a, x_b = self.split(x)
+        _, y_b = self.split(y)
+
+        return self.meta(x_a).log_abs_det_jacobian(x_b, y_b)
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        x_a, x_b = self.split(x)
+        y_b, ladj = self.meta(x_a).call_and_ladj(x_b)
+        y = self.merge(x_a, y_b, x.shape)
+
+        return y, ladj
 
 
 class FreeFormJacobianTransform(Transform):
@@ -727,7 +879,7 @@ class FreeFormJacobianTransform(Transform):
 
         def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
             with torch.enable_grad():
-                x = x.requires_grad_()
+                x = x.view_as(x).requires_grad_()  # shallow copy
                 dx = self.f(t, x)
 
             if self.exact:
@@ -743,153 +895,6 @@ class FreeFormJacobianTransform(Transform):
         y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi)
 
         return y, ladj * (1 / self.trace_scale)
-
-
-class AutoregressiveTransform(Transform):
-    r"""Transform via an autoregressive scheme.
-
-    .. math:: y_i = f(x_i; x_{<i})
-
-    Arguments:
-        meta: A meta function which returns a transformation :math:`f`.
-        passes: The number of passes for the inverse transformation.
-    """
-
-    domain = constraints.real_vector
-    codomain = constraints.real_vector
-    bijective = True
-
-    def __init__(
-        self,
-        meta: Callable[[Tensor], Transform],
-        passes: int,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-
-        self.meta = meta
-        self.passes = passes
-
-    def _call(self, x: Tensor) -> Tensor:
-        return self.meta(x)(x)
-
-    def _inverse(self, y: Tensor) -> Tensor:
-        x = torch.zeros_like(y)
-        for _ in range(self.passes):
-            x = self.meta(x).inv(y)
-
-        return x
-
-    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return self.meta(x).log_abs_det_jacobian(x, y)
-
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        y, ladj = self.meta(x).call_and_ladj(x)
-        return y, ladj
-
-
-class CouplingTransform(Transform):
-    r"""Transform via a coupling scheme.
-
-    .. math::
-        y_a & = x_a \\
-        y_b & = f(x_b; x_a)
-
-    Arguments:
-        meta: A meta function which returns a transformation :math:`f`.
-        mask: A coupling mask defining the split $x \mapsto (x_a, x_b)$.
-    """
-
-    domain = constraints.real_vector
-    codomain = constraints.real_vector
-    bijective = True
-
-    def __init__(
-        self,
-        meta: Callable[[Tensor], Transform],
-        mask: BoolTensor,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-
-        self.meta = meta
-        self.idx_a = mask.nonzero().squeeze(-1)
-        self.idx_b = (~mask).nonzero().squeeze(-1)
-
-    def split(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        return x[..., self.idx_a], x[..., self.idx_b]
-
-    def merge(self, x_a: Tensor, x_b: Tensor, shape: Size) -> Tensor:
-        x = x_a.new_empty(shape)
-        x[..., self.idx_a] = x_a
-        x[..., self.idx_b] = x_b
-
-        return x
-
-    def _call(self, x: Tensor) -> Tensor:
-        x_a, x_b = self.split(x)
-        y_b = self.meta(x_a)(x_b)
-
-        return self.merge(x_a, y_b, x.shape)
-
-    def _inverse(self, y: Tensor) -> Tensor:
-        y_a, y_b = self.split(y)
-        x_b = self.meta(y_a).inv(y_b)
-
-        return self.merge(y_a, x_b, y.shape)
-
-    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        x_a, x_b = self.split(x)
-        _, y_b = self.split(y)
-
-        return self.meta(x_a).log_abs_det_jacobian(x_b, y_b)
-
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        x_a, x_b = self.split(x)
-        y_b, ladj = self.meta(x_a).call_and_ladj(x_b)
-        y = self.merge(x_a, y_b, x.shape)
-
-        return y, ladj
-
-
-class LULinearTransform(Transform):
-    r"""Creates a transformation :math:`f(x) = L U x`.
-
-    Arguments:
-        LU: A matrix whose lower and upper triangular parts are the non-zero elements
-            of :math:`L` and :math:`U`, with shape :math:`(*, D, D)`.
-    """
-
-    domain = constraints.real_vector
-    codomain = constraints.real_vector
-    bijective = True
-
-    def __init__(self, LU: Tensor, **kwargs):
-        super().__init__(**kwargs)
-
-        I = torch.eye(LU.shape[-1], dtype=LU.dtype, device=LU.device)
-
-        self.L = torch.tril(LU, diagonal=-1) + I
-        self.U = torch.triu(LU, diagonal=+1) + I
-
-    def _call(self, x: Tensor) -> Tensor:
-        return (self.L @ self.U @ x.unsqueeze(-1)).squeeze(-1)
-
-    def _inverse(self, y: Tensor) -> Tensor:
-        return torch.linalg.solve_triangular(
-            self.U,
-            torch.linalg.solve_triangular(
-                self.L,
-                y.unsqueeze(-1),
-                upper=False,
-                unitriangular=True,
-            ),
-            upper=True,
-            unitriangular=True,
-        ).squeeze(-1)
-
-    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return x.new_zeros(x.shape[:-1])
 
 
 class PermutationTransform(Transform):
@@ -922,6 +927,36 @@ class PermutationTransform(Transform):
 
     def _inverse(self, y: Tensor) -> Tensor:
         return y[..., torch.argsort(self.order)]
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return x.new_zeros(x.shape[:-1])
+
+
+class RotationTransform(Transform):
+    r"""Creates a rotation transformation :math:`f(x) = R x`.
+
+    .. math:: R = \exp(A - A^T)
+
+    Because :math:`A - A^T` is skew-symmetric, :math:`R` is orthogonal.
+
+    Arguments:
+        A: A square matrix :math:`A`, with shape :math:`(*, D, D)`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(self, A: Tensor, **kwargs):
+        super().__init__(**kwargs)
+
+        self.R = torch.linalg.matrix_exp(A - A.mT)
+
+    def _call(self, x: Tensor) -> Tensor:
+        return x @ self.R
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return y @ self.R.mT
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return x.new_zeros(x.shape[:-1])
