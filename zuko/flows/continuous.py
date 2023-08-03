@@ -21,8 +21,8 @@ from ..nn import MLP
 from ..utils import broadcast
 
 
-class FFJTransform(TransformFactory):
-    r"""Creates a free-form Jacobian (FFJ) transformation factory.
+class FFJTransform(LazyTransform):
+    r"""Creates a lazy free-form Jacobian (FFJ) transformation.
 
     See also:
         :class:`zuko.transforms.FreeFormJacobianTransform`

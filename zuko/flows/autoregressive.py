@@ -21,8 +21,8 @@ from ..nn import MaskedMLP
 from ..utils import broadcast, unpack
 
 
-class MaskedAutoregressiveTransform(TransformFactory):
-    r"""Creates a masked autoregressive transformation factory.
+class MaskedAutoregressiveTransform(LazyTransform):
+    r"""Creates a lazy masked autoregressive transformation.
 
     See also:
         :class:`zuko.transforms.AutoregressiveTransform`

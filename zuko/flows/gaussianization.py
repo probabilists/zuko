@@ -20,8 +20,8 @@ from ..nn import MLP
 from ..utils import unpack
 
 
-class ElementWiseTransform(TransformFactory):
-    r"""Creates an element-wise transformation.
+class ElementWiseTransform(LazyTransform):
+    r"""Creates a lazy element-wise transformation.
 
     Arguments:
         features: The number of features.

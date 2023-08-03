@@ -18,7 +18,7 @@ from ..nn import MLP
 from ..utils import unpack
 
 
-class GMM(DistributionFactory):
+class GMM(LazyDistribution):
     r"""Creates a Gaussian mixture model (GMM).
 
     .. math:: p(X | c) = \sum_{i = 1}^K w_i(c) \, \mathcal{N}(X | \mu_i(c), \Sigma_i(c))

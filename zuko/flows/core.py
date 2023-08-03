@@ -1,8 +1,8 @@
 r"""Core building blocks."""
 
 __all__ = [
-    'DistributionFactory',
-    'TransformFactory',
+    'LazyDistribution',
+    'LazyTransform',
     'Flow',
     'Unconditional',
 ]
@@ -19,15 +19,15 @@ from ..distributions import NormalizingFlow
 from ..transforms import ComposedTransform
 
 
-class DistributionFactory(nn.Module, abc.ABC):
-    r"""Abstract distribution factory.
+class LazyDistribution(nn.Module, abc.ABC):
+    r"""Abstract lazy distribution.
 
-    A distribution factory is a module that builds and returns a distribution
+    A lazy distribution is a module that builds and returns a distribution
     :math:`p(X | c)` within its forward pass, given a context :math:`c`.
     """
 
     @abc.abstractmethod
-    def forward(self, c: Tensor = None) -> Distribution:
+    def forward(self, c: Any = None) -> Distribution:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -39,15 +39,15 @@ class DistributionFactory(nn.Module, abc.ABC):
         pass
 
 
-class TransformFactory(nn.Module, abc.ABC):
-    r"""Abstract transformation factory.
+class LazyTransform(nn.Module, abc.ABC):
+    r"""Abstract lazy transformation.
 
-    A transformation factory is a module that builds and returns a transformation
+    A lazy transformation is a module that builds and returns a transformation
     :math:`y = f(x | c)` within its forward pass, given a context :math:`c`.
     """
 
     @abc.abstractmethod
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Any = None) -> Transform:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -59,18 +59,21 @@ class TransformFactory(nn.Module, abc.ABC):
         pass
 
 
-class Flow(DistributionFactory):
-    r"""Creates a normalizing flow factory.
+class Flow(LazyDistribution):
+    r"""Creates a lazy normalizing flow.
+
+    See also:
+        :class:`zuko.distributions.NormalizingFlow`
 
     Arguments:
-        transforms: A list of transformation factories.
-        base: A distribution factory.
+        transforms: A sequence of lazy transformations.
+        base: A lazy distribution.
     """
 
     def __init__(
         self,
-        transforms: Sequence[TransformFactory],
-        base: DistributionFactory,
+        transforms: Sequence[LazyTransform],
+        base: LazyDistribution,
     ):
         super().__init__()
 
@@ -97,16 +100,16 @@ class Flow(DistributionFactory):
 
 
 class Unconditional(nn.Module):
-    r"""Creates an unconditional factory from a recipe.
+    r"""Creates an unconditional lazy module from a constructor.
 
-    Typically, the recipe returns a distribution or transformation. The positional
-    arguments of the recipe are registered as buffers or parameters.
+    Typically, the constructor returns a distribution or transformation. The positional
+    arguments of the constructor are registered as buffers or parameters.
 
     Arguments:
-        recipe: An arbitrary function.
-        args: The positional tensor arguments passed to `recipe`.
+        meta: An arbitrary constructor function.
+        args: The positional tensor arguments passed to `meta`.
         buffer: Whether tensors are registered as buffers or parameters.
-        kwargs: The keyword arguments passed to `recipe`.
+        kwargs: The keyword arguments passed to `meta`.
 
     Examples:
         >>> mu, sigma = torch.zeros(3), torch.ones(3)
@@ -126,14 +129,14 @@ class Unconditional(nn.Module):
 
     def __init__(
         self,
-        recipe: Callable[..., Any],
+        meta: Callable[..., Any],
         *args: Tensor,
         buffer: bool = False,
         **kwargs,
     ):
         super().__init__()
 
-        self.recipe = recipe
+        self.meta = meta
 
         for i, arg in enumerate(args):
             if buffer:
@@ -152,10 +155,10 @@ class Unconditional(nn.Module):
             c: A context :math:`c`. This argument is always ignored.
 
         Returns:
-            :py:`recipe(*args, **kwargs)`
+            :py:`meta(*args, **kwargs)`
         """
 
-        return self.recipe(
+        return self.meta(
             *self._parameters.values(),
             *self._buffers.values(),
             **self.kwargs,
