@@ -20,8 +20,8 @@ from ..nn import MLP
 from ..utils import broadcast, unpack
 
 
-class GeneralCouplingTransform(TransformFactory):
-    r"""Creates a general coupling transformation factory.
+class GeneralCouplingTransform(LazyTransform):
+    r"""Creates a lazy general coupling transformation.
 
     See also:
         :class:`zuko.transforms.CouplingTransform`

@@ -24,7 +24,7 @@ from ..utils import broadcast
 
 
 class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
-    r"""Creates a neural autoregressive transformation factory.
+    r"""Creates a lazy neural autoregressive transformation.
 
     The monotonic neural network is parametrized by its internal positive weights,
     which are independent of the features and context. To modulate its behavior, it
@@ -162,7 +162,7 @@ class NAF(Flow):
 
 
 class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
-    r"""Creates an unconstrained neural autoregressive transformation factory.
+    r"""Creates a lazy unconstrained neural autoregressive transformation.
 
     The integrand neural network is parametrized by its internal weights, which are
     independent of the features and context. To modulate its behavior, it receives as
