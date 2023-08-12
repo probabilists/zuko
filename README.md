@@ -8,6 +8,10 @@ To solve these problems, `zuko` defines two concepts: the `LazyDistribution` and
 
 > In the [Avatar](https://wikipedia.org/wiki/Avatar:_The_Last_Airbender) cartoon, [Zuko](https://wikipedia.org/wiki/Zuko) is a powerful firebender 🔥
 
+## Acknowledgements
+
+Zuko takes significant inspiration from [nflows](https://github.com/bayesiains/nflows) and [Stefan Webb](https://github.com/stefanwebb)'s work in [Pyro](https://github.com/pyro-ppl/pyro) and [FlowTorch](https://github.com/facebookincubator/flowtorch).
+
 ## Installation
 
 The `zuko` package is available on [PyPI](https://pypi.org/project/zuko), which means it is installable via `pip`.
