@@ -10,6 +10,9 @@ docs/api/
 docs/html/
 docs/jupyter_execute/
 
+# Benchmark
+benchmark/.dawgz/
+benchmark/wandb/
 
 ##########
 # Python #
