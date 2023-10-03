@@ -1,4 +1,4 @@
-![Zuko's banner](https://raw.githubusercontent.com/francois-rozet/zuko/master/docs/images/banner.svg)
+![Zuko's banner](https://raw.githubusercontent.com/probabilists/zuko/master/docs/images/banner.svg)
 
 # Zuko - Normalizing flows in PyTorch
 
@@ -23,7 +23,7 @@ pip install zuko
 Alternatively, if you need the latest features, you can install it from the repository.
 
 ```
-pip install git+https://github.com/francois-rozet/zuko
+pip install git+https://github.com/probabilists/zuko
 ```
 
 ## Getting started
@@ -93,4 +93,4 @@ For more information, check out the documentation at [zuko.readthedocs.io](https
 
 ## Contributing
 
-If you have a question, an issue or would like to contribute, please read our [contributing guidelines](https://github.com/francois-rozet/zuko/blob/master/CONTRIBUTING.md).
+If you have a question, an issue or would like to contribute, please read our [contributing guidelines](https://github.com/probabilists/zuko/blob/master/CONTRIBUTING.md).

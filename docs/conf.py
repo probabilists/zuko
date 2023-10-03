@@ -12,8 +12,8 @@ import zuko
 package = 'zuko'
 project = 'Zuko'
 version = zuko.__version__
-copyright = '2022-2023, François Rozet'
-repository = 'https://github.com/francois-rozet/zuko'
+copyright = '2022-2023'
+repository = 'https://github.com/probabilists/zuko'
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 
 ## Extensions

@@ -25,7 +25,7 @@ Alternatively, if you need the latest features, you can install it from the repo
 
 .. code-block:: console
 
-    pip install git+https://github.com/francois-rozet/zuko
+    pip install git+https://github.com/probabilists/zuko
 
 Getting started
 ---------------
@@ -106,6 +106,6 @@ References
     :hidden:
     :maxdepth: 1
 
-    Contributing <https://github.com/francois-rozet/zuko/blob/master/CONTRIBUTING.md>
-    Changelog <https://github.com/francois-rozet/zuko/releases>
-    License <https://github.com/francois-rozet/zuko/blob/master/LICENSE>
+    Contributing <https://github.com/probabilists/zuko/blob/master/CONTRIBUTING.md>
+    Changelog <https://github.com/probabilists/zuko/releases>
+    License <https://github.com/probabilists/zuko/blob/master/LICENSE>
