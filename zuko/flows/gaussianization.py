@@ -109,7 +109,7 @@ class GF(Flow):
         context: The number of context features.
         transforms: The number of coupling transformations.
         components: The number of mixture components in each transformation.
-        kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
+        kwargs: Keyword arguments passed to :class:`ElementWiseTransform`.
     """
 
     def __init__(
@@ -131,9 +131,9 @@ class GF(Flow):
             for _ in range(transforms)
         ]
 
-        for i in reversed(range(len(transforms))):
+        for i in reversed(range(1, len(transforms))):
             transforms.insert(
-                i + 1,
+                i,
                 Unconditional(
                     RotationTransform,
                     torch.randn(features, features),
