@@ -18,7 +18,7 @@ from typing import *
 from .autoregressive import MaskedAutoregressiveTransform
 from .core import *
 from ..distributions import DiagNormal
-from ..transforms import MonotonicTransform, UnconstrainedMonotonicTransform
+from ..transforms import SoftclipTransform, MonotonicTransform, UnconstrainedMonotonicTransform
 from ..nn import MLP, MonotonicMLP
 from ..utils import broadcast
 
@@ -149,6 +149,9 @@ class NAF(Flow):
             )
             for i in range(transforms)
         ]
+
+        for i in reversed(range(1, len(transforms))):
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
 
         base = Unconditional(
             DiagNormal,
@@ -291,6 +294,9 @@ class UNAF(Flow):
             )
             for i in range(transforms)
         ]
+
+        for i in reversed(range(1, len(transforms))):
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
 
         base = Unconditional(
             DiagNormal,

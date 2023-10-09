@@ -10,7 +10,7 @@ from typing import *
 
 from .autoregressive import MAF
 from .core import *
-from ..transforms import SOSPolynomialTransform
+from ..transforms import SoftclipTransform, SOSPolynomialTransform
 
 
 class SOSPF(MAF):
@@ -51,3 +51,6 @@ class SOSPF(MAF):
             shapes=[(polynomials, degree + 1), ()],
             **kwargs,
         )
+
+        for i in reversed(range(1, len(self.transforms))):
+            self.transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
