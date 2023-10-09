@@ -1,6 +1,6 @@
 r"""Neural networks, layers and modules."""
 
-__all__ = ['MLP', 'MaskedMLP', 'MonotonicMLP']
+__all__ = ['Linear', 'MLP', 'MaskedMLP', 'MonotonicMLP']
 
 import torch
 import torch.nn as nn
@@ -8,6 +8,28 @@ import torch.nn.functional as F
 
 from torch import Tensor, BoolTensor
 from typing import *
+
+
+if hasattr(torch, 'vmap'):
+    def linear(x: Tensor, W: Tensor, b: Tensor) -> Tensor:
+        if W.dim() == 2:
+            return F.linear(x, W, b)
+        elif W.dim() == 3:
+            if b is None:
+                return torch.vmap(F.linear, in_dims=(-2, -3), out_dims=-2)(x, W)
+            else:
+                return torch.vmap(F.linear, in_dims=(-2, -3, -2), out_dims=-2)(x, W, b)
+else:
+    def linear(x: Tensor, W: Tensor, b: Tensor) -> Tensor:
+        if W.dim() == 2:
+            return F.linear(x, W, b)
+        elif W.dim() == 3:
+            x = torch.einsum('ijk,...ik->...ij', W, x)
+
+        if b is None:
+            return x
+        else:
+            return x + b
 
 
 class LayerNorm(nn.Module):
@@ -36,6 +58,77 @@ class LayerNorm(nn.Module):
         return (x - mean) / (variance + self.eps).sqrt()
 
 
+class Linear(nn.Module):
+    r"""Creates a linear layer.
+
+    .. math:: y = x W^T + b
+
+    If the :py:`stack` argument is provided, the module creates a stack of
+    independent linear operators that are applied to a stack of input vectors.
+
+    Arguments:
+        in_features: The number of input features :math:`C`.
+        out_features: The number of output features :math:`C'`.
+        bias: Whether the layer learns an additive bias :math:`b` or not.
+        stack: The number of stacked operators :math:`S`.
+    """
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        stack: int = None,
+    ):
+        super().__init__()
+
+        shape = () if stack is None else (stack,)
+
+        self.weight = nn.Parameter(torch.empty(*shape, out_features, in_features))
+
+        if bias:
+            self.bias = nn.Parameter(torch.empty(*shape, out_features))
+        else:
+            self.bias = None
+
+        self.reset_parameters()
+
+        self.in_features = in_features
+        self.out_features = out_features
+
+    def reset_parameters(self):
+        bound = 1 / self.weight.shape[-1] ** 0.5
+
+        nn.init.uniform_(self.weight, -bound, bound)
+
+        if self.bias is not None:
+            nn.init.uniform_(self.bias, -bound, bound)
+
+    def extra_repr(self) -> str:
+        if self.weight.dim() == 2:
+            stack, fout, fin = (None, *self.weight.shape)
+        else:
+            stack, fout, fin = self.weight.shape
+
+        bias = self.bias is not None
+
+        if stack is None:
+            return f'in_features={fin}, out_features={fout}, bias={bias}'
+        else:
+            return f'in_features={fin}, out_features={fout}, bias={bias}, stack={stack}'
+
+    def forward(self, x: Tensor) -> Tensor:
+        r"""
+        Arguments:
+            x: The input tensor :math:`x`, with shape :math:`(*, C)` or :math:`(*, S, C)`.
+
+        Returns:
+            The output tensor :math:`y`, with shape or :math:`(*, C')` or :math:`(*, S, C')`.
+        """
+
+        return linear(x, self.weight, self.bias)
+
+
 class MLP(nn.Sequential):
     r"""Creates a multi-layer perceptron (MLP).
 
@@ -59,7 +152,7 @@ class MLP(nn.Sequential):
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
         normalize: Whether features are normalized between layers or not.
-        kwargs: Keyword arguments passed to :class:`torch.nn.Linear`.
+        kwargs: Keyword arguments passed to :class:`Linear`.
 
     Example:
         >>> net = MLP(64, 1, [32, 16], activation=nn.ELU)
@@ -94,7 +187,7 @@ class MLP(nn.Sequential):
             (*hidden_features, out_features),
         ):
             layers.extend([
-                nn.Linear(before, after, **kwargs),
+                Linear(before, after, **kwargs),
                 activation(),
                 normalization(),
             ])
@@ -212,18 +305,18 @@ class MaskedMLP(nn.Sequential):
         self.out_features = out_features
 
 
-class MonotonicLinear(nn.Linear):
+class MonotonicLinear(Linear):
     r"""Creates a monotonic linear layer.
 
     .. math:: y = x |W|^T + b
 
     Arguments:
-        args: Positional arguments passed to :class:`torch.nn.Linear`.
-        kwargs: Keyword arguments passed to :class:`torch.nn.Linear`.
+        args: Positional arguments passed to :class:`Linear`.
+        kwargs: Keyword arguments passed to :class:`Linear`.
     """
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.linear(x, self.weight.abs(), self.bias)
+        return linear(x, self.weight.abs(), self.bias)
 
 
 class TwoWayELU(nn.ELU):
@@ -279,5 +372,5 @@ class MonotonicMLP(MLP):
         super().__init__(*args, **kwargs)
 
         for layer in self:
-            if isinstance(layer, nn.Linear):
+            if isinstance(layer, Linear):
                 layer.__class__ = MonotonicLinear

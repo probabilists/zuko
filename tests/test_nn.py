@@ -8,8 +8,28 @@ from torch import randn
 from zuko.nn import *
 
 
-def test_MLP():
-    net = MLP(3, 5)
+@pytest.mark.parametrize('bias', [True, False])
+def test_Linear(bias: bool):
+    net = Linear(3, 5, bias=True)
+
+    # Non-batched
+    x = randn(3)
+    y = net(x)
+
+    assert y.shape == (5,)
+    assert y.requires_grad
+
+    # Batched
+    x = randn(256, 3)
+    y = net(x)
+
+    assert y.shape == (256, 5)
+
+
+@pytest.mark.parametrize('activation', [None, torch.nn.ELU])
+@pytest.mark.parametrize('normalize', [True, False])
+def test_MLP(activation: callable, normalize: bool):
+    net = MLP(3, 5, activation=activation, normalize=normalize)
 
     # Non-batched
     x = randn(3)

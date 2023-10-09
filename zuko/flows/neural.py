@@ -59,11 +59,11 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
             (4): MaskedLinear(in_features=64, out_features=24, bias=True)
           )
           (network): MonotonicMLP(
-            (0): MonotonicLinear(in_features=9, out_features=64, bias=True)
+            (0): MonotonicLinear(in_features=17, out_features=64, bias=True, stack=3)
             (1): TwoWayELU(alpha=1.0)
-            (2): MonotonicLinear(in_features=64, out_features=64, bias=True)
+            (2): MonotonicLinear(in_features=64, out_features=64, bias=True, stack=3)
             (3): TwoWayELU(alpha=1.0)
-            (4): MonotonicLinear(in_features=64, out_features=1, bias=True)
+            (4): MonotonicLinear(in_features=64, out_features=1, bias=True, stack=3)
           )
         )
         >>> x = torch.randn(3)
@@ -79,7 +79,7 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         self,
         features: int,
         context: int = 0,
-        signal: int = 8,
+        signal: int = 16,
         network: Dict[str, Any] = {},
         **kwargs,
     ):
@@ -91,7 +91,7 @@ class NeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
             **kwargs,
         )
 
-        self.network = MonotonicMLP(1 + signal, 1, **network)
+        self.network = MonotonicMLP(1 + signal, 1, **network, stack=features)
 
     def f(self, signal: Tensor, x: Tensor) -> Tensor:
         return self.network(
@@ -196,11 +196,11 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
             (4): MaskedLinear(in_features=64, out_features=27, bias=True)
           )
           (integrand): MLP(
-            (0): Linear(in_features=9, out_features=64, bias=True)
+            (0): Linear(in_features=17, out_features=64, bias=True, stack=3)
             (1): ELU(alpha=1.0)
-            (2): Linear(in_features=64, out_features=64, bias=True)
+            (2): Linear(in_features=64, out_features=64, bias=True, stack=3)
             (3): ELU(alpha=1.0)
-            (4): Linear(in_features=64, out_features=1, bias=True)
+            (4): Linear(in_features=64, out_features=1, bias=True, stack=3)
           )
         )
         >>> x = torch.randn(3)
@@ -216,7 +216,7 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         self,
         features: int,
         context: int = 0,
-        signal: int = 8,
+        signal: int = 16,
         network: Dict[str, Any] = {},
         **kwargs,
     ):
@@ -230,7 +230,7 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
 
         network.setdefault('activation', nn.ELU)
 
-        self.integrand = MLP(1 + signal, 1, **network)
+        self.integrand = MLP(1 + signal, 1, **network, stack=features)
 
     def g(self, signal: Tensor, x: Tensor) -> Tensor:
         dx = self.integrand(
