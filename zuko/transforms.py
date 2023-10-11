@@ -718,7 +718,7 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
         super().__init__(self.g, C, phi=(a,), n=a.shape[-1], **kwargs)
 
         self.a = a
-        self.i = torch.arange(a.shape[-1]).to(a.device)
+        self.i = torch.arange(a.shape[-1], device=a.device)
 
     def g(self, x: Tensor) -> Tensor:
         x = x / self.bound

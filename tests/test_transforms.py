@@ -24,7 +24,7 @@ def test_univariate_transforms():
         MonotonicTransform(lambda x: x**3),
         GaussianizationTransform(randn(256, 8), randn(256, 8)),
         UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(256)),
-        SOSPolynomialTransform(randn(256, 2, 4), randn(256)),
+        SOSPolynomialTransform(randn(256, 3, 5), randn(256)),
     ]
 
     for t in ts:

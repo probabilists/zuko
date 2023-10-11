@@ -40,8 +40,8 @@ class SOSPF(MAF):
         self,
         features: int,
         context: int = 0,
-        degree: int = 3,
-        polynomials: int = 2,
+        degree: int = 4,
+        polynomials: int = 3,
         **kwargs,
     ):
         super().__init__(
