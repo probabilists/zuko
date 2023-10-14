@@ -35,6 +35,8 @@ class FFJTransform(LazyTransform):
         features: The number of features.
         context: The number of context features.
         freqs: The number of time embedding frequencies.
+        atol: The absolute integration tolerance.
+        rtol: The relative integration tolerance.
         exact: Whether the exact log-determinant of the Jacobian or an unbiased
             stochastic estimate thereof is calculated.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
@@ -65,6 +67,8 @@ class FFJTransform(LazyTransform):
         features: int,
         context: int = 0,
         freqs: int = 3,
+        atol: float = 1e-6,
+        rtol: float = 1e-5,
         exact: bool = True,
         **kwargs,
     ):
@@ -77,6 +81,8 @@ class FFJTransform(LazyTransform):
         self.register_buffer('times', torch.tensor((0.0, 1.0)))
         self.register_buffer('freqs', torch.arange(1, freqs + 1) * pi)
 
+        self.atol = atol
+        self.rtol = rtol
         self.exact = exact
 
     def f(self, t: Tensor, x: Tensor, c: Tensor = None) -> Tensor:
@@ -96,6 +102,8 @@ class FFJTransform(LazyTransform):
             t0=self.times[0],
             t1=self.times[1],
             phi=self.parameters() if c is None else (c, *self.parameters()),
+            atol=self.atol,
+            rtol=self.rtol,
             exact=self.exact,
         )
 

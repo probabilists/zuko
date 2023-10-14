@@ -254,6 +254,8 @@ def odeint(
     t0: Union[float, Tensor],
     t1: Union[float, Tensor],
     phi: Iterable[Tensor] = (),
+    atol: float = 1e-6,
+    rtol: float = 1e-5,
 ) -> Union[Tensor, Sequence[Tensor]]:
     r"""Integrates a system of first-order ordinary differential equations (ODEs)
 
@@ -280,6 +282,8 @@ def odeint(
         t0: The initial integration time :math:`t_0`.
         t1: The final integration time :math:`t_1`.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
+        atol: The absolute tolerance.
+        rtol: The relative tolerance.
 
     Returns:
         The final state :math:`x(t_1)`.
@@ -292,6 +296,8 @@ def odeint(
         >>> x1
         tensor([-3.7454, -0.4140,  0.2677])
     """
+
+    settings = (atol, rtol, torch.is_grad_enabled())
 
     if torch.is_tensor(x):
         x0 = x
@@ -310,7 +316,7 @@ def odeint(
 
     assert not t0.shape and not t1.shape, "'t0' and 't1' must be scalars"
 
-    x1 = AdaptiveCheckpointAdjoint.apply(g, x0, t0, t1, *phi)
+    x1 = AdaptiveCheckpointAdjoint.apply(settings, g, x0, t0, t1, *phi)
 
     if torch.is_tensor(x):
         return x1
@@ -393,12 +399,15 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
+        settings: Tuple[float, float, bool],
         f: Callable[[Tensor, Tensor], Tensor],
         x: Tensor,
         t0: Tensor,
         t1: Tensor,
         *phi: Tensor,
     ) -> Tensor:
+        atol, rtol, grad_enabled = settings
+
         ctx.f = f
         ctx.save_for_backward(x, t0, t1, *phi)
         ctx.steps = []
@@ -411,12 +420,14 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
 
             while True:
                 y, error = dopri45(f, x, t, dt, error=True)
-                tolerance = 1e-6 + 1e-5 * torch.max(abs(x), abs(y))
+                tolerance = atol + rtol * torch.max(abs(x), abs(y))
                 error = torch.max(error / tolerance).clip(min=1e-9).item()
 
                 if error < 1.0:
                     x, t = y, t + dt
-                    ctx.steps.append((x, t, dt))
+
+                    if grad_enabled:
+                        ctx.steps.append((x, t, dt))
 
                 dt = dt * min(10.0, max(0.1, 0.9 / error ** (1 / 5)))
 
@@ -433,7 +444,7 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
         x1, _, _ = ctx.steps[-1]
 
         # Final time
-        if ctx.needs_input_grad[3]:
+        if ctx.needs_input_grad[4]:
             grad_t1 = torch.sum(f(t1, x1) * grad_x)
         else:
             grad_t1 = None
@@ -457,12 +468,12 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
             _, grad_x, *grad_phi = dopri45(g, x_aug, t, -dt)
 
         # Initial time
-        if ctx.needs_input_grad[2]:
+        if ctx.needs_input_grad[3]:
             grad_t0 = torch.sum(f(t0, x0) * grad_x)
         else:
             grad_t0 = None
 
-        return (None, grad_x, grad_t0, grad_t1, *grad_phi)
+        return (None, None, grad_x, grad_t0, grad_t1, *grad_phi)
 
 
 def unpack(x: Tensor, shapes: Sequence[Size]) -> Sequence[Tensor]:

@@ -96,7 +96,7 @@ def test_odeint():
     F = lambda t, x: x * (-alpha * t).exp()
 
     x0 = randn(256, requires_grad=True)
-    xt = odeint(f, x0, torch.zeros_like(t), t, phi=(alpha,))
+    xt = odeint(f, x0, torch.zeros_like(t), t, phi=(alpha,), atol=1e-7, rtol=1e-6)
 
     assert xt.shape == x0.shape
     assert torch.allclose(xt, F(t, x0), atol=1e-6)

@@ -589,7 +589,7 @@ class MonotonicTransform(Transform):
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         with torch.enable_grad():
-            x = x.view_as(x).requires_grad_()  # shallow copy
+            x = x.clone().requires_grad_()
             y = self.f(x)
 
         jacobian = torch.autograd.grad(y, x, torch.ones_like(y), create_graph=True)[0]
@@ -852,6 +852,8 @@ class FreeFormJacobianTransform(Transform):
         t0: The initial integration time :math:`t_0`.
         t1: The final integration time :math:`t_1`.
         phi: The parameters :math:`\phi` of :math:`f_\phi`.
+        atol: The absolute integration tolerance.
+        rtol: The relative integration tolerance.
         exact: Whether the exact log-determinant of the Jacobian or an unbiased
             stochastic estimate thereof is calculated.
     """
@@ -866,6 +868,8 @@ class FreeFormJacobianTransform(Transform):
         t0: Union[float, Tensor] = 0.0,
         t1: Union[float, Tensor] = 1.0,
         phi: Iterable[Tensor] = (),
+        atol: float = 1e-6,
+        rtol: float = 1e-5,
         exact: bool = True,
         **kwargs,
     ):
@@ -875,11 +879,13 @@ class FreeFormJacobianTransform(Transform):
         self.t0 = t0
         self.t1 = t1
         self.phi = tuple(filter(lambda p: p.requires_grad, phi))
+        self.atol = atol
+        self.rtol = rtol
         self.exact = exact
         self.trace_scale = 1e-2  # relax jacobian tolerances
 
     def _call(self, x: Tensor) -> Tensor:
-        return odeint(self.f, x, self.t0, self.t1, self.phi)
+        return odeint(self.f, x, self.t0, self.t1, self.phi, self.atol, self.rtol)
 
     @property
     def inv(self) -> Transform:
@@ -888,11 +894,13 @@ class FreeFormJacobianTransform(Transform):
             t0=self.t1,
             t1=self.t0,
             phi=self.phi,
+            atol=self.atol,
+            rtol=self.rtol,
             exact=self.exact,
         )
 
     def _inverse(self, y: Tensor) -> Tensor:
-        return odeint(self.f, y, self.t1, self.t0, self.phi)
+        return odeint(self.f, y, self.t1, self.t0, self.phi, self.atol, self.rtol)
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         _, ladj = self.call_and_ladj(x)
@@ -907,7 +915,7 @@ class FreeFormJacobianTransform(Transform):
 
         def f_aug(t: Tensor, x: Tensor, ladj: Tensor) -> Tensor:
             with torch.enable_grad():
-                x = x.view_as(x).requires_grad_()  # shallow copy
+                x = x.clone().requires_grad_()
                 dx = self.f(t, x)
 
             if self.exact:
@@ -920,7 +928,7 @@ class FreeFormJacobianTransform(Transform):
             return dx, trace * self.trace_scale
 
         ladj = torch.zeros_like(x[..., 0])
-        y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi)
+        y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi, self.atol, self.rtol)
 
         return y, ladj * (1 / self.trace_scale)
 
