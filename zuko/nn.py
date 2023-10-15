@@ -201,6 +201,13 @@ class MLP(nn.Sequential):
         self.out_features = out_features
 
 
+class Residual(nn.Sequential):
+    r"""Creates a residual block."""
+
+    def forward(self, x: Tensor) -> Tensor:
+        return x + super().forward(x)
+
+
 class MaskedLinear(nn.Linear):
     r"""Creates a masked linear layer.
 
@@ -231,6 +238,7 @@ class MaskedMLP(nn.Sequential):
         hidden_features: The numbers of hidden features.
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
+        residual: Whether to use residual blocks or not.
 
     Example:
         >>> adjacency = torch.randn(4, 3) < 0
@@ -261,6 +269,7 @@ class MaskedMLP(nn.Sequential):
         adjacency: BoolTensor,
         hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
+        residual: bool = False,
     ):
         out_features, in_features = adjacency.shape
 
@@ -292,12 +301,25 @@ class MaskedMLP(nn.Sequential):
             else:
                 mask = mask[inverse]
 
-            layers.extend([
-                MaskedLinear(adjacency=mask),
-                activation(),
-            ])
+            layers.append(MaskedLinear(adjacency=mask))
 
-        layers = layers[:-1]
+            if residual:
+                if 0 < i < len(hidden_features) and mask.shape[0] == mask.shape[1]:
+                    layers.pop()
+
+                mask = precedence[indices, :][:, indices]
+
+                layers.append(
+                    Residual(
+                        MaskedLinear(adjacency=mask),
+                        activation(),
+                        MaskedLinear(adjacency=mask),
+                    )
+                )
+            else:
+                layers.append(activation())
+
+        layers.pop()
 
         super().__init__(*layers)
 

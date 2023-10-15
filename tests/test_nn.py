@@ -45,9 +45,10 @@ def test_MLP(activation: callable, normalize: bool):
     assert y.shape == (256, 5)
 
 
-def test_MaskedMLP():
+@pytest.mark.parametrize('residual', [True, False])
+def test_MaskedMLP(residual: bool):
     adjacency = randn(5, 3) < 0
-    net = MaskedMLP(adjacency, activation=nn.ELU)
+    net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual)
 
     # Non-batched
     x = randn(3)
