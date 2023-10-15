@@ -124,7 +124,6 @@ class NAF(Flow):
         randperm: Whether features are randomly permuted between transformations or not.
             If :py:`False`, features are in ascending (descending) order for even
             (odd) transformations.
-        unconstrained: Whether to use unconstrained or regular monotonic networks.
         kwargs: Keyword arguments passed to :class:`NeuralAutoregressiveTransform`.
     """
 
@@ -202,7 +201,6 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
             (2): Linear(in_features=64, out_features=64, bias=True)
             (3): ELU(alpha=1.0)
             (4): Linear(in_features=64, out_features=1, bias=True)
-            (5): Softplus(beta=1, threshold=20)
           )
         )
         >>> x = torch.randn(3)
@@ -233,12 +231,13 @@ class UnconstrainedNeuralAutoregressiveTransform(MaskedAutoregressiveTransform):
         network.setdefault('activation', nn.ELU)
 
         self.integrand = MLP(1 + signal, 1, **network)
-        self.integrand.append(nn.Softplus())
 
     def g(self, signal: Tensor, x: Tensor) -> Tensor:
-        return self.integrand(
+        dx = self.integrand(
             torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1)
         ).squeeze(dim=-1)
+
+        return torch.exp(dx / (1 + abs(dx / 7)))  # in [1e-3, 1e3]
 
     def univariate(self, signal: Tensor, constant: Tensor) -> Transform:
         return UnconstrainedMonotonicTransform(

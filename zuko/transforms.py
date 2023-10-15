@@ -665,7 +665,7 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
         self,
         g: Callable[[Tensor], Tensor],
         C: Tensor,
-        n: int = 16,
+        n: int = 32,
         **kwargs,
     ):
         super().__init__(self.f, **kwargs)
