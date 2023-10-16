@@ -10,6 +10,7 @@ import torch
 
 from functools import lru_cache
 from torch import Tensor, Size
+from torch.autograd.function import once_differentiable
 from typing import *
 
 
@@ -65,9 +66,6 @@ class Bisection(torch.autograd.Function):
         n: int,
         *phi: Tensor,
     ) -> Tensor:
-        ctx.f = f
-        ctx.save_for_backward(*phi)
-
         for _ in range(n):
             c = (a + b) / 2
 
@@ -76,24 +74,28 @@ class Bisection(torch.autograd.Function):
             a = torch.where(mask, c, a)
             b = torch.where(mask, b, c)
 
-        ctx.x = (a + b) / 2
+        x = (a + b) / 2
 
-        return ctx.x
+        ctx.f = f
+        ctx.save_for_backward(x, *phi)
+
+        return x
 
     @staticmethod
+    @once_differentiable
     def backward(ctx, grad_x: Tensor) -> Tuple[Tensor, ...]:
-        f, x = ctx.f, ctx.x
-        phi = ctx.saved_tensors
+        f = ctx.f
+        x, *phi = ctx.saved_tensors
 
         with torch.enable_grad():
             x = x.detach().requires_grad_()
             y = f(x)
 
-        jacobian = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)[0]
+        jacobian, = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)
         grad_y = grad_x / jacobian
 
         if phi:
-            grad_phi = torch.autograd.grad(y, phi, -grad_y, retain_graph=True)
+            grad_phi = torch.autograd.grad(y, phi, -grad_y, retain_graph=True, allow_unused=True)
         else:
             grad_phi = ()
 
@@ -200,9 +202,9 @@ class GaussLegendre(torch.autograd.Function):
 
         if phi:
             with torch.enable_grad():
-                area = GaussLegendre.quadrature(f, a.detach(), b.detach(), n)
+                area = GaussLegendre.quadrature(f, a, b, n)
 
-            grad_phi = torch.autograd.grad(area, phi, grad_area, retain_graph=True)
+            grad_phi = torch.autograd.grad(area, phi, grad_area, create_graph=True, allow_unused=True)
         else:
             grad_phi = ()
 
@@ -292,23 +294,28 @@ def odeint(
     """
 
     if torch.is_tensor(x):
-        g = None
+        x0 = x
+        g = f
     else:
         shapes = [y.shape for y in x]
 
-        def pack(x: Sequence[Tensor]) -> Tensor:
+        def pack(x: Iterable[Tensor]) -> Tensor:
             return torch.cat([y.flatten() for y in x])
 
-        x = pack(x)
+        x0 = pack(x)
         g = lambda t, x: pack(f(t, *unpack(x, shapes)))
 
-    t0 = torch.as_tensor(t0).to(x)
-    t1 = torch.as_tensor(t1).to(x)
+    t0 = torch.as_tensor(t0, dtype=x0.dtype, device=x0.device)
+    t1 = torch.as_tensor(t1, dtype=x0.dtype, device=x0.device)
 
-    if g is None:
-        return AdaptiveCheckpointAdjoint.apply(f, x, t0, t1, *phi)
+    assert not t0.shape and not t1.shape, "'t0' and 't1' must be scalars"
+
+    x1 = AdaptiveCheckpointAdjoint.apply(g, x0, t0, t1, *phi)
+
+    if torch.is_tensor(x):
+        return x1
     else:
-        return unpack(AdaptiveCheckpointAdjoint.apply(g, x, t0, t1, *phi), shapes)
+        return unpack(x1, shapes)
 
 
 def dopri45(
@@ -368,12 +375,9 @@ def dopri45(
 
 
 class NestedTensor(tuple):
-    r"""Creates an efficient data-structure to hold and perform basic operations on
-    lists of tensors.
+    r"""Creates an efficient data structure to hold and perform basic operations
+    on sequences of tensors.
     """
-
-    def __new__(cls, tensors: Iterable[Tensor] = ()) -> NestedTensor:
-        return tuple.__new__(cls, tensors)
 
     def __add__(self, other: NestedTensor) -> NestedTensor:
         return NestedTensor(x + y for x, y in zip(self, other))
@@ -381,11 +385,8 @@ class NestedTensor(tuple):
     def __sub__(self, other: NestedTensor) -> NestedTensor:
         return NestedTensor(x - y for x, y in zip(self, other))
 
-    def __rmul__(self, factor: Tensor) -> NestedTensor:
-        return NestedTensor(factor * x for x in self)
-
-    def __abs__(self) -> NestedTensor:
-        return NestedTensor(map(abs, self))
+    def __rmul__(self, other: Tensor) -> NestedTensor:
+        return NestedTensor(other * x for x in self)
 
 
 class AdaptiveCheckpointAdjoint(torch.autograd.Function):
@@ -411,7 +412,7 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
             while True:
                 y, error = dopri45(f, x, t, dt, error=True)
                 tolerance = 1e-6 + 1e-5 * torch.max(abs(x), abs(y))
-                error = torch.max(error / tolerance).item() + 1e-6
+                error = torch.max(error / tolerance).clip(min=1e-9).item()
 
                 if error < 1.0:
                     x, t = y, t + dt
@@ -425,6 +426,7 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
         return x
 
     @staticmethod
+    @once_differentiable
     def backward(ctx, grad_x: Tensor) -> Tuple[Tensor, ...]:
         f = ctx.f
         x0, t0, t1, *phi = ctx.saved_tensors
@@ -432,38 +434,38 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
 
         # Final time
         if ctx.needs_input_grad[3]:
-            grad_t1 = f(t1, x1) * grad_x
+            grad_t1 = torch.sum(f(t1, x1) * grad_x)
         else:
             grad_t1 = None
 
         # Adjoint
-        grad_phi = tuple(map(torch.zeros_like, phi))
+        grad_phi = map(torch.zeros_like, phi)
 
-        def g(t: Tensor, x: NestedTensor) -> NestedTensor:
-            x, grad_x, *_ = x
+        def g(t: Tensor, x_aug: NestedTensor) -> NestedTensor:
+            x, grad_x, *_ = x_aug
 
             with torch.enable_grad():
                 x = x.detach().requires_grad_()
                 dx = f(t, x)
 
-            grad_x, *grad_phi = torch.autograd.grad(dx, (x, *phi), -grad_x, retain_graph=True)
+            grad_x, *grad_phi = torch.autograd.grad(dx, (x, *phi), -grad_x)
 
             return NestedTensor((dx, grad_x, *grad_phi))
 
         for x, t, dt in reversed(ctx.steps):
-            x = NestedTensor((x, grad_x, *grad_phi))
-            x, grad_x, *grad_phi = dopri45(g, x, t, -dt)
+            x_aug = NestedTensor((x, grad_x, *grad_phi))
+            _, grad_x, *grad_phi = dopri45(g, x_aug, t, -dt)
 
         # Initial time
         if ctx.needs_input_grad[2]:
-            grad_t0 = f(t0, x0) * grad_x
+            grad_t0 = torch.sum(f(t0, x0) * grad_x)
         else:
             grad_t0 = None
 
         return (None, grad_x, grad_t0, grad_t1, *grad_phi)
 
 
-def unpack(x: Tensor, shapes: Sequence[Size]) -> List[Tensor]:
+def unpack(x: Tensor, shapes: Sequence[Size]) -> Sequence[Tensor]:
     r"""Unpacks a packed tensor.
 
     Arguments:
@@ -489,4 +491,4 @@ def unpack(x: Tensor, shapes: Sequence[Size]) -> List[Tensor]:
     x = (y.unflatten(-1, (*s, 1)) for y, s in zip(x, shapes))
     x = (y.squeeze(-1) for y in x)
 
-    return list(x)
+    return tuple(x)
