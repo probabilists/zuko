@@ -1,8 +1,11 @@
 r"""Core building blocks."""
 
+from __future__ import annotations
+
 __all__ = [
     'LazyDistribution',
     'LazyTransform',
+    'LazyComposedTransform',
     'Flow',
     'Unconditional',
 ]
@@ -24,6 +27,9 @@ class LazyDistribution(nn.Module, abc.ABC):
 
     A lazy distribution is a module that builds and returns a distribution
     :math:`p(X | c)` within its forward pass, given a context :math:`c`.
+
+    See also:
+        :class:`torch.distributions.distribution.Distribution`
     """
 
     @abc.abstractmethod
@@ -44,6 +50,9 @@ class LazyTransform(nn.Module, abc.ABC):
 
     A lazy transformation is a module that builds and returns a transformation
     :math:`y = f(x | c)` within its forward pass, given a context :math:`c`.
+
+    See also:
+        :class:`torch.distributions.transforms.Transform`
     """
 
     @abc.abstractmethod
@@ -58,6 +67,62 @@ class LazyTransform(nn.Module, abc.ABC):
 
         pass
 
+    @property
+    def inv(self) -> LazyTransform:
+        r"""A lazy inverse transformation :math:`x = f^{-1}(y | c)`."""
+
+        return LazyInverse(self)
+
+
+class LazyInverse(LazyTransform):
+    r"""Creates a lazy inverse transformation.
+
+    Arguments:
+        transform: A lazy transformation :math:`y = f(x | c)`.
+    """
+
+    def __init__(self, transform: LazyTransform):
+        super().__init__()
+
+        self.transform = transform
+
+    def forward(self, c: Any = None) -> Transform:
+        return self.transform(c).inv
+
+    @property
+    def inv(self) -> LazyTransform:
+        return self.transform
+
+
+class LazyComposedTransform(LazyTransform):
+    r"""Creates a lazy composed transformation.
+
+    See also:
+        :class:`zuko.transforms.ComposedTransform`
+
+    Arguments:
+        transforms: A sequence of lazy transformations :math:`f_i`.
+    """
+
+    def __init__(self, *transforms: LazyTransform):
+        super().__init__()
+
+        self.transforms = nn.ModuleList(transforms)
+
+    def __repr__(self) -> str:
+        return repr(self.transforms).replace('ModuleList', 'LazyComposedTransform', 1)
+
+    def forward(self, c: Any = None) -> Transform:
+        r"""
+        Arguments:
+            c: A context :math:`c`.
+
+        Returns:
+            A transformation :math:`y = f_n \circ \dots \circ f_0(x | c)`.
+        """
+
+        return ComposedTransform(*(t(c) for t in self.transforms))
+
 
 class Flow(LazyDistribution):
     r"""Creates a lazy normalizing flow.
@@ -66,18 +131,22 @@ class Flow(LazyDistribution):
         :class:`zuko.distributions.NormalizingFlow`
 
     Arguments:
-        transforms: A sequence of lazy transformations.
+        transform: A lazy transformation or sequence of lazy transformations.
         base: A lazy distribution.
     """
 
     def __init__(
         self,
-        transforms: Sequence[LazyTransform],
+        transform: Union[LazyTransform, Sequence[LazyTransform]],
         base: LazyDistribution,
     ):
         super().__init__()
 
-        self.transforms = nn.ModuleList(transforms)
+        if isinstance(transform, LazyTransform):
+            self.transform = transform
+        else:
+            self.transform = LazyComposedTransform(*transform)
+
         self.base = base
 
     def forward(self, c: Tensor = None) -> NormalizingFlow:
@@ -89,7 +158,7 @@ class Flow(LazyDistribution):
             A normalizing flow :math:`p(X | c)`.
         """
 
-        transform = ComposedTransform(*(t(c) for t in self.transforms))
+        transform = self.transform(c)
 
         if c is None:
             base = self.base(c)
@@ -146,8 +215,11 @@ class Unconditional(nn.Module):
 
         self.kwargs = kwargs
 
-    def __repr__(self) -> str:
-        return repr(self.forward())
+    def extra_repr(self) -> str:
+        if isinstance(self.meta, nn.Module):
+            return ''
+        else:
+            return repr(self.forward())
 
     def forward(self, c: Tensor = None) -> Any:
         r"""

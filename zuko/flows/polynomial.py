@@ -52,5 +52,7 @@ class SOSPF(MAF):
             **kwargs,
         )
 
-        for i in reversed(range(1, len(self.transforms))):
-            self.transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
+        transforms = self.transform.transforms
+
+        for i in reversed(range(1, len(transforms))):
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))

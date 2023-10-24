@@ -52,7 +52,7 @@ class NormalizingFlow(Distribution):
         | https://arxiv.org/abs/1912.02762
 
     Arguments:
-        transforms: A transformation :math:`f`.
+        transform: A transformation :math:`f`.
         base: A base distribution :math:`p(Z)`.
 
     Example:

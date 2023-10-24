@@ -60,7 +60,7 @@ from zuko.distributions import DiagNormal
 from zuko.transforms import RotationTransform
 
 flow = Flow(
-    transforms=[
+    transform=[
         MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
         Unconditional(RotationTransform, torch.randn(3, 3)),
         MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),

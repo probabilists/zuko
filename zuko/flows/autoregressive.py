@@ -150,7 +150,7 @@ class MAF(Flow):
         >>> flow = MAF(3, 4, transforms=3)
         >>> flow
         MAF(
-          (transforms): ModuleList(
+          (transform): LazyComposedTransform(
             (0): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [0, 1, 2]
@@ -185,7 +185,7 @@ class MAF(Flow):
               )
             )
           )
-          (base): DiagNormal(loc: torch.Size([3]), scale: torch.Size([3]))
+          (base): Unconditional(DiagNormal(loc: torch.Size([3]), scale: torch.Size([3])))
         )
         >>> c = torch.randn(4)
         >>> x = flow(c).sample()

@@ -109,8 +109,8 @@ class FFJTransform(LazyTransform):
 
 
 class CNF(Flow):
-    r"""Creates a continuous normalizing flow (CNF) with free-form Jacobian
-    transformations.
+    r"""Creates a continuous normalizing flow (CNF) with a free-form Jacobian
+    transformation.
 
     References:
         | Neural Ordinary Differential Equations (Chen el al., 2018)
@@ -131,13 +131,11 @@ class CNF(Flow):
         context: int = 0,
         **kwargs,
     ):
-        transforms = [
-            FFJTransform(
-                features=features,
-                context=context,
-                **kwargs,
-            )
-        ]
+        transform = FFJTransform(
+            features=features,
+            context=context,
+            **kwargs,
+        )
 
         base = Unconditional(
             DiagNormal,
@@ -146,4 +144,4 @@ class CNF(Flow):
             buffer=True,
         )
 
-        super().__init__(transforms, base)
+        super().__init__(transform, base)
