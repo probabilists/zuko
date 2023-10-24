@@ -18,6 +18,7 @@ def test_univariate_transforms():
         SinTransform(),
         SoftclipTransform(),
         CircularShiftTransform(),
+        SignedPowerTransform(randn(256)),
         MonotonicAffineTransform(randn(256), randn(256)),
         MonotonicRQSTransform(randn(256, 8), randn(256, 8), randn(256, 7)),
         MonotonicTransform(lambda x: x**3),

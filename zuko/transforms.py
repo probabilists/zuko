@@ -8,6 +8,7 @@ __all__ = [
     'SinTransform',
     'SoftclipTransform',
     'CircularShiftTransform',
+    'SignedPowerTransform',
     'MonotonicAffineTransform',
     'MonotonicRQSTransform',
     'MonotonicTransform',
@@ -344,6 +345,33 @@ class CircularShiftTransform(Transform):
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return torch.zeros_like(x)
+
+
+class SignedPowerTransform(Transform):
+    r"""Creates a transformation :math:`f(x) = \mathrm{sign}(x) |x|^{\exp(\alpha)}`.
+
+    Arguments:
+        alpha: The unconstrained exponent :math:`\alpha`, with shape :math:`(*,)`.
+    """
+
+    domain = constraints.real
+    codomain = constraints.real
+    bijective = True
+    sign = +1
+
+    def __init__(self, alpha: Tensor, **kwargs):
+        super().__init__(**kwargs)
+
+        self.alpha = alpha
+
+    def _call(self, x: Tensor) -> Tensor:
+        return x * abs(x) ** torch.expm1(self.alpha)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return y * abs(y) ** torch.expm1(-self.alpha)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return self.alpha + torch.expm1(self.alpha) * torch.log(abs(x))
 
 
 class MonotonicAffineTransform(Transform):
