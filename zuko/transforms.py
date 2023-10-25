@@ -28,8 +28,8 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import Tensor, BoolTensor, LongTensor, Size
-from torch.distributions import Transform
 from torch.distributions import constraints
+from torch.distributions.transforms import *
 from torch.distributions.utils import _sum_rightmost
 from typing import *
 
