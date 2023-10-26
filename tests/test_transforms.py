@@ -11,20 +11,23 @@ from zuko.transforms import *
 torch.set_default_dtype(torch.float64)
 
 
-def test_univariate_transforms():
+@pytest.mark.parametrize('batched', [False, True])
+def test_univariate_transforms(batched: bool):
+    batch = (256,) if batched else ()
+
     ts = [
         IdentityTransform(),
         CosTransform(),
         SinTransform(),
         SoftclipTransform(),
         CircularShiftTransform(),
-        SignedPowerTransform(randn(256)),
-        MonotonicAffineTransform(randn(256), randn(256)),
-        MonotonicRQSTransform(randn(256, 8), randn(256, 8), randn(256, 7)),
+        SignedPowerTransform(randn(batch)),
+        MonotonicAffineTransform(randn(batch), randn(batch)),
+        MonotonicRQSTransform(randn(*batch, 8), randn(*batch, 8), randn(*batch, 7)),
         MonotonicTransform(lambda x: x**3),
-        GaussianizationTransform(randn(256, 8), randn(256, 8)),
-        UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(256)),
-        SOSPolynomialTransform(randn(256, 3, 5), randn(256)),
+        GaussianizationTransform(randn(*batch, 8), randn(*batch, 8)),
+        UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(batch)),
+        SOSPolynomialTransform(randn(*batch, 3, 5), randn(batch)),
     ]
 
     for t in ts:
