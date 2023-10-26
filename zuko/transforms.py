@@ -20,6 +20,7 @@ __all__ = [
     'FreeFormJacobianTransform',
     'PermutationTransform',
     'RotationTransform',
+    'LULinearTransform',
 ]
 
 import math
@@ -965,7 +966,7 @@ class PermutationTransform(Transform):
         return y[..., torch.argsort(self.order)]
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return x.new_zeros(x.shape[:-1])
+        return torch.zeros_like(x[..., 0])
 
 
 class RotationTransform(Transform):
@@ -989,10 +990,53 @@ class RotationTransform(Transform):
         self.R = torch.linalg.matrix_exp(A - A.mT)
 
     def _call(self, x: Tensor) -> Tensor:
-        return x @ self.R
+        return torch.einsum('...ij,...j->...i', self.R, x)
 
     def _inverse(self, y: Tensor) -> Tensor:
-        return y @ self.R.mT
+        return torch.einsum('...ij,...i->...j', self.R, y)
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return x.new_zeros(x.shape[:-1])
+        return torch.zeros_like(x[..., 0])
+
+
+class LULinearTransform(Transform):
+    r"""Creates a linear transformation :math:`f(x) = L U x`.
+
+    Arguments:
+        LU: A matrix whose lower and upper triangular parts are the non-zero elements
+            of :math:`L` and :math:`U`, with shape :math:`(*, D, D)`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(self, LU: Tensor, **kwargs):
+        super().__init__(**kwargs)
+
+        I = torch.eye(LU.shape[-1], dtype=LU.dtype, device=LU.device)
+
+        self.L = torch.tril(LU)
+        self.U = torch.triu(LU, diagonal=1) + I
+
+    def _call(self, x: Tensor) -> Tensor:
+        return torch.einsum('...ij,...j->...i', self.L @ self.U, x)
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return torch.linalg.solve_triangular(
+            self.U,
+            torch.linalg.solve_triangular(
+                self.L,
+                y.unsqueeze(-1),
+                upper=False,
+                unitriangular=False,
+            ),
+            upper=True,
+            unitriangular=True,
+        ).squeeze(-1)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        diag = torch.diagonal(self.L, dim1=-1, dim2=-2)
+        ladj = diag.abs().log().sum(dim=-1)
+
+        return ladj.expand_as(x[..., 0])

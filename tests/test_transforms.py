@@ -78,6 +78,7 @@ def test_multivariate_transforms():
         FreeFormJacobianTransform(f, 0.0, 1.0, atol=1e-7, rtol=1e-6),
         PermutationTransform(torch.randperm(5)),
         RotationTransform(randn(5, 5)),
+        LULinearTransform(randn(5, 5)),
     ]
 
     for t in ts:

@@ -10,26 +10,16 @@ from torch import Tensor, BoolTensor
 from typing import *
 
 
-if hasattr(torch, 'vmap'):
-    def linear(x: Tensor, W: Tensor, b: Tensor) -> Tensor:
-        if W.dim() == 2:
-            return F.linear(x, W, b)
-        elif W.dim() == 3:
-            if b is None:
-                return torch.vmap(F.linear, in_dims=(-2, -3), out_dims=-2)(x, W)
-            else:
-                return torch.vmap(F.linear, in_dims=(-2, -3, -2), out_dims=-2)(x, W, b)
-else:
-    def linear(x: Tensor, W: Tensor, b: Tensor) -> Tensor:
-        if W.dim() == 2:
-            return F.linear(x, W, b)
-        elif W.dim() == 3:
-            x = torch.einsum('ijk,...ik->...ij', W, x)
+def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
+    if W.dim() == 2:
+        return F.linear(x, W, b)
+    else:
+        x = torch.einsum('...ij,...j->...i', W, x)
 
-        if b is None:
-            return x
-        else:
-            return x + b
+    if b is None:
+        return x
+    else:
+        return x + b
 
 
 class LayerNorm(nn.Module):
