@@ -913,7 +913,7 @@ class FreeFormJacobianTransform(Transform):
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         if self.exact:
             I = torch.eye(x.shape[-1], dtype=x.dtype, device=x.device)
-            I = I.expand(*x.shape, x.shape[-1]).movedim(-1, 0)
+            I = I.expand(*x.shape, -1).movedim(-1, 0)
         else:
             eps = torch.randn_like(x)
 
