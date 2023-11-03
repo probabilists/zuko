@@ -47,6 +47,26 @@ div[class^=highlight-] {
     color: var(--color-api-overall) !important;
 }
 
+/* Jupyter */
+
+div.cell > div.cell_input {
+    background: None;
+    border: None;
+}
+
+div.cell > div.cell_input div.highlight {
+    border-left: 0.3rem green solid !important;
+}
+
+div.cell > div.cell_output > div.output {
+    background: None;
+    border: None;
+}
+
+div.cell > div.cell_output > div.output + img {
+    margin-top: 1em;
+}
+
 /* Lists */
 
 span.colon {

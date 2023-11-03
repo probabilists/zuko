@@ -4,7 +4,7 @@
 
 Zuko is a Python package that implements normalizing flows in [PyTorch](https://pytorch.org). It relies as much as possible on distributions and transformations already provided by PyTorch. Unfortunately, the `Distribution` and `Transform` classes of `torch` are not sub-classes of `torch.nn.Module`, which means you cannot send their internal tensors to GPU with `.to('cuda')` or retrieve their parameters with `.parameters()`. Worse, the concepts of conditional distribution and transformation, which are essential for probabilistic inference, are impossible to express.
 
-To solve these problems, `zuko` defines two concepts: the `LazyDistribution` and `LazyTransform`, which are any modules whose forward pass returns a `Distribution` or `Transform`, respectively. Because the creation of the actual distribution/transformation is delayed, an eventual condition can be easily taken into account. Then, a normalizing flow is a special `LazyDistribution` that contains a sequence of `LazyTransform` and a base `LazyDistribution`. This design enables flows to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easier to understand and extend.
+To solve these problems, `zuko` defines two concepts: the `LazyDistribution` and `LazyTransform`, which are any modules whose forward pass returns a `Distribution` or `Transform`, respectively. Because the creation of the actual distribution/transformation is delayed, an eventual condition can be easily taken into account. This design enables lazy distributions, including normalizing flows, to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easy to understand and extend.
 
 > In the [Avatar](https://wikipedia.org/wiki/Avatar:_The_Last_Airbender) cartoon, [Zuko](https://wikipedia.org/wiki/Zuko) is a powerful firebender 🔥
 
@@ -61,9 +61,9 @@ from zuko.transforms import RotationTransform
 
 flow = Flow(
     transform=[
-        MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
+        MaskedAutoregressiveTransform(3, 5, hidden_features=(64, 64)),
         Unconditional(RotationTransform, torch.randn(3, 3)),
-        MaskedAutoregressiveTransform(3, 5, hidden_features=[128] * 3),
+        MaskedAutoregressiveTransform(3, 5, hidden_features=(64, 64)),
     ],
     base=Unconditional(
         DiagNormal,
@@ -74,7 +74,7 @@ flow = Flow(
 )
 ```
 
-For more information, check out the documentation at [zuko.readthedocs.io](https://zuko.readthedocs.io).
+For more information, check out the documentation and tutorials at [zuko.readthedocs.io](https://zuko.readthedocs.io).
 
 ### Available flows
 

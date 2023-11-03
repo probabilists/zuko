@@ -25,6 +25,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.linkcode',
     'sphinx.ext.napoleon',
+    'myst_nb',
 ]
 
 autodoc_default_options = {
@@ -73,11 +74,14 @@ napoleon_custom_sections = [
     'Wikipedia',
 ]
 
+nb_execution_mode = 'off'
+myst_enable_extensions = ['dollarmath']
+
 ## Settings
 
 add_function_parentheses = False
 default_role = 'literal'
-exclude_patterns = ['templates']
+exclude_patterns = ['jupyter_execute', 'templates']
 html_copy_source = False
 html_css_files = [
     'custom.css',
