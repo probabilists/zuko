@@ -41,7 +41,7 @@ Normalizing flows are provided in the :mod:`zuko.flows` module. To build one, su
     flow = zuko.flows.NSF(3, 5, transforms=3, hidden_features=[128] * 3)
 
     # Train to maximize the log-likelihood
-    optimizer = torch.optim.AdamW(flow.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(flow.parameters(), lr=1e-3)
 
     for x, c in trainset:
         loss = -flow(c).log_prob(x)  # -log p(x | c)
