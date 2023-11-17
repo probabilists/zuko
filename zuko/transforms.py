@@ -393,7 +393,7 @@ class MonotonicAffineTransform(Transform):
         self,
         shift: Tensor,
         scale: Tensor,
-        slope: float = 1e-3,
+        slope: float = 1e-4,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -438,7 +438,7 @@ class MonotonicRQSTransform(Transform):
         heights: Tensor,
         derivatives: Tensor,
         bound: float = 5.0,
-        slope: float = 1e-3,
+        slope: float = 1e-4,
         **kwargs,
     ):
         super().__init__(**kwargs)
