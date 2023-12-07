@@ -12,7 +12,7 @@ from zuko.flows import *
 torch.set_default_dtype(torch.float64)
 
 
-@pytest.mark.parametrize('F', [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF])
+@pytest.mark.parametrize('F', [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BERN])
 def test_flows(tmp_path: Path, F: callable):
     flow = F(3, 5)
 

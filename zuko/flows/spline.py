@@ -1,8 +1,9 @@
 r"""Spline flows."""
 
 __all__ = [
-    'NSF',
-    'NCSF',
+    "NSF",
+    "NCSF",
+    "BERN",
 ]
 
 import torch
@@ -57,6 +58,51 @@ class NSF(MAF):
             shapes=[(bins,), (bins,), (bins - 1,)],
             **kwargs,
         )
+
+
+class BERN(MAF):
+    r"""Creates a Bernstein flow (BERN) with a monotonic Bernstein polynomial transformation.
+
+    By default, transformations are fully autoregressive. Coupling transformations
+    can be obtained by setting :py:`passes=2`.
+
+    Warning:
+        Spline transformations are defined over the domain :math:`[-10, 10]`. Any feature
+        outside of this domain is not transformed. It is recommended to standardize
+        features (zero mean, unit variance) before training. Note that the domain of the Bernstein
+        polynomial is [0,1]. 
+
+    See also:
+        :class:`zuko.transforms.BernTransform`
+
+     References:
+        | Bernstein-Flows (Sick et al., 2020)
+        | https://arxiv.org/abs/2004.00464
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        degree: The number of Bernstein-Polymials :math:`M`.
+        kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        degree: int = 30,
+        **kwargs,
+    ):
+        super().__init__(
+            features=features,
+            context=context,
+            univariate=BernTransform,
+            shapes=[(degree,)], 
+            **kwargs,
+        )
+
+        transforms = self.transform.transforms
+        for i in reversed(range(1, len(transforms))):
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=10))
 
 
 def CircularRQSTransform(*phi) -> Transform:

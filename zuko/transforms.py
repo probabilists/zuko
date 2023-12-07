@@ -21,9 +21,11 @@ __all__ = [
     'PermutationTransform',
     'RotationTransform',
     'LULinearTransform',
+    'BernTransform',
 ]
 
 import math
+import warnings
 import torch
 import torch.nn.functional as F
 
@@ -599,6 +601,74 @@ class MonotonicTransform(Transform):
         jacobian = torch.autograd.grad(y, x, torch.ones_like(y), create_graph=True)[0]
 
         return y, jacobian.log()
+    
+class BernTransform(MonotonicTransform):
+    r"""Creates a monotonic transformation based on Bernstein Polynomials.
+
+    References:
+        | Bernstein-Flows (Sick et al., 2020)
+        | https://arxiv.org/abs/2004.00464
+
+    Arguments:
+        theta_un: The unconstrained coefficients with shape :math:`(*, K)`.
+        bound: The spline's (co)domain bound :math:`B`.
+        eps: The error bound for the bisection algorithm.
+
+    The implemented transformation is given by Eq. (4) in the paper. 
+    Note that in constrast to the Bernstein Polynomials in the paper ($\tilde{y} \in [0,1]$), here the domain of the data is [-bound, bound].
+    """
+
+    bijective = True
+    sign = +1
+    codomain = constraints.real
+
+    eps_bern = 1e-6
+
+
+    def __init__(
+        self,
+        theta_un: Tensor,
+        eps: float = 1e-6,
+        bound = 10, 
+        **kwargs,
+    ):
+        super().__init__(self.f, phi=theta_un, bound=bound, **kwargs)
+        
+        self.theta = BernTransform.to_theta(theta_un) 
+        self.eps = eps
+        self.domain = constraints.interval(-bound, bound)
+
+        # Defining the beta distribution for h
+        len_theta = theta_un.shape[-1]
+        alpha = torch.tensor(range(1, len_theta + 1), dtype=torch.float32)
+        beta = torch.tensor(range(len_theta, 0, -1), dtype=torch.float32)
+        self.beta_dist_for_h = torch.distributions.Beta(alpha, beta)
+
+
+    @staticmethod
+    def to_theta(pre_theta):
+        """
+        Converts the unconstrained output of the network to a constrained theta so that the
+        Bernstein polynomial are monotonically increasing. We assume that pre_theta is centered around 0 and thus substract softplus(0)*M/2 to center theta around 0.
+        """
+        spo = torch.log(torch.tensor(2.0)) # softplus(0)
+        softplus_tensor = torch.nn.functional.softplus(
+            pre_theta[..., 1:]
+        )  
+        d = torch.cat((pre_theta[..., :1], softplus_tensor), dim=-1)
+        return torch.cumsum(d, dim=-1) - spo*pre_theta.shape[-1]/2
+
+    def f(self, x: Tensor) -> Tensor:
+        # Check if the data is in the domain (just for printing a warning)
+        if torch.any(x < -self.bound) or torch.any(x > self.bound):
+            warnings.warn(f"Warning: Some values in y are outside the range {-self.bound, +self.bound}.")  
+        # Data is bounded between -bound and bound. So we need to scale it to [0,1]
+        x = (x + self.bound) / (2 * self.bound)
+        x = x.unsqueeze(-1) 
+        x = torch.clamp(x, self.eps_bern, 1-self.eps_bern)
+        f_im = self.beta_dist_for_h.log_prob(x).exp()
+        h = torch.mean(f_im * self.theta, dim=-1)
+        return h 
 
 
 class GaussianizationTransform(MonotonicTransform):

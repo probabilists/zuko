@@ -28,6 +28,7 @@ def test_univariate_transforms(batched: bool):
         GaussianizationTransform(randn(*batch, 8), randn(*batch, 8)),
         UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(batch)),
         SOSPolynomialTransform(randn(*batch, 3, 5), randn(batch)),
+        BernTransform(randn(*batch, 5)),
     ]
 
     for t in ts:
