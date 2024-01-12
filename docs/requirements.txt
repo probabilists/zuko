@@ -1,4 +1,4 @@
 docutils==0.19
 furo==2023.3.27
-myst-nb @ git+https://github.com/executablebooks/MyST-NB@3d6a5d1
+myst-nb==1.0.0
 sphinx==6.1.3
