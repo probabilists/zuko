@@ -25,6 +25,7 @@ def test_univariate_transforms(batched: bool):
         MonotonicAffineTransform(randn(batch), randn(batch)),
         MonotonicRQSTransform(randn(*batch, 8), randn(*batch, 8), randn(*batch, 7)),
         MonotonicTransform(lambda x: x**3),
+        BernsteinTransform(randn(*batch, 16)),
         GaussianizationTransform(randn(*batch, 8), randn(*batch, 8)),
         UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(batch)),
         SOSPolynomialTransform(randn(*batch, 3, 5), randn(batch)),

@@ -2,6 +2,7 @@ r"""Polynomial flows."""
 
 __all__ = [
     'SOSPF',
+    'BPF',
 ]
 
 import torch
@@ -10,7 +11,7 @@ from typing import *
 
 from .autoregressive import MAF
 from .core import *
-from ..transforms import SoftclipTransform, SOSPolynomialTransform
+from ..transforms import SoftclipTransform, SOSPolynomialTransform, BernsteinTransform
 
 
 class SOSPF(MAF):
@@ -49,6 +50,49 @@ class SOSPF(MAF):
             context=context,
             univariate=SOSPolynomialTransform,
             shapes=[(polynomials, degree + 1), ()],
+            **kwargs,
+        )
+
+        transforms = self.transform.transforms
+
+        for i in reversed(range(1, len(transforms))):
+            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
+
+
+class BPF(MAF):
+    r"""Creates a Bernstein polynomial flow (BPF).
+
+    Warning:
+        Invertibility is only guaranteed for features within the interval :math:`[-10,
+        10]`. It is recommended to standardize features (zero mean, unit variance)
+        before training.
+
+    See also:
+        :class:`zuko.transforms.BernsteinTransform`
+
+    References:
+        | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
+        | https://arxiv.org/abs/2004.00464
+
+    Arguments:
+        features: The number of features.
+        context: The number of context features.
+        degree: The degree :math:`M` of the Bernstein polynomial.
+        kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
+    """
+
+    def __init__(
+        self,
+        features: int,
+        context: int = 0,
+        degree: int = 16,
+        **kwargs,
+    ):
+        super().__init__(
+            features=features,
+            context=context,
+            univariate=BernsteinTransform,
+            shapes=[(degree + 1,)],
             **kwargs,
         )
 
