@@ -548,8 +548,10 @@ class MonotonicTransform(Transform):
     The inverse function :math:`f_\phi^{-1}` is approximated using the bisection method.
 
     Arguments:
-        f: A monotonic univariate function :math:`f_\phi`.
-        phi: The parameters :math:`\phi` of :math:`f_\phi`.
+        f: A monotonic univariate function :math:`f_\phi`. If :py:`None`, :py:`self.f`
+            is used instead.
+        phi: The parameters :math:`\phi` of :math:`f_\phi`. Providing the parameters
+            is required to make the inverse transformation trainable.
         bound: The domain bound :math:`B`.
         eps: The absolute tolerance for the inverse transformation.
     """
@@ -561,7 +563,7 @@ class MonotonicTransform(Transform):
 
     def __init__(
         self,
-        f: Callable[[Tensor], Tensor],
+        f: Callable[[Tensor], Tensor] = None,
         phi: Iterable[Tensor] = (),
         bound: float = 10.0,
         eps: float = 1e-6,
@@ -569,7 +571,9 @@ class MonotonicTransform(Transform):
     ):
         super().__init__(**kwargs)
 
-        self.f = f
+        if f is not None:
+            self.f = f
+
         self.phi = tuple(filter(lambda p: p.requires_grad, phi))
         self.bound = bound
         self.eps = eps
@@ -631,7 +635,7 @@ class GaussianizationTransform(MonotonicTransform):
         scale: Tensor,
         **kwargs,
     ):
-        super().__init__(self.f, phi=(shift, scale), **kwargs)
+        super().__init__(None, phi=(shift, scale), **kwargs)
 
         self.shift = shift
         self.scale = torch.exp(scale)
@@ -654,7 +658,8 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
     The definite integral is estimated by a :math:`n`-point Gauss-Legendre quadrature.
 
     Arguments:
-        g: A positive univariate function :math:`g`.
+        g: A positive univariate function :math:`g`. If :py:`None`, :py:`self.g` is
+            used instead.
         C: The integration constant :math:`C`.
         n: The number of points :math:`n` for the quadrature.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
@@ -667,14 +672,16 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
 
     def __init__(
         self,
-        g: Callable[[Tensor], Tensor],
-        C: Tensor,
+        g: Callable[[Tensor], Tensor] = None,
+        C: Tensor = 0.0,
         n: int = 32,
         **kwargs,
     ):
-        super().__init__(self.f, **kwargs)
+        super().__init__(None, **kwargs)
 
-        self.g = g
+        if g is not None:
+            self.g = g
+
         self.C = C
         self.n = n
 
@@ -719,7 +726,7 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     sign = +1
 
     def __init__(self, a: Tensor, C: Tensor, **kwargs):
-        super().__init__(self.g, C, phi=(a,), n=a.shape[-1], **kwargs)
+        super().__init__(None, C, phi=(a,), n=a.shape[-1], **kwargs)
 
         self.a = a
         self.i = torch.arange(a.shape[-1], device=a.device)
