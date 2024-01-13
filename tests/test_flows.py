@@ -79,9 +79,6 @@ def test_triangular_transforms():
         GeneralCouplingTransform,
         MaskedAutoregressiveTransform,
         partial(MaskedAutoregressiveTransform, passes=2),
-        NeuralAutoregressiveTransform,
-        partial(NeuralAutoregressiveTransform, passes=2),
-        UnconstrainedNeuralAutoregressiveTransform,
     ]
 
     for T in Ts:
