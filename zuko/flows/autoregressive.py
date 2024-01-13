@@ -15,6 +15,7 @@ from torch.distributions import Transform
 from typing import *
 
 from .core import *
+from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
 from ..transforms import *
 from ..nn import MaskedMLP
@@ -64,6 +65,20 @@ class MaskedAutoregressiveTransform(LazyTransform):
         >>> t(c).inv(y)
         tensor([-0.9485,  1.5290,  0.2018])
     """
+
+    def __new__(
+        cls,
+        features: int = None,
+        context: int = 0,
+        passes: int = None,
+        order: LongTensor = None,
+        *args,
+        **kwargs,
+    ) -> LazyTransform:
+        if features is None or features > 1:
+            return super().__new__(cls)
+        else:
+            return ElementWiseTransform(features, context, *args, **kwargs)
 
     def __init__(
         self,
