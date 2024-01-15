@@ -7,6 +7,7 @@ __all__ = [
 
 import torch
 
+from functools import partial
 from typing import *
 
 from .autoregressive import MAF
@@ -78,6 +79,7 @@ class BPF(MAF):
         features: The number of features.
         context: The number of context features.
         degree: The degree :math:`M` of the Bernstein polynomial.
+        linear: Whether to use a linear or sigmoid mapping to :math:`[0, 1]`.
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
     """
 
@@ -86,12 +88,13 @@ class BPF(MAF):
         features: int,
         context: int = 0,
         degree: int = 16,
+        linear: bool = False,
         **kwargs,
     ):
         super().__init__(
             features=features,
             context=context,
-            univariate=BernsteinTransform,
+            univariate=partial(BernsteinTransform, linear=linear),
             shapes=[(degree + 1,)],
             **kwargs,
         )

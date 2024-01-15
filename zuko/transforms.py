@@ -623,6 +623,9 @@ class BernsteinTransform(MonotonicTransform):
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
             with shape :math:`(*, M + 1)`.
+        linear: Whether to replace the sigmoid function by a linear mapping :math:`\frac{x + B}{2B}`.
+            If :py:`True`, it is assumed that input features are in :math:`[-B, B]`.
+            Failing to satisfy this constraint will result in NaNs.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
@@ -631,10 +634,11 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, **kwargs):
+    def __init__(self, theta: Tensor, linear: bool = False, **kwargs):
         super().__init__(None, phi=(theta,), **kwargs)
 
         self.theta = self._increasing(theta)
+        self.linear = linear
 
         degree = theta.shape[-1]
         alpha = torch.arange(1, degree + 1, device=theta.device, dtype=theta.dtype)
@@ -654,9 +658,13 @@ class BernsteinTransform(MonotonicTransform):
         return torch.cumsum(widths, dim=-1) - shift
 
     def f(self, x: Tensor) -> Tensor:
-        x = torch.nn.functional.sigmoid(x / 2)  # map to [0, 1]
-        x = x.unsqueeze(-1)
+        if self.linear:
+            x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
+        else:
+            x = torch.nn.functional.sigmoid(x)  # map [-inf, inf] to [0, 1]
 
+        x = x * (1 - 2e-6) + 1e-6
+        x = x.unsqueeze(-1)
         b = self.basis.log_prob(x).exp()
         y = torch.mean(b * self.theta, dim=-1)
 
