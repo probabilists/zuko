@@ -653,7 +653,7 @@ class BernsteinTransform(MonotonicTransform):
             rank = self.theta.dim()
             if rank > 1:
                 # add singleton dimensions for batch dimensions
-                dims = [None] * (rank - 1) + [-1]
+                dims = [...] + [None] * (rank - 1)
                 x = x[dims]
             print(x.shape, self.theta.shape)
             print(x.shape, self.theta.dim())
@@ -699,11 +699,9 @@ class BernsteinTransform(MonotonicTransform):
         y = self.b_poly(x, self.theta, self.basis)
 
         if self.linear:
-            y0 = (
-                self.slope[..., 0] * (x - self.eps) + self.offset[..., 0]
-            )  # h'(eps) * x + h(eps)
+            y0 = self.slope[0] * (x - self.eps) + self.offset[0]  # h'(eps) * x + h(eps)
             y1 = (
-                self.slope[..., 1] * (x - 1 + self.eps) + self.offset[..., 1]
+                self.slope[1] * (x - 1 + self.eps) + self.offset[1]
             )  # h'(1-eps) * x + h(1-eps)
             y = torch.where(x <= self.eps, y0, y)
             y = torch.where(x >= 1 - self.eps, y1, y)
