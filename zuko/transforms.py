@@ -636,11 +636,7 @@ class BernsteinTransform(MonotonicTransform):
 
         self.theta = self._increasing(theta)
         self.order = self.theta.shape[-1] - 1
-
-        # BUG: something is wring here
-        self.dtheta = (self.order / (self.order + 1)) * (
-            self.theta[..., 1:] - self.theta[..., :-1]
-        )
+        self.dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
 
         self.basis = self.get_bernstein_basis(
             self.order, device=theta.device, dtype=theta.dtype
@@ -654,15 +650,15 @@ class BernsteinTransform(MonotonicTransform):
         if self.linear:
             # save slope on boundaries for interpolation
             x = torch.tensor([self.eps, 1 - self.eps])
-            self.offset = self.b_poly(x, self.theta, self.basis)  # h(eps, 1-eps)
-            self.slope = self.b_poly(x, self.dtheta, self.dbasis)  # h'(eps, 1-eps)
-
-    @staticmethod
-    def get_bernstein_basis(order, **kwds):
-        alpha = torch.arange(1, order + 2, **kwds)
-        beta = torch.arange(order + 1, 0, -1, **kwds)
-        basis = torch.distributions.Beta(alpha, beta)
-        return basis
+            rank = self.theta.dim()
+            if rank > 1:
+                # add singleton dimensions for batch dimensions
+                dims = [None] * (rank - 1) + [-1]
+                x = x[dims]
+            print(x.shape, self.theta.shape)
+            print(x.shape, self.theta.dim())
+            self.offset = self.b_poly(x, self.theta, self.basis)
+            self.slope = self.b_poly(x, self.dtheta, self.dbasis)
 
     @staticmethod
     def _increasing(theta: Tensor) -> Tensor:
@@ -676,12 +672,19 @@ class BernsteinTransform(MonotonicTransform):
         return torch.cumsum(widths, dim=-1) - shift
 
     @staticmethod
+    def get_bernstein_basis(order, **kwds):
+        alpha = torch.arange(1, order + 2, **kwds)
+        beta = torch.arange(order + 1, 0, -1, **kwds)
+        basis = torch.distributions.Beta(alpha, beta)
+        return basis
+
+    @staticmethod
     def b_poly(x, theta, basis):
         b = basis.log_prob(x.unsqueeze(-1)).exp()
         y_poly = torch.mean(b * theta, dim=-1)
         return y_poly
 
-    def shift_and_scale(self, x):
+    def scale_data(self, x):
         if self.linear:
             x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
         else:
@@ -692,13 +695,15 @@ class BernsteinTransform(MonotonicTransform):
         return x
 
     def f(self, x: Tensor) -> Tensor:
-        x = self.shift_and_scale(x)
+        x = self.scale_data(x)
         y = self.b_poly(x, self.theta, self.basis)
 
         if self.linear:
-            y0 = self.slope[0] * (x - self.eps) + self.offset[0]  # h'(eps) * x + h(eps)
+            y0 = (
+                self.slope[..., 0] * (x - self.eps) + self.offset[..., 0]
+            )  # h'(eps) * x + h(eps)
             y1 = (
-                self.slope[1] * (x - 1 + self.eps) + self.offset[1]
+                self.slope[..., 1] * (x - 1 + self.eps) + self.offset[..., 1]
             )  # h'(1-eps) * x + h(1-eps)
             y = torch.where(x <= self.eps, y0, y)
             y = torch.where(x >= 1 - self.eps, y1, y)
@@ -706,12 +711,16 @@ class BernsteinTransform(MonotonicTransform):
         return y
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        x = self.shift_and_scale(x)
-        jac = self.b_poly(x, self.dtheta, self.dbasis)
+        x_scaled = self.scale_data(x)
+        jac = self.b_poly(x_scaled, self.dtheta, self.dbasis)
 
         if self.linear:
-            jac = torch.where(x <= self.eps, self.slope[0], jac)
-            jac = torch.where(x >= 1 - self.eps, self.slope[1], jac)
+            jac = torch.where(x_scaled <= self.eps, self.slope[0], jac)
+            jac = torch.where(x_scaled >= 1 - self.eps, self.slope[1], jac)
+            jac *= 1 / (2 * self.bound)
+        else:
+            sigma = torch.nn.functional.sigmoid(x)
+            jac *= sigma * (1 - sigma)
 
         return jac.abs().log()
 
