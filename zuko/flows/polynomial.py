@@ -1,8 +1,8 @@
 r"""Polynomial flows."""
 
 __all__ = [
-    'SOSPF',
-    'BPF',
+    "SOSPF",
+    "BPF",
 ]
 
 from functools import partial
@@ -87,12 +87,13 @@ class BPF(MAF):
         context: int = 0,
         degree: int = 16,
         linear: bool = False,
+        bound: float = 10.0,
         **kwargs,
     ):
         super().__init__(
             features=features,
             context=context,
-            univariate=partial(BernsteinTransform, linear=linear),
+            univariate=partial(BernsteinTransform, linear=linear, bound=bound),
             shapes=[(degree + 1,)],
             **kwargs,
         )
