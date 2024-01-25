@@ -648,7 +648,7 @@ class BernsteinTransform(MonotonicTransform):
 
         if self.linear:
             # save slope on boundaries for interpolation
-            x = torch.tensor([self.eps, 1 - self.eps])
+            x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
             rank = self.theta.dim()
             if rank > 1:
                 # add singleton dimensions for batch dimensions
