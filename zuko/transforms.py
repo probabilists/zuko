@@ -12,6 +12,7 @@ __all__ = [
     'MonotonicAffineTransform',
     'MonotonicRQSTransform',
     'MonotonicTransform',
+    'BernsteinTransform',
     'GaussianizationTransform',
     'UnconstrainedMonotonicTransform',
     'SOSPolynomialTransform',
@@ -603,6 +604,72 @@ class MonotonicTransform(Transform):
         jacobian = torch.autograd.grad(y, x, torch.ones_like(y), create_graph=True)[0]
 
         return y, jacobian.log()
+
+
+class BernsteinTransform(MonotonicTransform):
+    r"""Creates a monotonic Bernstein polynomial transformation.
+
+    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(\sigma(x)) \, \theta_i
+
+    where :math:`b_{i,j}` are the Bernstein basis polynomials and :math:`\sigma(x)` is
+    the sigmoid function.
+
+    References:
+        | Short-Term Density Forecasting of Low-Voltage Load using Bernstein-Polynomial Normalizing Flows (Arpogaus et al., 2022)
+        | https://arxiv.org/abs/2204.13939
+
+    Wikipedia:
+        https://wikipedia.org/wiki/Bernstein_polynomial
+
+    Arguments:
+        theta: The unconstrained polynomial coefficients :math:`\theta`,
+            with shape :math:`(*, M + 1)`.
+        linear: Whether to replace the sigmoid function with a linear mapping
+            :math:`\frac{x + B}{2B}`. If :py:`True`, input features are assumed to be
+            in :math:`[-B, B]`. Failing to satisfy this constraint will result in NaNs.
+        kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
+    """
+
+    domain = constraints.real
+    codomain = constraints.real
+    bijective = True
+    sign = +1
+
+    def __init__(self, theta: Tensor, linear: bool = False, **kwargs):
+        super().__init__(None, phi=(theta,), **kwargs)
+
+        self.theta = self._increasing(theta)
+        self.linear = linear
+
+        degree = theta.shape[-1]
+        alpha = torch.arange(1, degree + 1, device=theta.device, dtype=theta.dtype)
+        beta = torch.arange(degree, 0, -1, device=theta.device, dtype=theta.dtype)
+
+        self.basis = torch.distributions.Beta(alpha, beta)
+
+    @staticmethod
+    def _increasing(theta: Tensor) -> Tensor:
+        r"""Processes the unconstrained output of the hyper-network to be increasing."""
+
+        shift = math.log(2.0) * theta.shape[-1] / 2
+
+        widths = torch.nn.functional.softplus(theta[..., 1:])
+        widths = torch.cat((theta[..., :1], widths), dim=-1)
+
+        return torch.cumsum(widths, dim=-1) - shift
+
+    def f(self, x: Tensor) -> Tensor:
+        if self.linear:
+            x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
+        else:
+            x = torch.nn.functional.sigmoid(x)  # map [-inf, inf] to [0, 1]
+
+        x = x * (1 - 2e-6) + 1e-6
+        x = x.unsqueeze(-1)
+        b = self.basis.log_prob(x).exp()
+        y = torch.mean(b * self.theta, dim=-1)
+
+        return y
 
 
 class GaussianizationTransform(MonotonicTransform):
