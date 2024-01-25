@@ -611,7 +611,8 @@ class BernsteinTransform(MonotonicTransform):
 
     .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(\sigma(x)) \, \theta_i
 
-    where :math:`b_{i,j}` are the Bernstein basis polynomials and :math:`\sigma(x)` is the sigmoid function.
+    where :math:`b_{i,j}` are the Bernstein basis polynomials and :math:`\sigma(x)` is
+    the sigmoid function.
 
     References:
         | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
@@ -623,9 +624,9 @@ class BernsteinTransform(MonotonicTransform):
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
             with shape :math:`(*, M + 1)`.
-        linear: Whether to replace the sigmoid function by a linear mapping :math:`\frac{x + B}{2B}`.
-            If :py:`True`, it is assumed that input features are in :math:`[-B, B]`.
-            Failing to satisfy this constraint will result in NaNs.
+        linear: Whether to replace the sigmoid function with a linear mapping
+            :math:`\frac{x + B}{2B}`. If :py:`True`, input features are assumed to be
+            in :math:`[-B, B]`. Failing to satisfy this constraint will result in NaNs.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
