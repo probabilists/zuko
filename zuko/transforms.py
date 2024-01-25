@@ -615,8 +615,8 @@ class BernsteinTransform(MonotonicTransform):
     the sigmoid function.
 
     References:
-        | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
-        | https://arxiv.org/abs/2004.00464
+        | Short-Term Density Forecasting of Low-Voltage Load using Bernstein-Polynomial Normalizing Flows (Arpogaus et al., 2022)
+        | https://arxiv.org/abs/2204.13939
 
     Wikipedia:
         https://wikipedia.org/wiki/Bernstein_polynomial
