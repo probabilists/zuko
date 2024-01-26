@@ -3,12 +3,12 @@ r"""Tests for the zuko.nn module."""
 import pytest
 import torch
 import torch.nn as nn
-
 from torch import randn
-from zuko.nn import *
+
+from zuko.nn import MLP, Linear, MaskedMLP, MonotonicMLP
 
 
-@pytest.mark.parametrize('bias', [True, False])
+@pytest.mark.parametrize("bias", [True, False])
 def test_Linear(bias: bool):
     net = Linear(3, 5, bias=True)
 
@@ -26,8 +26,8 @@ def test_Linear(bias: bool):
     assert y.shape == (256, 5)
 
 
-@pytest.mark.parametrize('activation', [None, torch.nn.ELU])
-@pytest.mark.parametrize('normalize', [True, False])
+@pytest.mark.parametrize("activation", [None, torch.nn.ELU])
+@pytest.mark.parametrize("normalize", [True, False])
 def test_MLP(activation: callable, normalize: bool):
     net = MLP(3, 5, activation=activation, normalize=normalize)
 
@@ -45,7 +45,7 @@ def test_MLP(activation: callable, normalize: bool):
     assert y.shape == (256, 5)
 
 
-@pytest.mark.parametrize('residual', [True, False])
+@pytest.mark.parametrize("residual", [True, False])
 def test_MaskedMLP(residual: bool):
     adjacency = randn(5, 3) < 0
     net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual)

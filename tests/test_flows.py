@@ -1,18 +1,33 @@
 r"""Tests for the zuko.flows module."""
 
-import pytest
-import torch
-
 from functools import partial
 from pathlib import Path
-from torch import randn
-from zuko.flows import *
 
+import pytest
+import torch
+from torch import randn
+
+from zuko.flows import (
+    BPF,
+    CNF,
+    GF,
+    GMM,
+    MAF,
+    NAF,
+    NICE,
+    NSF,
+    SOSPF,
+    UNAF,
+    ElementWiseTransform,
+    Flow,
+    GeneralCouplingTransform,
+    MaskedAutoregressiveTransform,
+)
 
 torch.set_default_dtype(torch.float64)
 
 
-@pytest.mark.parametrize('F', [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
+@pytest.mark.parametrize("F", [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
 def test_flows(tmp_path: Path, F: callable):
     flow = F(3, 5)
 
@@ -55,10 +70,10 @@ def test_flows(tmp_path: Path, F: callable):
         assert torch.allclose(x, z, atol=1e-4)
 
     # Saving
-    torch.save(flow, tmp_path / 'flow.pth')
+    torch.save(flow, tmp_path / "flow.pth")
 
     # Loading
-    flow_bis = torch.load(tmp_path / 'flow.pth')
+    flow_bis = torch.load(tmp_path / "flow.pth")
 
     x, c = randn(3), randn(5)
 

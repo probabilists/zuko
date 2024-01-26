@@ -1,18 +1,16 @@
 r"""Polynomial flows."""
 
 __all__ = [
-    'SOSPF',
-    'BPF',
+    "SOSPF",
+    "BPF",
 ]
 
-import torch
 
 from functools import partial
-from typing import *
 
+from ..transforms import BernsteinTransform, SoftclipTransform, SOSPolynomialTransform
 from .autoregressive import MAF
-from .core import *
-from ..transforms import SoftclipTransform, SOSPolynomialTransform, BernsteinTransform
+from .core import Unconditional
 
 
 class SOSPF(MAF):

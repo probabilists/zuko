@@ -1,25 +1,24 @@
 r"""Autoregressive flows and transformations."""
 
 __all__ = [
-    'MaskedAutoregressiveTransform',
-    'MAF',
+    "MaskedAutoregressiveTransform",
+    "MAF",
 ]
-
-import torch
-import torch.nn as nn
 
 from functools import partial
 from math import ceil, prod
-from torch import Tensor, LongTensor, Size
-from torch.distributions import Transform
-from typing import *
+from typing import Callable, Sequence
 
+import torch
+from torch import LongTensor, Size, Tensor
+from torch.distributions import Transform
+
+from ..distributions import DiagNormal
+from ..nn import MaskedMLP
+from ..transforms import *
+from ..utils import broadcast, unpack
 from .core import *
 from .gaussianization import ElementWiseTransform
-from ..distributions import DiagNormal
-from ..transforms import *
-from ..nn import MaskedMLP
-from ..utils import broadcast, unpack
 
 
 class MaskedAutoregressiveTransform(LazyTransform):
@@ -98,7 +97,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         self.total = sum(prod(s) for s in shapes)
 
         # Adjacency
-        self.register_buffer('order', None)
+        self.register_buffer("order", None)
 
         if passes is None:
             passes = features
@@ -109,7 +108,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             order = torch.as_tensor(order)
 
         self.passes = min(max(passes, 1), features)
-        self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
+        self.order = torch.div(
+            order, ceil(features / self.passes), rounding_mode="floor"
+        )
 
         in_order = torch.cat((self.order, torch.full((context,), -1)))
         out_order = torch.repeat_interleave(self.order, self.total)
@@ -124,12 +125,14 @@ class MaskedAutoregressiveTransform(LazyTransform):
 
         if len(order) > 10:
             order = order[:5] + [...] + order[-5:]
-            order = str(order).replace('Ellipsis', '...')
+            order = str(order).replace("Ellipsis", "...")
 
-        return '\n'.join([
-            f'(base): {base}',
-            f'(order): {order}',
-        ])
+        return "\n".join(
+            [
+                f"(base): {base}",
+                f"(order): {order}",
+            ]
+        )
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:
         if c is not None:

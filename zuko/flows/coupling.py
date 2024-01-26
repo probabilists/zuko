@@ -1,24 +1,24 @@
 r"""Coupling flows and transformations."""
 
 __all__ = [
-    'GeneralCouplingTransform',
-    'NICE',
+    "GeneralCouplingTransform",
+    "NICE",
 ]
-
-import torch
 
 from functools import partial
 from math import prod
-from torch import Tensor, BoolTensor, Size
-from torch.distributions import Transform
-from typing import *
+from typing import Callable, Sequence
 
+import torch
+from torch import BoolTensor, Size, Tensor
+from torch.distributions import Transform
+
+from ..distributions import DiagNormal
+from ..nn import MLP
+from ..transforms import *
+from ..utils import broadcast, unpack
 from .core import *
 from .gaussianization import ElementWiseTransform
-from ..distributions import DiagNormal
-from ..transforms import *
-from ..nn import MLP
-from ..utils import broadcast, unpack
 
 
 class GeneralCouplingTransform(LazyTransform):
@@ -92,7 +92,7 @@ class GeneralCouplingTransform(LazyTransform):
         self.total = sum(prod(s) for s in shapes)
 
         # Mask
-        self.register_buffer('mask', None)
+        self.register_buffer("mask", None)
 
         if mask is None:
             self.mask = torch.arange(features) % 2 == 1
@@ -111,12 +111,14 @@ class GeneralCouplingTransform(LazyTransform):
 
         if len(mask) > 10:
             mask = mask[:5] + [...] + mask[-5:]
-            mask = str(mask).replace('Ellipsis', '...')
+            mask = str(mask).replace("Ellipsis", "...")
 
-        return '\n'.join([
-            f'(base): {base}',
-            f'(mask): {mask}',
-        ])
+        return "\n".join(
+            [
+                f"(base): {base}",
+                f"(mask): {mask}",
+            ]
+        )
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:
         if c is not None:

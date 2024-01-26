@@ -1,24 +1,23 @@
 r"""Continuous flows and transformations."""
 
 __all__ = [
-    'FFJTransform',
-    'CNF',
+    "FFJTransform",
+    "CNF",
 ]
-
-import torch
-import torch.nn as nn
 
 from functools import partial
 from math import pi
+
+import torch
+import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Transform
-from typing import *
 
-from .core import *
 from ..distributions import DiagNormal
-from ..transforms import FreeFormJacobianTransform
 from ..nn import MLP
+from ..transforms import FreeFormJacobianTransform
 from ..utils import broadcast
+from .core import *
 
 
 class FFJTransform(LazyTransform):
@@ -74,12 +73,12 @@ class FFJTransform(LazyTransform):
     ):
         super().__init__()
 
-        kwargs.setdefault('activation', nn.ELU)
+        kwargs.setdefault("activation", nn.ELU)
 
         self.ode = MLP(features + context + 2 * freqs, features, **kwargs)
 
-        self.register_buffer('times', torch.tensor((0.0, 1.0)))
-        self.register_buffer('freqs', torch.arange(1, freqs + 1) * pi)
+        self.register_buffer("times", torch.tensor((0.0, 1.0)))
+        self.register_buffer("freqs", torch.arange(1, freqs + 1) * pi)
 
         self.atol = atol
         self.rtol = rtol

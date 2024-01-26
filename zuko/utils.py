@@ -2,16 +2,16 @@ r"""General purpose helpers."""
 
 from __future__ import annotations
 
-__all__ = ['bisection', 'broadcast', 'gauss_legendre', 'odeint', 'unpack']
+__all__ = ["bisection", "broadcast", "gauss_legendre", "odeint", "unpack"]
 
 import math
+from functools import lru_cache
+from typing import Callable, Iterable, List, Sequence, Tuple, Union
+
 import numpy as np
 import torch
-
-from functools import lru_cache
-from torch import Tensor, Size
+from torch import Size, Tensor
 from torch.autograd.function import once_differentiable
-from typing import *
 
 
 def bisection(
@@ -91,11 +91,13 @@ class Bisection(torch.autograd.Function):
             x = x.detach().requires_grad_()
             y = f(x)
 
-        jacobian, = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)
+        (jacobian,) = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)
         grad_y = grad_x / jacobian
 
         if phi:
-            grad_phi = torch.autograd.grad(y, phi, -grad_y, retain_graph=True, allow_unused=True)
+            grad_phi = torch.autograd.grad(
+                y, phi, -grad_y, retain_graph=True, allow_unused=True
+            )
         else:
             grad_phi = ()
 
@@ -204,7 +206,9 @@ class GaussLegendre(torch.autograd.Function):
             with torch.enable_grad():
                 area = GaussLegendre.quadrature(f, a, b, n)
 
-            grad_phi = torch.autograd.grad(area, phi, grad_area, create_graph=True, allow_unused=True)
+            grad_phi = torch.autograd.grad(
+                area, phi, grad_area, create_graph=True, allow_unused=True
+            )
         else:
             grad_phi = ()
 
@@ -224,7 +228,7 @@ class GaussLegendre(torch.autograd.Function):
         nodes = (nodes + 1) / 2
         weights = weights / 2
 
-        kwargs.setdefault('dtype', torch.get_default_dtype())
+        kwargs.setdefault("dtype", torch.get_default_dtype())
 
         return (
             torch.as_tensor(nodes, **kwargs),

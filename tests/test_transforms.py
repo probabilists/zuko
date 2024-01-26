@@ -2,16 +2,15 @@ r"""Tests for the zuko.transforms module."""
 
 import pytest
 import torch
-
 from torch import randn
 from torch.distributions import *
-from zuko.transforms import *
 
+from zuko.transforms import *
 
 torch.set_default_dtype(torch.float64)
 
 
-@pytest.mark.parametrize('batched', [False, True])
+@pytest.mark.parametrize("batched", [False, True])
 def test_univariate_transforms(batched: bool):
     batch = (256,) if batched else ()
 
@@ -28,14 +27,18 @@ def test_univariate_transforms(batched: bool):
         BernsteinTransform(randn(*batch, 16)),
         BernsteinTransform(randn(*batch, 16), linear=True),
         GaussianizationTransform(randn(*batch, 8), randn(*batch, 8)),
-        UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(batch)),
+        UnconstrainedMonotonicTransform(
+            lambda x: torch.exp(-(x**2)) + 1e-2, randn(batch)
+        ),
         SOSPolynomialTransform(randn(*batch, 3, 5), randn(batch)),
     ]
 
     for t in ts:
         # Call
-        if hasattr(t.domain, 'lower_bound'):
-            x = torch.linspace(t.domain.lower_bound + 1e-2, t.domain.upper_bound - 1e-2, 256)
+        if hasattr(t.domain, "lower_bound"):
+            x = torch.linspace(
+                t.domain.lower_bound + 1e-2, t.domain.upper_bound - 1e-2, 256
+            )
         else:
             x = torch.linspace(-5.0, 5.0, 256)
 

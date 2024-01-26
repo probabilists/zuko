@@ -2,10 +2,9 @@ r"""Tests for the zuko.utils module."""
 
 import pytest
 import torch
-
 from torch import randn
-from zuko.utils import *
 
+from zuko.utils import bisection, broadcast, gauss_legendre, odeint, unpack
 
 torch.set_default_dtype(torch.float64)
 

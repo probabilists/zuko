@@ -1,26 +1,30 @@
 r"""Neural flows and transformations."""
 
 __all__ = [
-    'MNN',
-    'UMNN',
-    'NAF',
-    'UNAF',
+    "MNN",
+    "UMNN",
+    "NAF",
+    "UNAF",
 ]
+
+from functools import partial
+from typing import Any, Dict
 
 import torch
 import torch.nn as nn
-
-from functools import partial
 from torch import Tensor
 from torch.distributions import Transform
-from typing import *
 
-from .autoregressive import MaskedAutoregressiveTransform
-from .core import *
 from ..distributions import DiagNormal
-from ..transforms import SoftclipTransform, MonotonicTransform, UnconstrainedMonotonicTransform
 from ..nn import MLP, MonotonicMLP
+from ..transforms import (
+    MonotonicTransform,
+    SoftclipTransform,
+    UnconstrainedMonotonicTransform,
+)
 from ..utils import broadcast
+from .autoregressive import MaskedAutoregressiveTransform
+from .core import Flow, Unconditional
 
 
 class MNN(nn.Module):
@@ -81,7 +85,7 @@ class UMNN(nn.Module):
     def __init__(self, signal: int = 16, **kwargs):
         super().__init__()
 
-        kwargs.setdefault('activation', nn.ELU)
+        kwargs.setdefault("activation", nn.ELU)
 
         self.integrand = MLP(1 + signal, 1, **kwargs)
 
