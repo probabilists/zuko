@@ -709,17 +709,18 @@ class BernsteinTransform(MonotonicTransform):
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         x_scaled = self.scale_data(x)
-        jac = self.b_poly(x_scaled, self.dtheta, self.dbasis)
+        ljac = self.b_poly(x_scaled, self.dtheta, self.dbasis).log()
 
         if self.linear:
-            jac = torch.where(x_scaled <= self.eps, self.slope[0], jac)
-            jac = torch.where(x_scaled >= 1 - self.eps, self.slope[1], jac)
-            jac *= 1 / (2 * self.bound)
+            ljac = torch.where(x_scaled <= self.eps, self.slope[0], ljac)
+            ljac = torch.where(x_scaled >= 1 - self.eps, self.slope[1], ljac)
+            ljac += (1 / (2 * self.bound)).log()
         else:
             sigma = torch.nn.functional.sigmoid(x)
-            jac *= sigma * (1 - sigma)
+            sigma = sigma * (1 - 2 * 1e-6) + 1e-6 #sigmoid(17) is 1.0!
+            ljac += sigma.log() + (1 - sigma).log()
 
-        return jac.abs().log() + torch.tensor(1 - 2 * self.eps).log()
+        return ljac.abs() + torch.tensor(1 - 2 * self.eps).log()
 
 
 class GaussianizationTransform(MonotonicTransform):
