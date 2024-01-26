@@ -628,6 +628,8 @@ class BernsteinTransform(MonotonicTransform):
     codomain = constraints.real
     bijective = True
     sign = +1
+
+    # enforce usage of analytical log_abs_det_jacobian
     call_and_ladj = _call_and_ladj
 
     def __init__(self, theta: Tensor, linear: bool = False, **kwargs):
@@ -717,7 +719,7 @@ class BernsteinTransform(MonotonicTransform):
             sigma = torch.nn.functional.sigmoid(x)
             jac *= sigma * (1 - sigma)
 
-        return jac.abs().log()
+        return jac.abs().log() + torch.tensor(1 - 2 * self.eps).log()
 
 
 class GaussianizationTransform(MonotonicTransform):
