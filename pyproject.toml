@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zuko"
+description = "Normalizing flows in PyTorch"
+authors = [
+  {name = "The Probabilists", email = "theprobabilists@gmail.com"}
+]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+]
+dynamic = ["dependencies", "version"]
+keywords = [
+    "torch",
+    "normalizing flows",
+    "probability",
+    "distribution",
+    "generative",
+    "deep learning",
+]
+readme = "README.md"
+requires-python = ">=3.8"
+
+[project.urls]
+documentation = "https://zuko.readthedocs.io"
+source = "https://github.com/probabilists/zuko"
+tracker = "https://github.com/probabilists/zuko/issues"
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}
+version = {attr = "zuko.__version__"}
