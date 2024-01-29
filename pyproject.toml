@@ -1,0 +1,54 @@
+[build-system]
+build-backend = 'setuptools.build_meta'
+requires = ['setuptools >= 61.0.0']
+
+[project]
+authors = [
+  {name = 'The Probabilists', email = 'theprobabilists@gmail.com'}
+]
+classifiers = [
+  'Intended Audience :: Developers',
+  'Intended Audience :: Science/Research',
+  'Natural Language :: English',
+  'Operating System :: OS Independent',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.8'
+]
+description = 'Normalizing flows in PyTorch'
+dynamic = ['version', 'dependencies']
+keywords = ['torch', 'normalizing flows', 'probability', 'density', 'generative', 'deep learning']
+name = 'zuko'
+readme = 'README.md'
+requires-python = '>=3.8.0'
+urls = {documentation = 'https://zuko.readthedocs.io', source = 'https://github.com/probabilists/zuko', tracker = 'https://github.com/probabilists/zuko/issues'}
+
+[project.optional-dependencies]
+develop = [
+  'autoflake',
+  'black',
+  'isort',
+  'pre-commit',
+  'pytest',
+  'python-lsp-black',
+  'python-lsp-server[all]',
+  'ipykernel',
+  'tox'
+]
+
+[tool.autoflake]
+expand-star-imports = true
+ignore-init-module-imports = true
+remove-all-unused-imports = true
+remove-unused-variables = true
+
+[tool.black]
+# line-length = 88
+target-version = ['py38']
+
+[tool.isort]
+profile = 'black'
+
+[tool.setuptools.dynamic]
+dependencies = {file = 'requirements.txt'}
+version = {attr = 'zuko.__version__'}
