@@ -128,7 +128,7 @@ def broadcast(*tensors: Tensor, ignore: Union[int, Sequence[int]] = 0) -> List[T
         torch.Size([3, 4, 5])
     """
 
-    if type(ignore) is int:
+    if isinstance(ignore, int):
         ignore = [ignore] * len(tensors)
 
     dims = [t.dim() - i for t, i in zip(tensors, ignore)]

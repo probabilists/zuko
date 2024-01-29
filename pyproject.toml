@@ -25,29 +25,39 @@ urls = {documentation = 'https://zuko.readthedocs.io', source = 'https://github.
 
 [project.optional-dependencies]
 develop = [
-  'autoflake',
-  'black',
-  'isort',
   'pre-commit',
   'pytest',
-  'python-lsp-black',
+  'python-lsp-ruff',
   'python-lsp-server[all]',
-  'ipykernel',
-  'tox'
+  'ruff'
 ]
 
-[tool.autoflake]
-expand-star-imports = true
-ignore-init-module-imports = true
-remove-all-unused-imports = true
-remove-unused-variables = true
+[tool.ruff]
+indent-width = 4
+# Same as Black.
+line-length = 88
+# Assume Python 3.8
+target-version = "py38"
 
-[tool.black]
-# line-length = 88
-target-version = ['py38']
+[tool.ruff.format]
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+# Like Black, use double quotes for strings.
+quote-style = "double"
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
 
-[tool.isort]
-profile = 'black'
+[tool.ruff.lint]
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+ignore = ["E501"]
+# Enable Pyflakes (`F`) and the pycodestyle (`E`) codes
+select = ["E", "F"]
+unfixable = []
 
 [tool.setuptools.dynamic]
 dependencies = {file = 'requirements.txt'}

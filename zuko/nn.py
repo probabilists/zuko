@@ -39,7 +39,7 @@ class LayerNorm(nn.Module):
     def __init__(self, dim: Union[int, Iterable[int]] = -1, eps: float = 1e-5):
         super().__init__()
 
-        self.dim = dim if type(dim) is int else tuple(dim)
+        self.dim = dim if isinstance(dim, int) else tuple(dim)
         self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
