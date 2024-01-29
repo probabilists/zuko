@@ -712,9 +712,9 @@ class BernsteinTransform(MonotonicTransform):
         ladj = self.b_poly(x_scaled, self.dtheta, self.dbasis).abs().log()
 
         if self.linear:
-            ladj = torch.where(x_scaled <= self.eps, self.slope[0], ladj)
-            ladj = torch.where(x_scaled >= 1 - self.eps, self.slope[1], ladj)
-            ladj += (1 / (2 * self.bound)).log()
+            ladj = torch.where(x_scaled <= self.eps, self.slope[0].abs().log(), ladj)
+            ladj = torch.where(x_scaled >= 1 - self.eps, self.slope[1].abs().log(), ladj)
+            ladj += torch.tensor(1 / (2 * self.bound), device=x.device, dtype=x.dtype).log()
         else:
             sigma = torch.nn.functional.sigmoid(x)
             dsigma = sigma * (1 - sigma)
@@ -723,7 +723,7 @@ class BernsteinTransform(MonotonicTransform):
             dsigma += torch.finfo(sigma.dtype).tiny
             ladj += dsigma.log()
 
-        return ladj + torch.tensor(1 - 2 * self.eps).log()
+        return ladj + torch.tensor(1 - 2 * self.eps, device=x.device, dtype=x.dtype).log()
 
 
 class GaussianizationTransform(MonotonicTransform):
