@@ -689,8 +689,6 @@ class BernsteinTransform(MonotonicTransform):
         else:
             x = torch.nn.functional.sigmoid(x)  # map [-inf, inf] to [0, 1]
 
-        x = x * (1 - 2 * self.eps) + self.eps
-
         return x
 
     def f(self, x: Tensor) -> Tensor:
@@ -723,7 +721,7 @@ class BernsteinTransform(MonotonicTransform):
             dsigma += torch.finfo(sigma.dtype).tiny
             ladj += dsigma.log()
 
-        return ladj + torch.tensor(1 - 2 * self.eps, device=x.device, dtype=x.dtype).log()
+        return ladj
 
 
 class GaussianizationTransform(MonotonicTransform):
