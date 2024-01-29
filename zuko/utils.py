@@ -313,7 +313,7 @@ def odeint(
             return torch.cat([y.flatten() for y in x])
 
         x0 = pack(x)
-        g = lambda t, x: pack(f(t, *unpack(x, shapes)))
+        g = lambda t, x: pack(f(t, *unpack(x, shapes)))  # noqa: E731
 
     t0 = torch.as_tensor(t0, dtype=x0.dtype, device=x0.device)
     t1 = torch.as_tensor(t1, dtype=x0.dtype, device=x0.device)

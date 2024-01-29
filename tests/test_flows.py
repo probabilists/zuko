@@ -7,22 +7,10 @@ import pytest
 import torch
 from torch import randn
 
-from zuko.flows import (
-    BPF,
-    CNF,
-    GF,
-    GMM,
-    MAF,
-    NAF,
-    NICE,
-    NSF,
-    SOSPF,
-    UNAF,
-    ElementWiseTransform,
-    Flow,
-    GeneralCouplingTransform,
-    MaskedAutoregressiveTransform,
-)
+from zuko.flows import BPF, CNF, GF, GMM, MAF, NAF, NICE, NSF, SOSPF, UNAF, Flow
+from zuko.flows.autoregressive import MaskedAutoregressiveTransform
+from zuko.flows.coupling import GeneralCouplingTransform
+from zuko.flows.gaussianization import ElementWiseTransform
 
 torch.set_default_dtype(torch.float64)
 

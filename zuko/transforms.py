@@ -988,8 +988,8 @@ class FreeFormJacobianTransform(Transform):
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         if self.exact:
-            I = torch.eye(x.shape[-1], dtype=x.dtype, device=x.device)
-            I = I.expand(*x.shape, -1).movedim(-1, 0)
+            eye = torch.eye(x.shape[-1], dtype=x.dtype, device=x.device)
+            eye = eye.expand(*x.shape, -1).movedim(-1, 0)
         else:
             eps = torch.randn_like(x)
 
@@ -1000,7 +1000,7 @@ class FreeFormJacobianTransform(Transform):
 
             if self.exact:
                 jacobian = torch.autograd.grad(
-                    dx, x, I, create_graph=True, is_grads_batched=True
+                    dx, x, eye, create_graph=True, is_grads_batched=True
                 )[0]
                 trace = torch.einsum("i...i", jacobian)
             else:
@@ -1097,10 +1097,10 @@ class LULinearTransform(Transform):
     def __init__(self, LU: Tensor, **kwargs):
         super().__init__(**kwargs)
 
-        I = torch.eye(LU.shape[-1], dtype=LU.dtype, device=LU.device)
+        eye = torch.eye(LU.shape[-1], dtype=LU.dtype, device=LU.device)
 
         self.L = torch.tril(LU)
-        self.U = torch.triu(LU, diagonal=1) + I
+        self.U = torch.triu(LU, diagonal=1) + eye
 
     def _call(self, x: Tensor) -> Tensor:
         return torch.einsum("...ij,...j->...i", self.L @ self.U, x)

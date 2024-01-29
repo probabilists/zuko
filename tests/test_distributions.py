@@ -1,9 +1,22 @@
 r"""Tests for the zuko.distributions module."""
 
 import torch
-from torch.distributions import *
+from torch.distributions import ExpTransform, Gamma, Normal, Uniform
 
-from zuko.distributions import *
+from zuko.distributions import (
+    BoxUniform,
+    DiagNormal,
+    GeneralizedNormal,
+    Joint,
+    Maximum,
+    Minimum,
+    Mixture,
+    NormalizingFlow,
+    Sort,
+    TopK,
+    TransformedUniform,
+    Truncated,
+)
 
 
 def test_distributions():

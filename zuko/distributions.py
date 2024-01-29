@@ -491,9 +491,9 @@ class Truncated(Distribution):
 
 
 class Sort(Distribution):
-    r"""Creates a distribution for a :math:`n`-d random variable :math:`X`, whose elements
-    :math:`X_i` are :math:`n` draws from a base distribution :math:`p(Z)`, ordered
-    such that :math:`X_i \leq X_{i + 1}`.
+    r"""Creates a distribution for a :math:`n`-d random variable :math:`X`, whose
+    elements :math:`X_i` are :math:`n` draws from a base distribution :math:`p(Z)`,
+    ordered such that :math:`X_i \leq X_{i + 1}`.
 
     .. math:: p(X = x) = \begin{cases}
             n! \, \prod_{i = 1}^n p(Z = x_i) & \text{if $x$ is ordered} \\
@@ -570,9 +570,9 @@ class Sort(Distribution):
 
 
 class TopK(Sort):
-    r"""Creates a distribution for a :math:`k`-d random variable :math:`X`, whose elements
-    :math:`X_i` are the top :math:`k` among :math:`n` draws from a base distribution
-    :math:`p(Z)`, ordered such that :math:`X_i \leq X_{i + 1}`.
+    r"""Creates a distribution for a :math:`k`-d random variable :math:`X`, whose
+    elements :math:`X_i` are the top :math:`k` among :math:`n` draws from a base
+    distribution :math:`p(Z)`, ordered such that :math:`X_i \leq X_{i + 1}`.
 
     .. math:: p(X = x) = \begin{cases}
             \frac{n!}{(n - k)!} \, \prod_{i = 1}^k p(Z = x_i)

@@ -185,7 +185,7 @@ class MLP(nn.Sequential):
             )
 
         layers = layers[:-2]
-        layers = filter(lambda l: l is not None, layers)
+        layers = filter(lambda l: l is not None, layers)  # noqa: E741
 
         super().__init__(*layers)
 
@@ -279,7 +279,7 @@ class MaskedMLP(nn.Sequential):
 
         for i, features in enumerate((*hidden_features, out_features)):
             if i > 0:
-                mask = precedence[:, indices]
+                mask = precedence[:, indices]  # noqa: F821
             else:
                 mask = adjacency
 

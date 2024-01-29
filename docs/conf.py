@@ -8,7 +8,7 @@ import subprocess
 
 import zuko
 
-## Project
+# Project
 
 package = "zuko"
 project = "Zuko"
@@ -17,7 +17,7 @@ copyright = "2022-2023"
 repository = "https://github.com/probabilists/zuko"
 commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
-## Extensions
+# Extensions
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -60,7 +60,7 @@ def linkcode_resolve(domain: str, info: dict) -> str:
 
     try:
         file = inspect.getsourcefile(objct)
-        file = file[file.rindex(package) :]
+        file = file[file.rindex(package):]  # fmt: skip
 
         lines, start = inspect.getsourcelines(objct)
         end = start + len(lines) - 1
@@ -78,7 +78,7 @@ napoleon_custom_sections = [
 nb_execution_mode = "off"
 myst_enable_extensions = ["dollarmath"]
 
-## Settings
+# Settings
 
 add_function_parentheses = False
 default_role = "literal"
@@ -125,7 +125,7 @@ rst_prolog = """
 """
 templates_path = ["templates"]
 
-## Edit HTML
+# Edit HTML
 
 
 def edit_html(app, exception):

@@ -12,8 +12,8 @@ torch.set_default_dtype(torch.float64)
 def test_bisection():
     alpha = torch.tensor(1.0, requires_grad=True)
 
-    f = lambda x: torch.cos(alpha * x)
-    g = lambda y: torch.acos(y) / alpha
+    f = lambda x: torch.cos(alpha * x)  # noqa: E731
+    g = lambda y: torch.acos(y) / alpha  # noqa: E731
 
     y = 1.98 * torch.rand(256, requires_grad=True) - 0.99
     x = bisection(f, y, torch.pi, 0.0, n=24, phi=(alpha,))
@@ -69,8 +69,8 @@ def test_gauss_legendre():
     # Polynomial
     alpha = torch.tensor(1.0, requires_grad=True)
 
-    f = lambda x: alpha * x**5 - x**2
-    F = lambda x: alpha * x**6 / 6 - x**3 / 3
+    f = lambda x: alpha * x**5 - x**2  # noqa: E731
+    F = lambda x: alpha * x**6 / 6 - x**3 / 3  # noqa: E731
 
     a, b = randn(2, 256, requires_grad=True)
     area = gauss_legendre(f, a, b, n=3, phi=(alpha,))
@@ -91,8 +91,8 @@ def test_odeint():
     alpha = torch.tensor(1.0, requires_grad=True)
     t = torch.tensor(3.0, requires_grad=True)
 
-    f = lambda t, x: -alpha * x
-    F = lambda t, x: x * (-alpha * t).exp()
+    f = lambda t, x: -alpha * x  # noqa: E731
+    F = lambda t, x: x * (-alpha * t).exp()  # noqa: E731
 
     x0 = randn(256, requires_grad=True)
     xt = odeint(f, x0, torch.zeros_like(t), t, phi=(alpha,), atol=1e-7, rtol=1e-6)

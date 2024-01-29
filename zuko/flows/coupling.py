@@ -15,9 +15,9 @@ from torch.distributions import Transform
 
 from ..distributions import DiagNormal
 from ..nn import MLP
-from ..transforms import *
+from ..transforms import CouplingTransform, DependentTransform, MonotonicAffineTransform
 from ..utils import broadcast, unpack
-from .core import *
+from .core import Flow, LazyTransform, Unconditional
 from .gaussianization import ElementWiseTransform
 
 

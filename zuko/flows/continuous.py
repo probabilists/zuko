@@ -17,7 +17,7 @@ from ..distributions import DiagNormal
 from ..nn import MLP
 from ..transforms import FreeFormJacobianTransform
 from ..utils import broadcast
-from .core import *
+from .core import Flow, LazyTransform, Unconditional
 
 
 class FFJTransform(LazyTransform):
@@ -27,7 +27,8 @@ class FFJTransform(LazyTransform):
         :class:`zuko.transforms.FreeFormJacobianTransform`
 
     References:
-        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
+        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible
+                  Generative Models (Grathwohl et al., 2018)
         | https://arxiv.org/abs/1810.01367
 
     Arguments:
@@ -115,7 +116,8 @@ class CNF(Flow):
         | Neural Ordinary Differential Equations (Chen el al., 2018)
         | https://arxiv.org/abs/1806.07366
 
-        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models (Grathwohl et al., 2018)
+        | FFJORD: Free-form Continuous Dynamics for Scalable Reversible
+                  Generative Models (Grathwohl et al., 2018)
         | https://arxiv.org/abs/1810.01367
 
     Arguments:

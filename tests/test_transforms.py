@@ -3,9 +3,26 @@ r"""Tests for the zuko.transforms module."""
 import pytest
 import torch
 from torch import randn
-from torch.distributions import *
 
-from zuko.transforms import *
+from zuko.transforms import (
+    BernsteinTransform,
+    CircularShiftTransform,
+    CosTransform,
+    FreeFormJacobianTransform,
+    GaussianizationTransform,
+    IdentityTransform,
+    LULinearTransform,
+    MonotonicAffineTransform,
+    MonotonicRQSTransform,
+    MonotonicTransform,
+    PermutationTransform,
+    RotationTransform,
+    SignedPowerTransform,
+    SinTransform,
+    SoftclipTransform,
+    SOSPolynomialTransform,
+    UnconstrainedMonotonicTransform,
+)
 
 torch.set_default_dtype(torch.float64)
 
@@ -80,7 +97,7 @@ def test_univariate_transforms(batched: bool):
 
 def test_multivariate_transforms():
     A, B = torch.randn(5, 16), torch.randn(16, 5)
-    f = lambda t, x: torch.sigmoid(x @ A) @ B
+    f = lambda t, x: torch.sigmoid(x @ A) @ B  # noqa: E731
 
     ts = [
         FreeFormJacobianTransform(f, 0.0, 1.0, atol=1e-7, rtol=1e-6),

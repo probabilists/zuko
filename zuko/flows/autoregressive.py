@@ -15,10 +15,10 @@ from torch.distributions import Transform
 
 from ..distributions import DiagNormal
 from ..nn import MaskedMLP
-from ..transforms import *
+from ..transforms import AutoregressiveTransform, MonotonicAffineTransform
 from ..utils import broadcast, unpack
-from .core import *
-from .gaussianization import ElementWiseTransform
+from .core import Flow, LazyTransform, Unconditional
+from .gaussianization import DependentTransform, ElementWiseTransform
 
 
 class MaskedAutoregressiveTransform(LazyTransform):
