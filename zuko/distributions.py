@@ -19,12 +19,11 @@ import math
 import torch
 
 from textwrap import indent
-from torch import Tensor, Size
+from torch import Size, Tensor
 from torch.distributions import *
 from torch.distributions import constraints
 from torch.distributions.utils import _sum_rightmost
 from typing import *
-
 
 Distribution._validate_args = False
 Distribution.arg_constraints = {}
@@ -319,11 +318,7 @@ class GeneralizedNormal(Distribution):
         return new
 
     def log_prob(self, x: Tensor) -> Tensor:
-        return (
-            torch.log(self.beta / 2)
-            - torch.lgamma(1 / self.beta)
-            - abs(x) ** self.beta
-        )
+        return torch.log(self.beta / 2) - torch.lgamma(1 / self.beta) - abs(x) ** self.beta
 
     def rsample(self, shape: Size = ()) -> Tensor:
         beta = self.beta.expand(shape + self.beta.shape)

@@ -1,8 +1,8 @@
 # Configuration file for the Sphinx documentation builder
 
 import glob
-import inspect
 import importlib
+import inspect
 import re
 import subprocess
 import zuko
@@ -63,7 +63,7 @@ def linkcode_resolve(domain: str, info: dict) -> str:
 
         lines, start = inspect.getsourcelines(objct)
         end = start + len(lines) - 1
-    except Exception as e:
+    except Exception:
         return None
     else:
         return f'{repository}/blob/{commit}/{file}#L{start}-L{end}'
@@ -126,6 +126,7 @@ templates_path = ['templates']
 
 ## Edit HTML
 
+
 def edit_html(app, exception):
     if exception:
         raise exception
@@ -134,12 +135,15 @@ def edit_html(app, exception):
         with open(file, 'r') as f:
             text = f.read()
 
+        # fmt: off
         text = text.replace('<a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>\'s', '')
         text = text.replace('<span class="pre">[source]</span>', '<i class="fa-solid fa-code"></i>')
         text = re.sub(r'(<a class="reference external".*</a>)(<a class="headerlink".*</a>)', r'\2\1', text)
+        # fmt: on
 
         with open(file, 'w') as f:
             f.write(text)
+
 
 def setup(app):
     app.connect('build-finished', edit_html)

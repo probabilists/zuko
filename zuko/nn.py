@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch import Tensor, BoolTensor
+from torch import BoolTensor, Tensor
 from typing import *
 
 
@@ -39,7 +39,7 @@ class LayerNorm(nn.Module):
     def __init__(self, dim: Union[int, Iterable[int]] = -1, eps: float = 1e-5):
         super().__init__()
 
-        self.dim = dim if type(dim) is int else tuple(dim)
+        self.dim = dim if isinstance(dim, int) else tuple(dim)
         self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
@@ -183,7 +183,7 @@ class MLP(nn.Sequential):
             ])
 
         layers = layers[:-2]
-        layers = filter(lambda l: l is not None, layers)
+        layers = filter(lambda layer: layer is not None, layers)
 
         super().__init__(*layers)
 
@@ -343,10 +343,13 @@ class TwoWayELU(nn.ELU):
     def forward(self, x: Tensor) -> Tensor:
         x0, x1 = torch.chunk(x, 2, dim=-1)
 
-        return torch.cat((
-            super().forward(x0),
-            -super().forward(-x1),
-        ), dim=-1)
+        return torch.cat(
+            (
+                super().forward(x0),
+                -super().forward(-x1),
+            ),
+            dim=-1,
+        )
 
 
 class MonotonicMLP(MLP):

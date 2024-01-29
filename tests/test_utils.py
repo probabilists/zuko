@@ -6,7 +6,6 @@ import torch
 from torch import randn
 from zuko.utils import *
 
-
 torch.set_default_dtype(torch.float64)
 
 

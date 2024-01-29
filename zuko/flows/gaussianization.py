@@ -9,14 +9,15 @@ import torch
 import torch.nn as nn
 
 from math import prod
-from torch import Tensor, Size
+from torch import Size, Tensor
 from torch.distributions import Transform
 from typing import *
 
-from .core import *
+# isort: local
+from .core import Flow, LazyTransform, Unconditional
 from ..distributions import DiagNormal
-from ..transforms import *
 from ..nn import MLP
+from ..transforms import *
 from ..utils import unpack
 
 

@@ -7,7 +7,6 @@ from torch import randn
 from torch.distributions import *
 from zuko.transforms import *
 
-
 torch.set_default_dtype(torch.float64)
 
 
@@ -28,7 +27,7 @@ def test_univariate_transforms(batched: bool):
         BernsteinTransform(randn(*batch, 16)),
         BernsteinTransform(randn(*batch, 16), linear=True),
         GaussianizationTransform(randn(*batch, 8), randn(*batch, 8)),
-        UnconstrainedMonotonicTransform(lambda x: torch.exp(-x**2) + 1e-2, randn(batch)),
+        UnconstrainedMonotonicTransform(lambda x: torch.exp(-(x**2)) + 1e-2, randn(batch)),
         SOSPolynomialTransform(randn(*batch, 3, 5), randn(batch)),
     ]
 

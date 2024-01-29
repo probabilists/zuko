@@ -2,14 +2,20 @@ r"""General purpose helpers."""
 
 from __future__ import annotations
 
-__all__ = ['bisection', 'broadcast', 'gauss_legendre', 'odeint', 'unpack']
+__all__ = [
+    'bisection',
+    'broadcast',
+    'gauss_legendre',
+    'odeint',
+    'unpack',
+]
 
 import math
 import numpy as np
 import torch
 
 from functools import lru_cache
-from torch import Tensor, Size
+from torch import Size, Tensor
 from torch.autograd.function import once_differentiable
 from typing import *
 
@@ -91,7 +97,7 @@ class Bisection(torch.autograd.Function):
             x = x.detach().requires_grad_()
             y = f(x)
 
-        jacobian, = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)
+        (jacobian,) = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)
         grad_y = grad_x / jacobian
 
         if phi:
@@ -126,7 +132,7 @@ def broadcast(*tensors: Tensor, ignore: Union[int, Sequence[int]] = 0) -> List[T
         torch.Size([3, 4, 5])
     """
 
-    if type(ignore) is int:
+    if isinstance(ignore, int):
         ignore = [ignore] * len(tensors)
 
     dims = [t.dim() - i for t, i in zip(tensors, ignore)]
@@ -204,7 +210,9 @@ class GaussLegendre(torch.autograd.Function):
             with torch.enable_grad():
                 area = GaussLegendre.quadrature(f, a, b, n)
 
-            grad_phi = torch.autograd.grad(area, phi, grad_area, create_graph=True, allow_unused=True)
+            grad_phi = torch.autograd.grad(
+                area, phi, grad_area, create_graph=True, allow_unused=True
+            )
         else:
             grad_phi = ()
 
@@ -324,6 +332,7 @@ def odeint(
         return unpack(x1, shapes)
 
 
+# fmt: off
 def dopri45(
     f: Callable[[Tensor, Tensor], Tensor],
     x: Tensor,
@@ -378,6 +387,7 @@ def dopri45(
     )
 
     return x_next, abs(x_next - x_star)
+# fmt: on
 
 
 class NestedTensor(tuple):

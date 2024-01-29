@@ -1,6 +1,5 @@
 r"""Tests for the zuko.distributions module."""
 
-import pytest
 import torch
 
 from torch.distributions import *

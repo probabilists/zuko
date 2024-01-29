@@ -14,10 +14,11 @@ from torch import Tensor
 from torch.distributions import Transform
 from typing import *
 
-from .core import *
+# isort: local
+from .core import Flow, LazyTransform, Unconditional
 from ..distributions import DiagNormal
-from ..transforms import FreeFormJacobianTransform
 from ..nn import MLP
+from ..transforms import FreeFormJacobianTransform
 from ..utils import broadcast
 
 

@@ -5,14 +5,13 @@ __all__ = [
     'BPF',
 ]
 
-import torch
-
 from functools import partial
 from typing import *
 
+# isort: local
 from .autoregressive import MAF
-from .core import *
-from ..transforms import SoftclipTransform, SOSPolynomialTransform, BernsteinTransform
+from .core import Unconditional
+from ..transforms import BernsteinTransform, SoftclipTransform, SOSPolynomialTransform
 
 
 class SOSPF(MAF):

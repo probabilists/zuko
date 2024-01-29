@@ -28,10 +28,35 @@ keywords = [
 readme = "README.md"
 requires-python = ">=3.8"
 
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+]
+
 [project.urls]
 documentation = "https://zuko.readthedocs.io"
 source = "https://github.com/probabilists/zuko"
 tracker = "https://github.com/probabilists/zuko/issues"
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
+extend-select = ["I"]
+line-length = 99
+
+[tool.ruff.lint]
+ignore = ["F403", "F405", "E731", "E741"]
+ignore-init-module-imports = true
+
+[tool.ruff.lint.isort]
+lines-between-types = 1
+no-sections = true
+relative-imports-order = "closest-to-furthest"
+
+[tool.ruff.format]
+exclude = ["*.ipynb"]
+preview = true
+quote-style = "preserve"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}

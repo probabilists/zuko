@@ -11,13 +11,13 @@ __all__ = [
 ]
 
 import abc
-import torch
 import torch.nn as nn
 
 from torch import Tensor
 from torch.distributions import Distribution, Transform
 from typing import *
 
+# isort: local
 from ..distributions import NormalizingFlow
 from ..transforms import ComposedTransform
 
