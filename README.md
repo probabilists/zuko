@@ -90,7 +90,7 @@ For more information, check out the documentation and tutorials at [zuko.readthe
 | `UNAF`  | 2019 | [Unconstrained Monotonic Neural Networks](https://arxiv.org/abs/1908.05164) |
 | `CNF`   | 2018 | [Neural Ordinary Differential Equations](https://arxiv.org/abs/1806.07366) |
 | `GF`    | 2020 | [Gaussianization Flows](https://arxiv.org/abs/2003.01941) |
-| `BPF`   | 2020 | [Bernstein-Polynomial Normalizing Flows](https://arxiv.org/abs/2204.13939) |
+| `BPF`   | 2020 | [Bernstein-Polynomial Normalizing Flows](https://arxiv.org/abs/2004.00464) |
 
 ## Contributing
 
