@@ -18,12 +18,12 @@ classifiers = [
 ]
 dynamic = ["dependencies", "version"]
 keywords = [
-    "torch",
-    "normalizing flows",
-    "probability",
-    "distribution",
-    "generative",
-    "deep learning",
+  "torch",
+  "normalizing flows",
+  "probability",
+  "distribution",
+  "generative",
+  "deep learning",
 ]
 readme = "README.md"
 requires-python = ">=3.8"
