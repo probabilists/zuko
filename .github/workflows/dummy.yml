@@ -1,0 +1,11 @@
+name: Dummy workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: env | grep ^GITHUB
+      - run: echo $GITHUB_REF
