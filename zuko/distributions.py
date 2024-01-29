@@ -20,10 +20,18 @@ import torch
 
 from textwrap import indent
 from torch import Size, Tensor
-from torch.distributions import *
-from torch.distributions import constraints
+from torch.distributions import *  # noqa: F403
+from torch.distributions import (
+    Categorical,
+    Distribution,
+    Independent,
+    Normal,
+    Transform,
+    Uniform,
+    constraints,
+)
 from torch.distributions.utils import _sum_rightmost
-from typing import *
+from typing import Tuple
 
 Distribution._validate_args = False
 Distribution.arg_constraints = {}

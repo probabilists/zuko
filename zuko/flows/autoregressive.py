@@ -11,14 +11,14 @@ from functools import partial
 from math import ceil, prod
 from torch import LongTensor, Size, Tensor
 from torch.distributions import Transform
-from typing import *
+from typing import Callable, Sequence
 
 # isort: local
 from .core import Flow, LazyTransform, Unconditional
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
 from ..nn import MaskedMLP
-from ..transforms import *
+from ..transforms import AutoregressiveTransform, DependentTransform, MonotonicAffineTransform
 from ..utils import broadcast, unpack
 
 

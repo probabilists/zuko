@@ -10,7 +10,6 @@ import torch.nn as nn
 from math import prod
 from torch import Tensor
 from torch.distributions import Distribution, MultivariateNormal
-from typing import *
 
 # isort: local
 from .core import LazyDistribution

@@ -15,7 +15,7 @@ import torch.nn as nn
 
 from torch import Tensor
 from torch.distributions import Distribution, Transform
-from typing import *
+from typing import Any, Callable, Sequence, Union
 
 # isort: local
 from ..distributions import NormalizingFlow

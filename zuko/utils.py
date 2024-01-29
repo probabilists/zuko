@@ -17,7 +17,7 @@ import torch
 from functools import lru_cache
 from torch import Size, Tensor
 from torch.autograd.function import once_differentiable
-from typing import *
+from typing import Callable, Iterable, List, Sequence, Tuple, Union
 
 
 def bisection(

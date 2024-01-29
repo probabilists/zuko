@@ -30,10 +30,10 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import BoolTensor, LongTensor, Size, Tensor
-from torch.distributions import constraints
-from torch.distributions.transforms import *
+from torch.distributions import Transform, constraints
+from torch.distributions.transforms import *  # noqa: F403
 from torch.distributions.utils import _sum_rightmost
-from typing import *
+from typing import Any, Callable, Iterable, Tuple, Union
 
 # isort: local
 from .utils import bisection, broadcast, gauss_legendre, odeint

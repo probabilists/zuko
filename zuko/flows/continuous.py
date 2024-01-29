@@ -12,7 +12,6 @@ from functools import partial
 from math import pi
 from torch import Tensor
 from torch.distributions import Transform
-from typing import *
 
 # isort: local
 from .core import Flow, LazyTransform, Unconditional

@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch import BoolTensor, Tensor
-from typing import *
+from typing import Callable, Iterable, Sequence, Union
 
 
 def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
@@ -277,7 +277,7 @@ class MaskedMLP(nn.Sequential):
 
         for i, features in enumerate((*hidden_features, out_features)):
             if i > 0:
-                mask = precedence[:, indices]
+                mask = precedence[:, indices]  # noqa: F821
             else:
                 mask = adjacency
 

@@ -13,7 +13,7 @@ import torch.nn as nn
 from functools import partial
 from torch import Tensor
 from torch.distributions import Transform
-from typing import *
+from typing import Any, Dict
 
 # isort: local
 from .autoregressive import MaskedAutoregressiveTransform

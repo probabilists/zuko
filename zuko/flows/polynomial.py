@@ -6,7 +6,6 @@ __all__ = [
 ]
 
 from functools import partial
-from typing import *
 
 # isort: local
 from .autoregressive import MAF

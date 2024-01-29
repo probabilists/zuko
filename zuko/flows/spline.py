@@ -9,13 +9,12 @@ import torch
 
 from math import pi
 from torch.distributions import Transform
-from typing import *
 
 # isort: local
 from .autoregressive import MAF
 from .core import Unconditional
 from ..distributions import BoxUniform
-from ..transforms import *
+from ..transforms import CircularShiftTransform, ComposedTransform, MonotonicRQSTransform
 
 
 class NSF(MAF):

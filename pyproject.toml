@@ -41,12 +41,15 @@ tracker = "https://github.com/probabilists/zuko/issues"
 
 [tool.ruff]
 extend-include = ["*.ipynb"]
-extend-select = ["I"]
 line-length = 99
 
 [tool.ruff.lint]
-ignore = ["F403", "F405", "E731", "E741"]
-ignore-init-module-imports = true
+extend-select = ["I"]
+ignore = ["E731", "E741"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+"test_*.py" = ["F403", "F405"]
 
 [tool.ruff.lint.isort]
 lines-between-types = 1

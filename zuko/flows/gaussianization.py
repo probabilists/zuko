@@ -11,13 +11,18 @@ import torch.nn as nn
 from math import prod
 from torch import Size, Tensor
 from torch.distributions import Transform
-from typing import *
+from typing import Callable, Sequence
 
 # isort: local
 from .core import Flow, LazyTransform, Unconditional
 from ..distributions import DiagNormal
 from ..nn import MLP
-from ..transforms import *
+from ..transforms import (
+    DependentTransform,
+    GaussianizationTransform,
+    MonotonicAffineTransform,
+    RotationTransform,
+)
 from ..utils import unpack
 
 
