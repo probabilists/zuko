@@ -32,6 +32,7 @@ requires-python = ">=3.8"
 dev = [
   "pytest",
   "ruff",
+  "pre-commit",
 ]
 
 [project.urls]
