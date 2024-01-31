@@ -43,6 +43,41 @@ Additionally, please follow these rules:
 * Use informative but concise variable names. Single-letter names are fine if the context is clear.
 * Avoid explaining code with comments. If something is hard to understand, simplify or decompose it.
 
+### Pre-Commit Hooks
+
+To make it as easy as possible to comply with the conventions defined above, we offer pre-configured hooks for the [pre-commit framework](https://pre-commit.com/). These hooks serve to ensure that all commits strictly comprise syntactically accurate and well-formatted code, and prevent potential issues such as accidental inclusion of large files.
+
+Here's a quick overview of the hook used in the provided [configuration file](./.pre-commit-config.yaml) and their respective repository links:
+
+- [ruff](https://github.com/astral-sh/ruff): This hook checks for formatting and linting errors in Python files.
+
+- [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks): These hooks validate YAML and TOML files, detect trailing whitespace, identify accidentally added large files, and pinpoint merge conflicts.
+
+To install and use pre-commit, follow these steps:
+
+1. Install the `zuko` with its dev dependencies:
+   ```
+   pip install -e .[dev]
+   ```
+
+   This will install `zuko` along with `pytest`, `ruff` and `pre-commit`,
+
+2. Run the following command to initialize pre-commit for your repository:
+   ```
+   pre-commit install
+   ```
+
+3. After installation, pre-commit will automatically execute all the configured hooks before each commit. If any issues are found, pre-commit will prevent the commit from being made and provide instructions on how to fix the issues.
+
+4. You can manually run pre-commit on the entire repository by using the command:
+   ```
+   pre-commit run --all-files
+   ```
+
+   This command is useful if you want to check all files in your repository without making a commit.
+
+By using pre-commit, you can ensure that the code you commit adheres to the defined conventions and passes various checks, leading to cleaner and more reliable code.
+
 ### Documentation
 
 The package's [documentation](https://zuko.readthedocs.io) is automatically built by [Sphinx](https://www.sphinx-doc.org) using type hints and docstrings. All classes and functions accessible to the user should be documented with [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) docstrings. You can build it locally with
