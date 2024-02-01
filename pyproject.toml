@@ -30,9 +30,9 @@ requires-python = ">=3.8"
 
 [project.optional-dependencies]
 dev = [
+  "pre-commit",
   "pytest",
   "ruff",
-  "pre-commit",
 ]
 
 [project.urls]
