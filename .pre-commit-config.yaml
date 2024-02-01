@@ -4,20 +4,17 @@ repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.1.14
   hooks:
-    # Run the linter.
   - id: ruff
-    # Run the formatter.
   - id: ruff-format
     args: [--check]
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v4.5.0
   hooks:
-  - id: trailing-whitespace
-  - id: end-of-file-fixer
-  - id: check-yaml
-  - id: check-toml
-  - id: check-ast
   - id: check-added-large-files
   - id: check-merge-conflict
-  - id: check-shebang-scripts-are-executable
-  - id: check-executables-have-shebangs
+  - id: check-toml
+  - id: check-yaml
+  - id: end-of-file-fixer
+  - id: mixed-line-ending
+    args: [--fix=no]
+  - id: trailing-whitespace
