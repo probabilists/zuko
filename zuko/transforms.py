@@ -631,13 +631,8 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    # enforce usage of analytical log_abs_det_jacobian
-    call_and_ladj = _call_and_ladj
-
-    def __init__(self, theta: Tensor, linear: bool = False, **kwargs):
+    def __init__(self, theta: Tensor, **kwargs):
         super().__init__(None, phi=(theta,), **kwargs)
-
-        self.linear = linear
 
         self.theta = self._increasing(theta)
         self.order = self.theta.shape[-1] - 1
@@ -650,16 +645,16 @@ class BernsteinTransform(MonotonicTransform):
             self.order - 1, device=theta.device, dtype=theta.dtype
         )
 
-        if self.linear:
-            # save slope on boundaries for interpolation
-            x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
-            rank = self.theta.dim()
-            if rank > 1:
-                # add singleton dimensions for batch dimensions
-                dims = [...] + [None] * (rank - 1)
-                x = x[dims]
-            self.offset = self.b_poly(x, self.theta, self.basis)
-            self.slope = self.b_poly(x, self.dtheta, self.dbasis)
+        # save slope on boundaries for interpolation
+        x = torch.tensor([self.eps, 1 - self.eps],
+                         device=theta.device, dtype=theta.dtype)
+        rank = self.theta.dim()
+        if rank > 1:
+            # add singleton dimensions for batch dimensions
+            dims = [...] + [None] * (rank - 1)
+            x = x[dims]
+        self.offset = self.b_poly(x, self.theta, self.basis)
+        self.slope = self.b_poly(x, self.dtheta, self.dbasis)
 
     @staticmethod
     def _increasing(theta: Tensor) -> Tensor:
@@ -686,44 +681,31 @@ class BernsteinTransform(MonotonicTransform):
         return y_poly
 
     def scale_data(self, x):
-        if self.linear:
-            x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
-        else:
-            x = torch.nn.functional.sigmoid(x)  # map [-inf, inf] to [0, 1]
+        x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
 
         return x
 
+    def _extrapolation(self, x: Tensor):
+        y0 = self.slope[0] * (x - self.eps) + \
+            self.offset[0]  # h'(eps) * x + h(eps)
+        y1 = self.slope[1] * (x - 1 + self.eps) + \
+            self.offset[1]  # h'(1-eps) * x + h(1-eps)
+        return y0, y1
+
     def f(self, x: Tensor) -> Tensor:
         x = self.scale_data(x)
-        y = self.b_poly(x, self.theta, self.basis)
 
-        if self.linear:
-            y0 = self.slope[0] * (x - self.eps) + self.offset[0]  # h'(eps) * x + h(eps)
-            y1 = (
-                self.slope[1] * (x - 1 + self.eps) + self.offset[1]
-            )  # h'(1-eps) * x + h(1-eps)
-            y = torch.where(x <= self.eps, y0, y)
-            y = torch.where(x >= 1 - self.eps, y1, y)
+        left_bound = x <= self.eps
+        right_bound = x >= 1 - self.eps
+        x_safe = torch.where(left_bound | right_bound, 0.5, x)
+
+        y = self.b_poly(x_safe, self.theta, self.basis)
+        y0, y1 = self._extrapolation(x)
+
+        y = torch.where(left_bound, y0, y)
+        y = torch.where(right_bound, y1, y)
 
         return y
-
-    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        x_scaled = self.scale_data(x)
-        ladj = self.b_poly(x_scaled, self.dtheta, self.dbasis).abs().log()
-
-        if self.linear:
-            ladj = torch.where(x_scaled <= self.eps, self.slope[0].abs().log(), ladj)
-            ladj = torch.where(x_scaled >= 1 - self.eps, self.slope[1].abs().log(), ladj)
-            ladj += torch.tensor(1 / (2 * self.bound), device=x.device, dtype=x.dtype).log()
-        else:
-            sigma = torch.nn.functional.sigmoid(x)
-            dsigma = sigma * (1 - sigma)
-            # dsigma converges towards zero for +/- Inf so we add a tiny eps
-            # here to stay numerically stable
-            dsigma += torch.finfo(sigma.dtype).tiny
-            ladj += dsigma.log()
-
-        return ladj
 
 
 class GaussianizationTransform(MonotonicTransform):
