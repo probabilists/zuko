@@ -646,8 +646,7 @@ class BernsteinTransform(MonotonicTransform):
         )
 
         # save slope on boundaries for interpolation
-        x = torch.tensor([self.eps, 1 - self.eps],
-                         device=theta.device, dtype=theta.dtype)
+        x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
         rank = self.theta.dim()
         if rank > 1:
             # add singleton dimensions for batch dimensions
@@ -685,11 +684,14 @@ class BernsteinTransform(MonotonicTransform):
 
         return x
 
+    def unscale_data(self, y):
+        y = y * 2 * self.bound - self.bound  # map [0, 1] to [-B, B]
+
+        return y
+
     def _extrapolation(self, x: Tensor):
-        y0 = self.slope[0] * (x - self.eps) + \
-            self.offset[0]  # h'(eps) * x + h(eps)
-        y1 = self.slope[1] * (x - 1 + self.eps) + \
-            self.offset[1]  # h'(1-eps) * x + h(1-eps)
+        y0 = self.slope[0] * (x - self.eps) + self.offset[0]  # h'(eps) * x + h(eps)
+        y1 = self.slope[1] * (x - 1 + self.eps) + self.offset[1]  # h'(1-eps) * x + h(1-eps)
         return y0, y1
 
     def f(self, x: Tensor) -> Tensor:
@@ -706,6 +708,23 @@ class BernsteinTransform(MonotonicTransform):
         y = torch.where(right_bound, y1, y)
 
         return y
+
+    def _inverse_extrapolation(self, y: Tensor):
+        x0 = (y - self.offset[0]) / self.slope[0] + self.eps
+        x1 = (y - self.offset[1]) / self.slope[1] - self.eps + 1
+        return x0, x1
+
+    def _inverse(self, y: Tensor):
+        left_bound = y <= self.offset[0]
+        right_bound = y >= self.offset[1]
+
+        x = super()._inverse(y)
+        x0, x1 = self._inverse_extrapolation(y)
+
+        x = torch.where(left_bound, self.unscale_data(x0), x)
+        x = torch.where(right_bound, self.unscale_data(x1), x)
+
+        return x
 
 
 class GaussianizationTransform(MonotonicTransform):
