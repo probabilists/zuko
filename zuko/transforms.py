@@ -620,9 +620,8 @@ class BernsteinTransform(MonotonicTransform):
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
             with shape :math:`(*, M + 1)`.
-        linear: Whether to replace the sigmoid function with a linear mapping
-            :math:`\frac{x + B}{2B}`. If :py:`True`, input features are assumed to be
-            in :math:`[-B, B]`. Failing to satisfy this constraint will result in NaNs.
+        smooth_bounds : When :py:`True` the second order derivative is set zero on the bounds, to
+            ensure smooth transition into extrapolation.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
@@ -631,10 +630,11 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, **kwargs):
+    def __init__(self, theta: Tensor, smooth_bounds: bool = False, **kwargs):
         super().__init__(None, phi=(theta,), **kwargs)
 
-        self.theta = self._increasing(theta)
+        self.theta = self._increasing(theta, smooth_bounds)
+
         self.order = self.theta.shape[-1] - 1
         self.dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
 
@@ -649,22 +649,34 @@ class BernsteinTransform(MonotonicTransform):
         x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
         rank = self.theta.dim()
         if rank > 1:
-            # add singleton dimensions for batch dimensions
+            # add singleton batch dimensions
             dims = [...] + [None] * (rank - 1)
             x = x[dims]
         self.offset = self.b_poly(x, self.theta, self.basis)
         self.slope = self.b_poly(x, self.dtheta, self.dbasis)
 
     @staticmethod
-    def _increasing(theta: Tensor) -> Tensor:
+    def _increasing(unconstrained_theta: Tensor, smooth_bounds: bool) -> Tensor:
         r"""Processes the unconstrained output of the hyper-network to be increasing."""
 
-        shift = math.log(2.0) * theta.shape[-1] / 2
+        shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
 
-        widths = torch.nn.functional.softplus(theta[..., 1:])
-        widths = torch.cat((theta[..., :1], widths), dim=-1)
+        theta_min = unconstrained_theta[..., :1]
+        unconstrained_theta = unconstrained_theta[..., 1:]
 
-        return torch.cumsum(widths, dim=-1) - shift
+        if smooth_bounds:
+            unconstrained_theta = torch.cat((
+                unconstrained_theta[..., :1],
+                unconstrained_theta,
+                unconstrained_theta[..., -1:],
+            ))
+        widths = torch.nn.functional.softplus(unconstrained_theta)
+
+        widths = torch.cat((theta_min, widths), dim=-1)
+
+        theta = torch.cumsum(widths, dim=-1) - shift
+
+        return theta
 
     @staticmethod
     def get_bernstein_basis(order, **kwds):
