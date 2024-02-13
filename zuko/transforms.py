@@ -631,7 +631,7 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, smooth_bounds: bool = False, **kwargs):
+    def __init__(self, theta: Tensor, smooth_bounds: bool = True, **kwargs):
         super().__init__(None, phi=(theta,), **kwargs)
 
         self.theta = self._increasing(theta, smooth_bounds)
