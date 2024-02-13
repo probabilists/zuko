@@ -64,7 +64,7 @@ To install and use pre-commit, follow these steps:
 
 2. Run the following command to initialize pre-commit for your repository:
    ```
-   pre-commit install
+   pre-commit install --config pre-commit.yml
    ```
 
 3. After installation, pre-commit will automatically execute all the configured hooks before each commit. If any issues are found, pre-commit will prevent the commit from being made and provide instructions on how to fix the issues.
