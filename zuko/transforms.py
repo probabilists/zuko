@@ -637,14 +637,10 @@ class BernsteinTransform(MonotonicTransform):
         self.theta = self._increasing(theta, smooth_bounds)
 
         self.order = self.theta.shape[-1] - 1
-        self.dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
+        dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
 
-        self.basis = self.get_bernstein_basis(
-            self.order, device=theta.device, dtype=theta.dtype
-        )
-        self.dbasis = self.get_bernstein_basis(
-            self.order - 1, device=theta.device, dtype=theta.dtype
-        )
+        self.basis = self.get_bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
+        dbasis = self.get_bernstein_basis(self.order - 1, device=theta.device, dtype=theta.dtype)
 
         # save slope on boundaries for interpolation
         x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
@@ -653,8 +649,9 @@ class BernsteinTransform(MonotonicTransform):
             # add singleton batch dimensions
             dims = [...] + [None] * (rank - 1)
             x = x[dims]
-        self.offset = self.b_poly(x, self.theta, self.basis)
-        self.slope = self.b_poly(x, self.dtheta, self.dbasis)
+
+        self.offset = self._bernstein_poly(x, self.theta, self.basis)
+        self.slope = self._bernstein_poly(x, dtheta, dbasis)
 
     @staticmethod
     def _increasing(unconstrained_theta: Tensor, smooth_bounds: bool) -> Tensor:
