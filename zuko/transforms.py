@@ -666,13 +666,16 @@ class BernsteinTransform(MonotonicTransform):
         unconstrained_theta = unconstrained_theta[..., 1:]
 
         if smooth_bounds:
-            unconstrained_theta = torch.cat((
-                unconstrained_theta[..., :1],
-                unconstrained_theta,
-                unconstrained_theta[..., -1:],
-            ))
-        widths = torch.nn.functional.softplus(unconstrained_theta)
+            unconstrained_theta = torch.cat(
+                (
+                    unconstrained_theta[..., :1],
+                    unconstrained_theta,
+                    unconstrained_theta[..., -1:],
+                ),
+                dim=-1,
+            )
 
+        widths = torch.nn.functional.softplus(unconstrained_theta)
         widths = torch.cat((theta_min, widths), dim=-1)
 
         theta = torch.cumsum(widths, dim=-1) - shift
