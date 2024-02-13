@@ -603,14 +603,15 @@ class MonotonicTransform(Transform):
 class BernsteinTransform(MonotonicTransform):
     r"""Creates a monotonic Bernstein polynomial transformation.
 
-    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(\sigma(x)) \, \theta_i
+    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(x) \, \theta_i
 
-    where :math:`b_{i,j}` are the Bernstein basis polynomials and :math:`\sigma(x)` is
-    the sigmoid function.
+    where :math:`b_{i,j}` are the Bernstein basis polynomials.
+    Since :math:`f` is only defined for :math:`x \in [0, 1]`, it is linearly extrapolated outside this interval.
 
     References:
         | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
         | https://arxiv.org/abs/2004.00464
+
         | Short-Term Density Forecasting of Low-Voltage Load using Bernstein-Polynomial Normalizing Flows (Arpogaus et al., 2022)
         | https://arxiv.org/abs/2204.13939
 
