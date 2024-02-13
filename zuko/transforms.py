@@ -30,7 +30,7 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import BoolTensor, LongTensor, Size, Tensor
-from torch.distributions import Transform, constraints
+from torch.distributions import Transform, constraints, Distribution
 from torch.distributions.transforms import *  # noqa: F403
 from torch.distributions.utils import _sum_rightmost
 from typing import Any, Callable, Iterable, Tuple, Union
@@ -639,8 +639,8 @@ class BernsteinTransform(MonotonicTransform):
         self.order = self.theta.shape[-1] - 1
         dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
 
-        self.basis = self.get_bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
-        dbasis = self.get_bernstein_basis(self.order - 1, device=theta.device, dtype=theta.dtype)
+        self.basis = self._bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
+        dbasis = self._bernstein_basis(self.order - 1, device=theta.device, dtype=theta.dtype)
 
         # save slope on boundaries for interpolation
         x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
@@ -680,62 +680,52 @@ class BernsteinTransform(MonotonicTransform):
         return theta
 
     @staticmethod
-    def get_bernstein_basis(order, **kwds):
-        alpha = torch.arange(1, order + 2, **kwds)
-        beta = torch.arange(order + 1, 0, -1, **kwds)
+    def _bernstein_basis(order: int, **kwargs):
+        alpha = torch.arange(1, order + 2, **kwargs)
+        beta = torch.arange(order + 1, 0, -1, **kwargs)
         basis = torch.distributions.Beta(alpha, beta)
         return basis
 
     @staticmethod
-    def b_poly(x, theta, basis):
+    def _bernstein_poly(x: Tensor, theta: Tensor, basis: Distribution):
         b = basis.log_prob(x.unsqueeze(-1)).exp()
-        y_poly = torch.mean(b * theta, dim=-1)
-        return y_poly
-
-    def scale_data(self, x):
-        x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
-
-        return x
-
-    def unscale_data(self, y):
-        y = y * 2 * self.bound - self.bound  # map [0, 1] to [-B, B]
-
+        y = torch.mean(b * theta, dim=-1)
         return y
-
-    def _extrapolation(self, x: Tensor):
-        y0 = self.slope[0] * (x - self.eps) + self.offset[0]  # h'(eps) * x + h(eps)
-        y1 = self.slope[1] * (x - 1 + self.eps) + self.offset[1]  # h'(1-eps) * x + h(1-eps)
-        return y0, y1
 
     def f(self, x: Tensor) -> Tensor:
-        x = self.scale_data(x)
+        x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
 
-        left_bound = x <= self.eps
-        right_bound = x >= 1 - self.eps
-        x_safe = torch.where(left_bound | right_bound, 0.5, x)
+        lower_bound = x <= self.eps
+        upper_bound = x >= 1 - self.eps
+        x_safe = torch.where(lower_bound | upper_bound, 0.5 * torch.ones_like(x), x)
 
-        y = self.b_poly(x_safe, self.theta, self.basis)
-        y0, y1 = self._extrapolation(x)
+        y = self._bernstein_poly(x_safe, self.theta, self.basis)
 
-        y = torch.where(left_bound, y0, y)
-        y = torch.where(right_bound, y1, y)
+        # f'(eps) * (x - eps) + f(eps)
+        y0 = self.slope[0] * (x - self.eps) + self.offset[0]
+
+        # f'(1-eps) * (x - 1 - eps) + f(1-eps)
+        y1 = self.slope[1] * (x - 1 + self.eps) + self.offset[1]
+
+        y = torch.where(lower_bound, y0, y)
+        y = torch.where(upper_bound, y1, y)
 
         return y
-
-    def _inverse_extrapolation(self, y: Tensor):
-        x0 = (y - self.offset[0]) / self.slope[0] + self.eps
-        x1 = (y - self.offset[1]) / self.slope[1] - self.eps + 1
-        return x0, x1
 
     def _inverse(self, y: Tensor):
         left_bound = y <= self.offset[0]
         right_bound = y >= self.offset[1]
 
         x = super()._inverse(y)
-        x0, x1 = self._inverse_extrapolation(y)
+        x0 = (y - self.offset[0]) / self.slope[0] + self.eps
+        x1 = (y - self.offset[1]) / self.slope[1] - self.eps + 1
 
-        x = torch.where(left_bound, self.unscale_data(x0), x)
-        x = torch.where(right_bound, self.unscale_data(x1), x)
+        # map [0, 1] to [-B, B]
+        x0 = x0 * 2 * self.bound - self.bound
+        x1 = x1 * 2 * self.bound - self.bound
+
+        x = torch.where(left_bound, x0, x)
+        x = torch.where(right_bound, x1, x)
 
         return x
 
