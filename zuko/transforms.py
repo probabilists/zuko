@@ -621,8 +621,10 @@ class BernsteinTransform(MonotonicTransform):
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
             with shape :math:`(*, M + 1)`.
-        smooth_bounds : When :py:`True` the second order derivative is set zero on the bounds, to
+        smooth_bounds: When :py:`True` the second order derivative is set zero on the bounds, to
             ensure smooth transition into extrapolation.
+        keep_in_bounds: Enforces the transformation to stay in the bounds :match:`[-B, B]` by
+            setting :math:`\theta_{0} = -B` :math:`\theta_{M} = B`.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
@@ -631,10 +633,15 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, smooth_bounds: bool = True, **kwargs):
+    def __init__(
+        self, theta: Tensor, smooth_bounds: bool = True, keep_in_bounds: bool = False, **kwargs
+    ):
         super().__init__(None, phi=(theta,), **kwargs)
 
-        self.theta = self._increasing(theta, smooth_bounds)
+        self.theta = self._constrain_theta(
+            theta, smooth_bounds, self.bound if keep_in_bounds else None
+        )
+        self.keep_in_bounds = keep_in_bounds
 
         self.order = self.theta.shape[-1] - 1
         dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
@@ -654,13 +661,8 @@ class BernsteinTransform(MonotonicTransform):
         self.slope = self._bernstein_poly(x, dtheta, dbasis)
 
     @staticmethod
-    def _increasing(unconstrained_theta: Tensor, smooth_bounds: bool) -> Tensor:
+    def _constrain_theta(unconstrained_theta: Tensor, smooth_bounds: bool, bound: bool) -> Tensor:
         r"""Processes the unconstrained output of the hyper-network to be increasing."""
-
-        shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
-
-        theta_min = unconstrained_theta[..., :1]
-        unconstrained_theta = unconstrained_theta[..., 1:]
 
         if smooth_bounds:
             unconstrained_theta = torch.cat(
@@ -672,10 +674,21 @@ class BernsteinTransform(MonotonicTransform):
                 dim=-1,
             )
 
-        widths = torch.nn.functional.softplus(unconstrained_theta)
-        widths = torch.cat((theta_min, widths), dim=-1)
+        if bound:
+            theta_min = -bound * torch.ones_like(unconstrained_theta[..., :1])
 
-        theta = torch.cumsum(widths, dim=-1) - shift
+            def fn(x):
+                return torch.nn.functional.softmax(x, dim=-1) * 2 * bound
+        else:
+            shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
+            theta_min = unconstrained_theta[..., :1] - shift
+            unconstrained_theta = unconstrained_theta[..., 1:]
+            fn = torch.nn.functional.softplus
+
+        widths = fn(unconstrained_theta)
+
+        widths = torch.cat((theta_min, widths), dim=-1)
+        theta = torch.cumsum(widths, dim=-1)
 
         return theta
 
