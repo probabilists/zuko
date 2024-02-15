@@ -18,6 +18,20 @@ Before submitting any issue, please perform a thorough search to see if your pro
 
 If you like the project and wish to contribute, you can start by looking at issues labeled `good first issue` (should only require a few lines of code) or `help wanted` (more involved). If you found a bug and want to fix it, please create an issue reporting the bug before creating a pull request. Similarly, if you want to add a new feature, first create a feature request issue. This allows to separate the discussions related to the bug/feature, from the discussions related to the fix/implementation.
 
+To get started with contributing code, we recommend to install zuko in editable mode with its development dependencies.
+
+```
+pip install -e .[dev]
+```
+
+Optionally, we also provide [pre-commit hooks](#pre-commit-hooks) to ensure that the code you commit adheres to our conventions.
+
+```
+pre-commit install --config pre-commit.yml
+```
+
+After installation, pre-commit will automatically execute the configured hooks before each commit and provide instructions on how to fix detected issues.
+
 ### Testing
 
 We use [pytest](https://docs.pytest.org) to test our code base. If your contribution introduces new components, you should write new tests to make sure your code doesn't crash under normal circumstances. After installing `pytest`, add the tests to the [tests/](tests) directory and run them with
@@ -75,8 +89,6 @@ To install and use pre-commit, follow these steps:
    ```
 
    This command is useful if you want to check all files in your repository without making a commit.
-
-By using pre-commit, you can ensure that the code you commit adheres to the defined conventions and passes various checks, leading to cleaner and more reliable code.
 
 ### Documentation
 
