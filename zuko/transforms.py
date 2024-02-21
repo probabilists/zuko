@@ -661,7 +661,7 @@ class BernsteinTransform(MonotonicTransform):
         self.slope = self._bernstein_poly(x, dtheta, dbasis)
 
     @staticmethod
-    def _constrain_theta(unconstrained_theta: Tensor, smooth_bounds: bool, bound: bool) -> Tensor:
+    def _constrain_theta(unconstrained_theta: Tensor, smooth_bounds: bool, bound: float) -> Tensor:
         r"""Processes the unconstrained output of the hyper-network to be increasing."""
 
         if smooth_bounds:
