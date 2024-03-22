@@ -18,6 +18,20 @@ Before submitting any issue, please perform a thorough search to see if your pro
 
 If you like the project and wish to contribute, you can start by looking at issues labeled `good first issue` (should only require a few lines of code) or `help wanted` (more involved). If you found a bug and want to fix it, please create an issue reporting the bug before creating a pull request. Similarly, if you want to add a new feature, first create a feature request issue. This allows to separate the discussions related to the bug/feature, from the discussions related to the fix/implementation.
 
+To get started with contributing code, we recommend to install Zuko in [editable mode](https://pip.pypa.io/en/latest/topics/local-project-installs) with its development dependencies.
+
+```
+pip install -e .[dev]
+```
+
+Optionally, we also provide pre-commit hooks to ensure that the code you commit adheres to our conventions.
+
+```
+pre-commit install --config pre-commit.yml
+```
+
+After installation, pre-commit will automatically execute the [configured hooks](pre-commit.yml) before each commit and provide instructions on how to fix detected issues.
+
 ### Testing
 
 We use [pytest](https://docs.pytest.org) to test our code base. If your contribution introduces new components, you should write new tests to make sure your code doesn't crash under normal circumstances. After installing `pytest`, add the tests to the [tests/](tests) directory and run them with
