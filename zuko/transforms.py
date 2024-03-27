@@ -603,10 +603,14 @@ class MonotonicTransform(Transform):
 class BernsteinTransform(MonotonicTransform):
     r"""Creates a monotonic Bernstein polynomial transformation.
 
+    The transformation function is defined as:
+
     .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(x) \, \theta_i
 
     where :math:`b_{i,j}` are the Bernstein basis polynomials.
+
     Since :math:`f` is only defined for :math:`x \in [0, 1]`, it is linearly extrapolated outside this interval.
+    The second-order derivative is enforced to be zero at the bounds for smooth transitions.
 
     References:
         | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
@@ -620,11 +624,7 @@ class BernsteinTransform(MonotonicTransform):
 
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
-            with shape :math:`(*, M + 1)`.
-        smooth_bounds: When :py:`True` the second order derivative is set zero on the bounds, to
-            ensure smooth transition into extrapolation.
-        keep_in_bounds: Enforces the transformation to stay in the bounds :match:`[-B, B]` by
-            setting :math:`\theta_{0} = -B` :math:`\theta_{M} = B`.
+            with shape :math:`(*, M - 1)`.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
@@ -732,6 +732,26 @@ class BernsteinTransform(MonotonicTransform):
 
 
 class BoundedBernsteinTransform(BernsteinTransform):
+    r"""Bounded version of :py:`BernsteinTransform`, optimized for chained Flows.
+
+    This Version ensures that the transformation's domain and codomain match the interval :math:`[-B, B]`,
+    by scaling all Bernstein coefficients between :math:`\theta_{0} = -B` :math:`\theta_{M} = B`.
+
+    Additionally :math:`Be'(0,1) = 1` and :math:`Be''(0,1) = 0` are ensured to smoothly
+    transition to the identity function outside the bounds.
+
+    This subclass scales the Bernstein coefficients so that the transformation's domain and
+    codomain match the interval :math:`[-B, B]`, where :math:`B` represents the bounds of the
+    base class. It also ensures that the derivative at the boundaries is equal to 1
+    (:math:`Be'(0,1) = 1 \to M \cdot (\theta_1 - \theta_0) = M \cdot\Delta_0 \to \Delta_0 = 1/M`)
+    and that the second order derivative is zero
+    (:math:`Be''(0,1) = 0 \propto (\Delta_1 - \Delta_0) = M \Delta_0 = \Delta_1`),
+    ensuring a smooth transition to the identity function outside the bounds.
+
+    These conditions make the transformation particularly suitable for Chaining
+    and are hence used in :py:`BPF`.
+    """
+
     def _constrain_theta(self, unconstrained_theta: Tensor) -> Tensor:
         """Processes the unconstrained output of the hyper-network to be increasing."""
 
