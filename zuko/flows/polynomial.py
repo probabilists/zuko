@@ -5,7 +5,6 @@ __all__ = [
     "BPF",
 ]
 
-from functools import partial
 
 # isort: local
 from .autoregressive import MAF
@@ -70,6 +69,9 @@ class BPF(MAF):
         :class:`zuko.transforms.BernsteinTransform`
 
     References:
+        | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
+        | https://arxiv.org/abs/2004.00464
+
         | Short-Term Density Forecasting of Low-Voltage Load using Bernstein-Polynomial Normalizing Flows (Arpogaus et al., 2022)
         | https://arxiv.org/abs/2204.13939
 
@@ -90,7 +92,7 @@ class BPF(MAF):
         super().__init__(
             features=features,
             context=context,
-            univariate=partial(BoundedBernsteinTransform),
+            univariate=BoundedBernsteinTransform,
             shapes=[(degree + 1,)],
             **kwargs,
         )
