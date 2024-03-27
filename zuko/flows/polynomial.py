@@ -5,12 +5,11 @@ __all__ = [
     'BPF',
 ]
 
-from functools import partial
 
 # isort: local
 from .autoregressive import MAF
 from .core import Unconditional
-from ..transforms import BernsteinTransform, SoftclipTransform, SOSPolynomialTransform
+from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform
 
 
 class SOSPF(MAF):
@@ -70,6 +69,9 @@ class BPF(MAF):
         :class:`zuko.transforms.BernsteinTransform`
 
     References:
+        | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
+        | https://arxiv.org/abs/2004.00464
+
         | Short-Term Density Forecasting of Low-Voltage Load using Bernstein-Polynomial Normalizing Flows (Arpogaus et al., 2022)
         | https://arxiv.org/abs/2204.13939
 
@@ -77,7 +79,6 @@ class BPF(MAF):
         features: The number of features.
         context: The number of context features.
         degree: The degree :math:`M` of the Bernstein polynomial.
-        linear: Whether to use a linear or sigmoid mapping to :math:`[0, 1]`.
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
     """
 
@@ -86,18 +87,12 @@ class BPF(MAF):
         features: int,
         context: int = 0,
         degree: int = 16,
-        linear: bool = False,
         **kwargs,
     ):
         super().__init__(
             features=features,
             context=context,
-            univariate=partial(BernsteinTransform, linear=linear),
+            univariate=BoundedBernsteinTransform,
             shapes=[(degree + 1,)],
             **kwargs,
         )
-
-        transforms = self.transform.transforms
-
-        for i in reversed(range(1, len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
