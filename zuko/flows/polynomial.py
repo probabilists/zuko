@@ -10,7 +10,7 @@ from functools import partial
 # isort: local
 from .autoregressive import MAF
 from .core import Unconditional
-from ..transforms import BernsteinTransform, SoftclipTransform, SOSPolynomialTransform
+from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform
 
 
 class SOSPF(MAF):
@@ -90,12 +90,7 @@ class BPF(MAF):
         super().__init__(
             features=features,
             context=context,
-            univariate=partial(BernsteinTransform),
+            univariate=partial(BoundedBernsteinTransform),
             shapes=[(degree + 1,)],
             **kwargs,
         )
-
-        transforms = self.transform.transforms
-
-        for i in reversed(range(1, len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
