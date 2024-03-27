@@ -637,23 +637,29 @@ class BernsteinTransform(MonotonicTransform):
         super().__init__(None, phi=(theta,), **kwargs)
 
         self.theta = self._constrain_theta(theta)
-        self.order = self.theta.shape[-1] - 1
-
-        dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
-
         self.basis = self._bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
-        dbasis = self._bernstein_basis(self.order - 1, device=theta.device, dtype=theta.dtype)
 
         # save slope on boundaries for interpolation
-        x = torch.tensor([self.eps, 1 - self.eps], device=theta.device, dtype=theta.dtype)
-        rank = self.theta.dim()
-        if rank > 1:
-            # add singleton batch dimensions
-            dims = [...] + [None] * (rank - 1)
-            x = x[dims]
+        self.offset, self.slope = self._calculate_offset_and_slope()
 
-        self.offset = self._bernstein_poly(x, self.theta, self.basis)
-        self.slope = self._bernstein_poly(x, dtheta, dbasis)
+    @property
+    def order(self) -> int:
+        return self.theta.shape[-1] - 1
+
+    def _calculate_offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+        dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
+        dbasis = self._bernstein_basis(
+            self.order - 1, device=self.theta.device, dtype=self.theta.dtype
+        )
+
+        bounds = [
+            torch.tensor(self.eps, device=self.theta.device, dtype=self.theta.dtype),
+            torch.tensor(1 - self.eps, device=self.theta.device, dtype=self.theta.dtype),
+        ]
+        offset = [self._bernstein_poly(x, self.theta, self.basis) for x in bounds]
+        slope = [self._bernstein_poly(x, dtheta, dbasis) for x in bounds]
+
+        return tuple(offset), tuple(slope)
 
     @staticmethod
     def _constrain_theta(unconstrained_theta: Tensor) -> Tensor:
@@ -681,14 +687,14 @@ class BernsteinTransform(MonotonicTransform):
         return theta
 
     @staticmethod
-    def _bernstein_basis(order: int, **kwargs):
+    def _bernstein_basis(order: int, **kwargs) -> Distribution:
         alpha = torch.arange(1, order + 2, **kwargs)
         beta = torch.arange(order + 1, 0, -1, **kwargs)
         basis = torch.distributions.Beta(alpha, beta)
         return basis
 
     @staticmethod
-    def _bernstein_poly(x: Tensor, theta: Tensor, basis: Distribution):
+    def _bernstein_poly(x: Tensor, theta: Tensor, basis: Distribution) -> Tensor:
         b = basis.log_prob(x.unsqueeze(-1)).exp()
         y = torch.mean(b * theta, dim=-1)
         return y
@@ -713,7 +719,7 @@ class BernsteinTransform(MonotonicTransform):
 
         return y
 
-    def _inverse(self, y: Tensor):
+    def _inverse(self, y: Tensor) -> Tensor:
         left_bound = y <= self.offset[0]
         right_bound = y >= self.offset[1]
 
@@ -777,6 +783,18 @@ class BoundedBernsteinTransform(BernsteinTransform):
         )
 
         return torch.cumsum(diffs, dim=-1)
+
+    def _calculate_offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+        offset = (
+            torch.tensor(-self.bound, device=self.theta.device, dtype=self.theta.dtype),
+            torch.tensor(self.bound, device=self.theta.device, dtype=self.theta.dtype),
+        )
+        slope = (
+            torch.tensor(2 * self.bound, device=self.theta.device, dtype=self.theta.dtype),
+            torch.tensor(2 * self.bound, device=self.theta.device, dtype=self.theta.dtype),
+        )
+
+        return offset, slope
 
 
 class GaussianizationTransform(MonotonicTransform):
