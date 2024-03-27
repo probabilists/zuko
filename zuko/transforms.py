@@ -13,6 +13,7 @@ __all__ = [
     'MonotonicRQSTransform',
     'MonotonicTransform',
     'BernsteinTransform',
+    'BoundedBernsteinTransform',
     'GaussianizationTransform',
     'UnconstrainedMonotonicTransform',
     'SOSPolynomialTransform',
@@ -30,8 +31,7 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import BoolTensor, LongTensor, Size, Tensor
-from torch.distributions import Transform, constraints, Distribution
-from torch.distributions.transforms import *  # noqa: F403
+from torch.distributions import Distribution, Transform, constraints
 from torch.distributions.utils import _sum_rightmost
 from typing import Any, Callable, Iterable, Tuple, Union
 
@@ -633,17 +633,12 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(
-        self, theta: Tensor, smooth_bounds: bool = True, keep_in_bounds: bool = False, **kwargs
-    ):
+    def __init__(self, theta: Tensor, **kwargs):
         super().__init__(None, phi=(theta,), **kwargs)
 
-        self.theta = self._constrain_theta(
-            theta, smooth_bounds, self.bound if keep_in_bounds else None
-        )
-        self.keep_in_bounds = keep_in_bounds
-
+        self.theta = self._constrain_theta(theta)
         self.order = self.theta.shape[-1] - 1
+
         dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
 
         self.basis = self._bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
@@ -661,34 +656,27 @@ class BernsteinTransform(MonotonicTransform):
         self.slope = self._bernstein_poly(x, dtheta, dbasis)
 
     @staticmethod
-    def _constrain_theta(unconstrained_theta: Tensor, smooth_bounds: bool, bound: float) -> Tensor:
-        r"""Processes the unconstrained output of the hyper-network to be increasing."""
+    def _constrain_theta(unconstrained_theta: Tensor) -> Tensor:
+        """Processes the unconstrained output of the hyper-network to be increasing."""
+        shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
 
-        if smooth_bounds:
-            unconstrained_theta = torch.cat(
-                (
-                    unconstrained_theta[..., :1],
-                    unconstrained_theta,
-                    unconstrained_theta[..., -1:],
-                ),
-                dim=-1,
-            )
+        theta_min = unconstrained_theta[..., :1]
+        unconstrained_theta = unconstrained_theta[..., 1:]
 
-        if bound:
-            theta_min = -bound * torch.ones_like(unconstrained_theta[..., :1])
+        # ensure smooth bounds
+        unconstrained_theta = torch.cat(
+            (
+                unconstrained_theta[..., :1],
+                unconstrained_theta,
+                unconstrained_theta[..., -1:],
+            ),
+            dim=-1,
+        )
 
-            def fn(x):
-                return torch.nn.functional.softmax(x, dim=-1) * 2 * bound
-        else:
-            shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
-            theta_min = unconstrained_theta[..., :1] - shift
-            unconstrained_theta = unconstrained_theta[..., 1:]
-            fn = torch.nn.functional.softplus
+        diffs = torch.nn.functional.softplus(unconstrained_theta)
+        diffs = torch.cat((theta_min, diffs), dim=-1)
 
-        widths = fn(unconstrained_theta)
-
-        widths = torch.cat((theta_min, widths), dim=-1)
-        theta = torch.cumsum(widths, dim=-1)
+        theta = torch.cumsum(diffs, dim=-1) - shift
 
         return theta
 
@@ -741,6 +729,34 @@ class BernsteinTransform(MonotonicTransform):
         x = torch.where(right_bound, x1, x)
 
         return x
+
+
+class BoundedBernsteinTransform(BernsteinTransform):
+    def _constrain_theta(self, unconstrained_theta: Tensor) -> Tensor:
+        """Processes the unconstrained output of the hyper-network to be increasing."""
+
+        theta_min = -self.bound * torch.ones_like(unconstrained_theta[..., :1])
+
+        diff_on_bounds = (2 * self.bound) / (unconstrained_theta.shape[-1] + 4)
+
+        diffs = torch.nn.functional.softmax(unconstrained_theta, dim=-1) * (
+            2 * self.bound - 4 * diff_on_bounds
+        )
+
+        # ensure identity on bounds by enforcing Be'(0,1) = 1 and Be''(0,1) = 0
+        # Be'(0) = order * theta_1 - theta_0 = order * diff_0 -> diff_0 = 1 / order
+        # Be''(0) = (order - 1) * (diff_1 - diff_0) -> diff_0 == diff_1
+        diffs = torch.cat(
+            (
+                theta_min,
+                diff_on_bounds * torch.ones_like(diffs[..., :2]),
+                diffs,
+                diff_on_bounds * torch.ones_like(diffs[..., :2]),
+            ),
+            dim=-1,
+        )
+
+        return torch.cumsum(diffs, dim=-1)
 
 
 class GaussianizationTransform(MonotonicTransform):
