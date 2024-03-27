@@ -32,6 +32,7 @@ import torch.nn.functional as F
 from textwrap import indent
 from torch import BoolTensor, LongTensor, Size, Tensor
 from torch.distributions import Distribution, Transform, constraints
+from torch.distributions.transforms import *  # noqa: F403
 from torch.distributions.utils import _sum_rightmost
 from typing import Any, Callable, Iterable, Tuple, Union
 
