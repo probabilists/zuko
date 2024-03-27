@@ -741,12 +741,6 @@ class BernsteinTransform(MonotonicTransform):
 class BoundedBernsteinTransform(BernsteinTransform):
     r"""Bounded version of :py:`BernsteinTransform`, optimized for chained Flows.
 
-    This Version ensures that the transformation's domain and codomain match the interval :math:`[-B, B]`,
-    by scaling all Bernstein coefficients between :math:`\theta_{0} = -B` :math:`\theta_{M} = B`.
-
-    Additionally :math:`Be'(0,1) = 1` and :math:`Be''(0,1) = 0` are ensured to smoothly
-    transition to the identity function outside the bounds.
-
     This subclass scales the Bernstein coefficients so that the transformation's domain and
     codomain match the interval :math:`[-B, B]`, where :math:`B` represents the bounds of the
     base class. It also ensures that the derivative at the boundaries is equal to 1
@@ -755,7 +749,7 @@ class BoundedBernsteinTransform(BernsteinTransform):
     (:math:`Be''(0,1) = 0 \propto (\Delta_1 - \Delta_0) = M \Delta_0 = \Delta_1`),
     ensuring a smooth transition to the identity function outside the bounds.
 
-    These conditions make the transformation particularly suitable for Chaining
+    These conditions make the transformation particularly suitable for chaining
     and are hence used in :py:`BPF`.
     """
 
