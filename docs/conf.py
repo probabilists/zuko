@@ -12,7 +12,7 @@ import zuko
 package = 'zuko'
 project = 'Zuko'
 version = zuko.__version__
-copyright = '2022-2023'
+copyright = '2022-2024'
 repository = 'https://github.com/probabilists/zuko'
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 
