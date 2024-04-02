@@ -7,15 +7,15 @@ __all__ = [
 import torch
 import torch.nn as nn
 
-from math import prod
-from torch import Tensor
-from torch.distributions import Distribution, MultivariateNormal
 
 # isort: local
 from .core import LazyDistribution
 from ..distributions import Mixture
 from ..nn import MLP
 from ..utils import unpack
+from math import prod
+from torch import Tensor
+from torch.distributions import Distribution, Independent, MultivariateNormal, Normal
 
 
 class GMM(LazyDistribution):
@@ -30,6 +30,16 @@ class GMM(LazyDistribution):
         features: The number of features.
         context: The number of context features.
         components: The number of components :math:`K` in the mixture.
+        covariance_type: String describing the type of covariance parameters to use. Must be one of:
+
+            - ‘full’: each component has its own general covariance matrix.
+
+            - ‘tied’: all components share the same general covariance matrix.
+
+            - ‘diag’: each component has its own diagonal covariance matrix.
+
+            - ‘spherical’: each component has its own single variance.
+
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
     """
 
@@ -38,6 +48,7 @@ class GMM(LazyDistribution):
         features: int,
         context: int = 0,
         components: int = 2,
+        covariance_type: str = 'full',
         **kwargs,
     ):
         super().__init__()
@@ -45,10 +56,31 @@ class GMM(LazyDistribution):
         shapes = [
             (components,),  # probabilities
             (components, features),  # mean
-            (components, features),  # diagonal
-            (components, features * (features - 1) // 2),  # off diagonal
         ]
+        if covariance_type == 'full':
+            shapes.extend([
+                (components, features),  # diagonal
+                (components, features * (features - 1) // 2),  # off diagonal
+            ])
+        elif covariance_type == 'tied':
+            shapes.extend([
+                (1, features),  # diagonal
+                (1, features * (features - 1) // 2),  # off diagonal
+            ])
+        elif covariance_type == 'diag':
+            shapes.extend([
+                (components, features),  # diagonal
+            ])
+        elif covariance_type == 'spherical':
+            shapes.extend([
+                (components, 1),  # diagonal
+            ])
+        else:
+            raise ValueError(
+                f'Invalid covariance type: {covariance_type} (choose from full, diag, spherical)'
+            )
 
+        self.covariance_type = covariance_type
         self.shapes = shapes
         self.total = sum(prod(s) for s in shapes)
 
@@ -64,10 +96,16 @@ class GMM(LazyDistribution):
             phi = self.hyper(c)
             phi = unpack(phi, self.shapes)
 
-        logits, loc, diag, tril = phi
+        if self.covariance_type in ['full', 'tied']:
+            logits, loc, diag, tril = phi
+            scale = torch.diag_embed(diag.exp() + 1e-5)
+            mask = torch.tril(torch.ones_like(scale, dtype=bool), diagonal=-1)
+            scale = torch.masked_scatter(scale, mask, tril)
+            # expanded automatically for tied covariance
+            return Mixture(MultivariateNormal(loc=loc, scale_tril=scale), logits)
 
-        scale = torch.diag_embed(diag.exp() + 1e-5)
-        mask = torch.tril(torch.ones_like(scale, dtype=bool), diagonal=-1)
-        scale = torch.masked_scatter(scale, mask, tril)
-
-        return Mixture(MultivariateNormal(loc=loc, scale_tril=scale), logits)
+        elif self.covariance_type in ['diag', 'spherical']:
+            logits, loc, diag = phi
+            scale = diag.exp() + 1e-5
+            # expanded automatically for spherical covariance
+            return Mixture(Independent(Normal(loc, scale), 1), logits)
