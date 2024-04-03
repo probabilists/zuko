@@ -15,7 +15,13 @@ from ..nn import MLP
 from ..utils import unpack
 from math import prod
 from torch import Tensor
-from torch.distributions import Distribution, Independent, MultivariateNormal, Normal
+from torch.distributions import (
+    Distribution,
+    Independent,
+    LowRankMultivariateNormal,
+    MultivariateNormal,
+    Normal,
+)
 
 
 class GMM(LazyDistribution):
@@ -40,6 +46,9 @@ class GMM(LazyDistribution):
 
             - ‘spherical’: each component has its own single variance.
 
+            - 'lowrank': each component has its own low-rank covariance matrix.
+
+        cov_rank: The rank of the low-rank covariance matrix. Only used when `covariance_type` is 'lowrank'.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
     """
 
@@ -49,6 +58,7 @@ class GMM(LazyDistribution):
         context: int = 0,
         components: int = 2,
         covariance_type: str = 'full',
+        cov_rank: int = None,
         **kwargs,
     ):
         super().__init__()
@@ -67,6 +77,13 @@ class GMM(LazyDistribution):
                 (1, features),  # diagonal
                 (1, features * (features - 1) // 2),  # off diagonal
             ])
+        elif covariance_type == 'lowrank':
+            if cov_rank is None:
+                raise ValueError('cov_rank must be specified when covariance_type is lowrank')
+            shapes.extend([
+                (components, features),  # diagonal
+                (components, features * cov_rank),  # low-rank
+            ])
         elif covariance_type == 'diag':
             shapes.extend([
                 (components, features),  # diagonal
@@ -77,10 +94,11 @@ class GMM(LazyDistribution):
             ])
         else:
             raise ValueError(
-                f'Invalid covariance type: {covariance_type} (choose from full, diag, spherical)'
+                f'Invalid covariance type: {covariance_type} (choose from full, tied, lowrank, diag, or spherical)'
             )
 
         self.covariance_type = covariance_type
+        self.cov_rank = cov_rank
         self.shapes = shapes
         self.total = sum(prod(s) for s in shapes)
 
@@ -104,8 +122,16 @@ class GMM(LazyDistribution):
             # expanded automatically for tied covariance
             return Mixture(MultivariateNormal(loc=loc, scale_tril=scale), logits)
 
+        if self.covariance_type == 'lowrank':
+            logits, loc, diag, lowrank = phi
+            diag = diag.exp() + 1e-5
+            lowrank = lowrank.reshape(lowrank.shape[0], lowrank.shape[1], self.cov_rank)
+            return Mixture(
+                LowRankMultivariateNormal(loc=loc, cov_factor=lowrank, cov_diag=diag), logits
+            )
+
         elif self.covariance_type in ['diag', 'spherical']:
             logits, loc, diag = phi
-            scale = diag.exp() + 1e-5
+            diag = diag.exp() + 1e-5
             # expanded automatically for spherical covariance
-            return Mixture(Independent(Normal(loc, scale), 1), logits)
+            return Mixture(Independent(Normal(loc, diag), 1), logits)
