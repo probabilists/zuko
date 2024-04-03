@@ -604,14 +604,13 @@ class MonotonicTransform(Transform):
 class BernsteinTransform(MonotonicTransform):
     r"""Creates a monotonic Bernstein polynomial transformation.
 
-    The transformation function is defined as:
-
-    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(x) \, \theta_i
+    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1} \left( \frac{x + B}{2B} \right) \, \theta_i
 
     where :math:`b_{i,j}` are the Bernstein basis polynomials.
 
-    Since :math:`f` is only defined for :math:`x \in [0, 1]`, it is linearly extrapolated outside this interval.
-    The second-order derivative is enforced to be zero at the bounds for smooth transitions.
+    As the polynomial :math:`f(x)` is only defined for :math:`x \in [-B, B]`, the
+    transformation linearly extrapolates it outside this domain. The second derivative
+    at the bounds is enforced to be zero for smooth extrapolation.
 
     References:
         | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
@@ -625,7 +624,8 @@ class BernsteinTransform(MonotonicTransform):
 
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
-            with shape :math:`(*, M - 1)`.
+            with shape :math:`(*, M - 2)`.
+        bound: The polynomial's domain bound :math:`B`.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
@@ -634,29 +634,31 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, **kwargs):
-        super().__init__(None, phi=(theta,), **kwargs)
+    def __init__(self, theta: Tensor, bound: float = 5.0, **kwargs):
+        super().__init__(None, phi=(theta,), bound=bound, **kwargs)
 
         self.theta = self._constrain_theta(theta)
         self.basis = self._bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
 
-        # save slope on boundaries for interpolation
-        self.offset, self.slope = self._calculate_offset_and_slope()
+        self.offset, self.slope = self._offset_and_slope()
 
     @property
     def order(self) -> int:
         return self.theta.shape[-1] - 1
 
-    def _calculate_offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+    def _offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+        r"""Calculates the offsets and slopes at the domain bounds for extrapolation."""
+
         dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
         dbasis = self._bernstein_basis(
             self.order - 1, device=self.theta.device, dtype=self.theta.dtype
         )
 
         bounds = [
-            torch.tensor(self.eps, device=self.theta.device, dtype=self.theta.dtype),
-            torch.tensor(1 - self.eps, device=self.theta.device, dtype=self.theta.dtype),
+            self.theta.new_tensor(self.eps),
+            self.theta.new_tensor(1 - self.eps),
         ]
+
         offset = [self._bernstein_poly(x, self.theta, self.basis) for x in bounds]
         slope = [self._bernstein_poly(x, dtheta, dbasis) for x in bounds]
 
@@ -665,6 +667,7 @@ class BernsteinTransform(MonotonicTransform):
     @staticmethod
     def _constrain_theta(unconstrained_theta: Tensor) -> Tensor:
         """Processes the unconstrained output of the hyper-network to be increasing."""
+
         shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
 
         theta_min = unconstrained_theta[..., :1]
@@ -739,34 +742,33 @@ class BernsteinTransform(MonotonicTransform):
 
 
 class BoundedBernsteinTransform(BernsteinTransform):
-    r"""Bounded version of :py:`BernsteinTransform`, optimized for chained Flows.
+    r"""Creates a bounded Bernstein polynomial transformation.
 
-    This subclass scales the Bernstein coefficients so that the transformation's domain and
-    codomain match the interval :math:`[-B, B]`, where :math:`B` represents the bounds of the
-    base class. It also ensures that the derivative at the boundaries is equal to 1
-    (:math:`Be'(0,1) = 1 \to M \cdot (\theta_1 - \theta_0) = M \cdot\Delta_0 \to \Delta_0 = 1/M`)
-    and that the second order derivative is zero
-    (:math:`Be''(0,1) = 0 \propto (\Delta_1 - \Delta_0) = M \Delta_0 = \Delta_1`),
-    ensuring a smooth transition to the identity function outside the bounds.
+    This subclass of :class:`BernsteinTransform` scales the Bernstein coefficients so
+    that the polynomial's domain and codomain match the interval :math:`[-B, B]`. It
+    also enforces that the first derivative at the bounds is one and that the second
+    derivative is zero, ensuring a smooth transition to the identity function outside
+    the bounds.
 
-    These conditions make the transformation particularly suitable for chaining
-    and are hence used in :py:`BPF`.
+    These constraints make the transformation suitable for chaining in flows.
+
+    Arguments:
+        theta: The unconstrained polynomial coefficients :math:`\theta`,
+            with shape :math:`(*, M - 5)`.
+        kwargs: Keyword arguments passed to :class:`BernsteinTransform`.
     """
 
     def _constrain_theta(self, unconstrained_theta: Tensor) -> Tensor:
-        """Processes the unconstrained output of the hyper-network to be increasing."""
-
         theta_min = -self.bound * torch.ones_like(unconstrained_theta[..., :1])
 
         diff_on_bounds = (2 * self.bound) / (unconstrained_theta.shape[-1] + 4)
-
         diffs = torch.nn.functional.softmax(unconstrained_theta, dim=-1) * (
             2 * self.bound - 4 * diff_on_bounds
         )
 
         # ensure identity on bounds by enforcing Be'(0,1) = 1 and Be''(0,1) = 0
         # Be'(0) = order * theta_1 - theta_0 = order * diff_0 -> diff_0 = 1 / order
-        # Be''(0) = (order - 1) * (diff_1 - diff_0) -> diff_0 == diff_1
+        # Be''(0) = (order - 1) * (diff_1 - diff_0) -> diff_0 = diff_1
         diffs = torch.cat(
             (
                 theta_min,
@@ -779,14 +781,15 @@ class BoundedBernsteinTransform(BernsteinTransform):
 
         return torch.cumsum(diffs, dim=-1)
 
-    def _calculate_offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+    def _offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
         offset = (
-            torch.tensor(-self.bound, device=self.theta.device, dtype=self.theta.dtype),
-            torch.tensor(self.bound, device=self.theta.device, dtype=self.theta.dtype),
+            self.theta.new_tensor(-self.bound),
+            self.theta.new_tensor(self.bound),
         )
+
         slope = (
-            torch.tensor(2 * self.bound, device=self.theta.device, dtype=self.theta.dtype),
-            torch.tensor(2 * self.bound, device=self.theta.device, dtype=self.theta.dtype),
+            self.theta.new_tensor(2 * self.bound),
+            self.theta.new_tensor(2 * self.bound),
         )
 
         return offset, slope

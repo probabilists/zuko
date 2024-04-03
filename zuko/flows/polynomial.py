@@ -61,12 +61,12 @@ class BPF(MAF):
     r"""Creates a Bernstein polynomial flow (BPF).
 
     Warning:
-        Invertibility is only guaranteed for features within the interval :math:`[-10,
-        10]`. It is recommended to standardize features (zero mean, unit variance)
-        before training.
+        The Bernstein polynomial is bounded to the interval :math:`[-5, 5]`. Any feature
+        outside of this domain is not transformed. It is recommended to standardize
+        features (zero mean, unit variance) before training.
 
     See also:
-        :class:`zuko.transforms.BernsteinTransform`
+        :class:`zuko.transforms.BoundedBernsteinTransform`
 
     References:
         | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
