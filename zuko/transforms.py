@@ -13,6 +13,7 @@ __all__ = [
     'MonotonicRQSTransform',
     'MonotonicTransform',
     'BernsteinTransform',
+    'BoundedBernsteinTransform',
     'GaussianizationTransform',
     'UnconstrainedMonotonicTransform',
     'SOSPolynomialTransform',
@@ -30,7 +31,7 @@ import torch.nn.functional as F
 
 from textwrap import indent
 from torch import BoolTensor, LongTensor, Size, Tensor
-from torch.distributions import Transform, constraints
+from torch.distributions import Distribution, Transform, constraints
 from torch.distributions.transforms import *  # noqa: F403
 from torch.distributions.utils import _sum_rightmost
 from typing import Any, Callable, Iterable, Tuple, Union
@@ -603,12 +604,18 @@ class MonotonicTransform(Transform):
 class BernsteinTransform(MonotonicTransform):
     r"""Creates a monotonic Bernstein polynomial transformation.
 
-    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1}(\sigma(x)) \, \theta_i
+    .. math:: f(x) = \frac{1}{M + 1} \sum_{i=0}^{M} b_{i+1,M-i+1} \left( \frac{x + B}{2B} \right) \, \theta_i
 
-    where :math:`b_{i,j}` are the Bernstein basis polynomials and :math:`\sigma(x)` is
-    the sigmoid function.
+    where :math:`b_{i,j}` are the Bernstein basis polynomials.
+
+    As the polynomial :math:`f(x)` is only defined for :math:`x \in [-B, B]`, the
+    transformation linearly extrapolates it outside this domain. The second derivative
+    at the bounds is enforced to be zero for smooth extrapolation.
 
     References:
+        | Deep transformation models: Tackling complex regression problems with neural network based transformation models (Sick et al., 2020)
+        | https://arxiv.org/abs/2004.00464
+
         | Short-Term Density Forecasting of Low-Voltage Load using Bernstein-Polynomial Normalizing Flows (Arpogaus et al., 2022)
         | https://arxiv.org/abs/2204.13939
 
@@ -617,10 +624,8 @@ class BernsteinTransform(MonotonicTransform):
 
     Arguments:
         theta: The unconstrained polynomial coefficients :math:`\theta`,
-            with shape :math:`(*, M + 1)`.
-        linear: Whether to replace the sigmoid function with a linear mapping
-            :math:`\frac{x + B}{2B}`. If :py:`True`, input features are assumed to be
-            in :math:`[-B, B]`. Failing to satisfy this constraint will result in NaNs.
+            with shape :math:`(*, M - 2)`.
+        bound: The polynomial's domain bound :math:`B`.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
 
@@ -629,41 +634,165 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, linear: bool = False, **kwargs):
-        super().__init__(None, phi=(theta,), **kwargs)
+    def __init__(self, theta: Tensor, bound: float = 5.0, **kwargs):
+        super().__init__(None, phi=(theta,), bound=bound, **kwargs)
 
-        self.theta = self._increasing(theta)
-        self.linear = linear
+        self.theta = self._constrain_theta(theta)
+        self.basis = self._bernstein_basis(self.order, device=theta.device, dtype=theta.dtype)
 
-        degree = theta.shape[-1]
-        alpha = torch.arange(1, degree + 1, device=theta.device, dtype=theta.dtype)
-        beta = torch.arange(degree, 0, -1, device=theta.device, dtype=theta.dtype)
+        self.offset, self.slope = self._offset_and_slope()
 
-        self.basis = torch.distributions.Beta(alpha, beta)
+    @property
+    def order(self) -> int:
+        return self.theta.shape[-1] - 1
+
+    def _offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+        r"""Calculates the offsets and slopes at the domain bounds for extrapolation."""
+
+        dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
+        dbasis = self._bernstein_basis(
+            self.order - 1, device=self.theta.device, dtype=self.theta.dtype
+        )
+
+        bounds = [
+            self.theta.new_tensor(self.eps),
+            self.theta.new_tensor(1 - self.eps),
+        ]
+
+        offset = [self._bernstein_poly(x, self.theta, self.basis) for x in bounds]
+        slope = [self._bernstein_poly(x, dtheta, dbasis) for x in bounds]
+
+        return tuple(offset), tuple(slope)
 
     @staticmethod
-    def _increasing(theta: Tensor) -> Tensor:
-        r"""Processes the unconstrained output of the hyper-network to be increasing."""
+    def _constrain_theta(unconstrained_theta: Tensor) -> Tensor:
+        """Processes the unconstrained output of the hyper-network to be increasing."""
 
-        shift = math.log(2.0) * theta.shape[-1] / 2
+        shift = math.log(2.0) * unconstrained_theta.shape[-1] / 2
 
-        widths = torch.nn.functional.softplus(theta[..., 1:])
-        widths = torch.cat((theta[..., :1], widths), dim=-1)
+        theta_min = unconstrained_theta[..., :1]
+        unconstrained_theta = unconstrained_theta[..., 1:]
 
-        return torch.cumsum(widths, dim=-1) - shift
+        # ensure smooth bounds
+        unconstrained_theta = torch.cat(
+            (
+                unconstrained_theta[..., :1],
+                unconstrained_theta,
+                unconstrained_theta[..., -1:],
+            ),
+            dim=-1,
+        )
+
+        diffs = torch.nn.functional.softplus(unconstrained_theta)
+        diffs = torch.cat((theta_min, diffs), dim=-1)
+
+        theta = torch.cumsum(diffs, dim=-1) - shift
+
+        return theta
+
+    @staticmethod
+    def _bernstein_basis(order: int, **kwargs) -> Distribution:
+        alpha = torch.arange(1, order + 2, **kwargs)
+        beta = torch.arange(order + 1, 0, -1, **kwargs)
+        basis = torch.distributions.Beta(alpha, beta)
+        return basis
+
+    @staticmethod
+    def _bernstein_poly(x: Tensor, theta: Tensor, basis: Distribution) -> Tensor:
+        b = basis.log_prob(x.unsqueeze(-1)).exp()
+        y = torch.mean(b * theta, dim=-1)
+        return y
 
     def f(self, x: Tensor) -> Tensor:
-        if self.linear:
-            x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
-        else:
-            x = torch.nn.functional.sigmoid(x)  # map [-inf, inf] to [0, 1]
+        x = (x + self.bound) / (2 * self.bound)  # map [-B, B] to [0, 1]
 
-        x = x * (1 - 2e-6) + 1e-6
-        x = x.unsqueeze(-1)
-        b = self.basis.log_prob(x).exp()
-        y = torch.mean(b * self.theta, dim=-1)
+        lower_bound = x <= self.eps
+        upper_bound = x >= 1 - self.eps
+        x_safe = torch.where(lower_bound | upper_bound, 0.5 * torch.ones_like(x), x)
+
+        y = self._bernstein_poly(x_safe, self.theta, self.basis)
+
+        # f'(eps) * (x - eps) + f(eps)
+        y0 = self.slope[0] * (x - self.eps) + self.offset[0]
+
+        # f'(1-eps) * (x - 1 - eps) + f(1-eps)
+        y1 = self.slope[1] * (x - 1 + self.eps) + self.offset[1]
+
+        y = torch.where(lower_bound, y0, y)
+        y = torch.where(upper_bound, y1, y)
 
         return y
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        left_bound = y <= self.offset[0]
+        right_bound = y >= self.offset[1]
+
+        x = super()._inverse(y)
+        x0 = (y - self.offset[0]) / self.slope[0] + self.eps
+        x1 = (y - self.offset[1]) / self.slope[1] - self.eps + 1
+
+        # map [0, 1] to [-B, B]
+        x0 = x0 * 2 * self.bound - self.bound
+        x1 = x1 * 2 * self.bound - self.bound
+
+        x = torch.where(left_bound, x0, x)
+        x = torch.where(right_bound, x1, x)
+
+        return x
+
+
+class BoundedBernsteinTransform(BernsteinTransform):
+    r"""Creates a bounded Bernstein polynomial transformation.
+
+    This subclass of :class:`BernsteinTransform` scales the Bernstein coefficients so
+    that the polynomial's domain and codomain match the interval :math:`[-B, B]`. It
+    also enforces that the first derivative at the bounds is one and that the second
+    derivative is zero, ensuring a smooth transition to the identity function outside
+    the bounds.
+
+    These constraints make the transformation suitable for chaining in flows.
+
+    Arguments:
+        theta: The unconstrained polynomial coefficients :math:`\theta`,
+            with shape :math:`(*, M - 5)`.
+        kwargs: Keyword arguments passed to :class:`BernsteinTransform`.
+    """
+
+    def _constrain_theta(self, unconstrained_theta: Tensor) -> Tensor:
+        theta_min = -self.bound * torch.ones_like(unconstrained_theta[..., :1])
+
+        diff_on_bounds = (2 * self.bound) / (unconstrained_theta.shape[-1] + 4)
+        diffs = torch.nn.functional.softmax(unconstrained_theta, dim=-1) * (
+            2 * self.bound - 4 * diff_on_bounds
+        )
+
+        # ensure identity on bounds by enforcing Be'(0,1) = 1 and Be''(0,1) = 0
+        # Be'(0) = order * theta_1 - theta_0 = order * diff_0 -> diff_0 = 1 / order
+        # Be''(0) = (order - 1) * (diff_1 - diff_0) -> diff_0 = diff_1
+        diffs = torch.cat(
+            (
+                theta_min,
+                diff_on_bounds * torch.ones_like(diffs[..., :2]),
+                diffs,
+                diff_on_bounds * torch.ones_like(diffs[..., :2]),
+            ),
+            dim=-1,
+        )
+
+        return torch.cumsum(diffs, dim=-1)
+
+    def _offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+        offset = (
+            self.theta.new_tensor(-self.bound),
+            self.theta.new_tensor(self.bound),
+        )
+
+        slope = (
+            self.theta.new_tensor(2 * self.bound),
+            self.theta.new_tensor(2 * self.bound),
+        )
+
+        return offset, slope
 
 
 class GaussianizationTransform(MonotonicTransform):
