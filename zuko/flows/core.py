@@ -3,10 +3,10 @@ r"""Core building blocks."""
 from __future__ import annotations
 
 __all__ = [
+    'Flow',
+    'LazyComposedTransform',
     'LazyDistribution',
     'LazyTransform',
-    'LazyComposedTransform',
-    'Flow',
     'Unconditional',
 ]
 
@@ -17,7 +17,7 @@ from torch import Tensor
 from torch.distributions import Distribution, Transform
 from typing import Any, Callable, Sequence, Union
 
-# isort: local
+# isort: split
 from ..distributions import NormalizingFlow
 from ..transforms import ComposedTransform
 

@@ -1,12 +1,12 @@
 r"""Polynomial flows."""
 
 __all__ = [
-    'SOSPF',
     'BPF',
+    'SOSPF',
 ]
 
 
-# isort: local
+# isort: split
 from .autoregressive import MAF
 from .core import Unconditional
 from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform

@@ -1,8 +1,8 @@
 r"""Gaussianization flows."""
 
 __all__ = [
-    'ElementWiseTransform',
     'GF',
+    'ElementWiseTransform',
 ]
 
 import torch
@@ -13,7 +13,7 @@ from torch import Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
-# isort: local
+# isort: split
 from .core import Flow, LazyTransform, Unconditional
 from ..distributions import DiagNormal
 from ..nn import MLP

@@ -1,8 +1,8 @@
 r"""Spline flows."""
 
 __all__ = [
-    'NSF',
     'NCSF',
+    'NSF',
 ]
 
 import torch
@@ -10,7 +10,7 @@ import torch
 from math import pi
 from torch.distributions import Transform
 
-# isort: local
+# isort: split
 from .autoregressive import MAF
 from .core import Unconditional
 from ..distributions import BoxUniform

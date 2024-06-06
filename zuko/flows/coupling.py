@@ -1,8 +1,8 @@
 r"""Coupling flows and transformations."""
 
 __all__ = [
-    'GeneralCouplingTransform',
     'NICE',
+    'GeneralCouplingTransform',
 ]
 
 import torch
@@ -13,7 +13,7 @@ from torch import BoolTensor, Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
-# isort: local
+# isort: split
 from .core import Flow, LazyTransform, Unconditional
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal

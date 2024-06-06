@@ -11,7 +11,7 @@ from math import prod
 from torch import Tensor
 from torch.distributions import Distribution, MultivariateNormal
 
-# isort: local
+# isort: split
 from .core import LazyDistribution
 from ..distributions import Mixture
 from ..nn import MLP

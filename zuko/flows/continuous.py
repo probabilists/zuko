@@ -1,8 +1,8 @@
 r"""Continuous flows and transformations."""
 
 __all__ = [
-    'FFJTransform',
     'CNF',
+    'FFJTransform',
 ]
 
 import torch
@@ -13,7 +13,7 @@ from math import pi
 from torch import Tensor
 from torch.distributions import Transform
 
-# isort: local
+# isort: split
 from .core import Flow, LazyTransform, Unconditional
 from ..distributions import DiagNormal
 from ..nn import MLP

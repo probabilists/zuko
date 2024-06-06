@@ -1,8 +1,8 @@
 r"""Autoregressive flows and transformations."""
 
 __all__ = [
-    'MaskedAutoregressiveTransform',
     'MAF',
+    'MaskedAutoregressiveTransform',
 ]
 
 import torch
@@ -13,7 +13,7 @@ from torch import LongTensor, Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
-# isort: local
+# isort: split
 from .core import Flow, LazyTransform, Unconditional
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal

@@ -2,8 +2,8 @@ r"""Neural flows and transformations."""
 
 __all__ = [
     'MNN',
-    'UMNN',
     'NAF',
+    'UMNN',
     'UNAF',
 ]
 
@@ -15,7 +15,7 @@ from torch import Tensor
 from torch.distributions import Transform
 from typing import Any, Dict
 
-# isort: local
+# isort: split
 from .autoregressive import MaskedAutoregressiveTransform
 from .core import Flow, Unconditional
 from ..distributions import DiagNormal

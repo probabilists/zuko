@@ -45,11 +45,12 @@ extend-include = ["*.ipynb"]
 line-length = 99
 
 [tool.ruff.lint]
-extend-select = ["I"]
+extend-select = ["I", "RUF022"]
 ignore = ["E731", "E741"]
+preview = true
 
 [tool.ruff.lint.extend-per-file-ignores]
-"__init__.py" = ["F401", "F403"]
+"__init__.py" = ["F401"]
 "test_*.py" = ["F403", "F405"]
 
 [tool.ruff.lint.isort]

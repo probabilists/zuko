@@ -1,18 +1,18 @@
 r"""Parameterizable probability distributions."""
 
 __all__ = [
-    'NormalizingFlow',
-    'Joint',
-    'Mixture',
-    'GeneralizedNormal',
-    'DiagNormal',
     'BoxUniform',
-    'TransformedUniform',
-    'Truncated',
+    'DiagNormal',
+    'GeneralizedNormal',
+    'Joint',
+    'Maximum',
+    'Minimum',
+    'Mixture',
+    'NormalizingFlow',
     'Sort',
     'TopK',
-    'Minimum',
-    'Maximum',
+    'TransformedUniform',
+    'Truncated',
 ]
 
 import math
@@ -562,7 +562,7 @@ class Sort(Distribution):
         return ordered.log() + self.log_fact + self.base.log_prob(x).sum(dim=0)
 
     def sample(self, shape: Size = ()) -> Tensor:
-        x = torch.movedim(self.base.sample((self.n,) + shape), 0, -1)
+        x = torch.movedim(self.base.sample((self.n, *shape)), 0, -1)
         x = torch.sort(x, dim=-1, descending=self.descending).values
 
         return x
