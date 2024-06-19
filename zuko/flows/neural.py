@@ -136,7 +136,7 @@ class NAF(Flow):
         transforms: int = 3,
         randperm: bool = False,
         signal: int = 16,
-        network: Dict[str, Any] = {},
+        network: Dict[str, Any] = {},  # noqa: B006
         **kwargs,
     ):
         orders = [
@@ -200,7 +200,7 @@ class UNAF(Flow):
         transforms: int = 3,
         randperm: bool = False,
         signal: int = 16,
-        network: Dict[str, Any] = {},
+        network: Dict[str, Any] = {},  # noqa: B006
         **kwargs,
     ):
         orders = [

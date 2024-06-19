@@ -103,7 +103,7 @@ class NormalizingFlow(Distribution):
     def event_shape(self) -> Size:
         return self.transform.inverse_shape(self.base.event_shape)
 
-    def expand(self, batch_shape: Size, new: Distribution = None):
+    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(NormalizingFlow, new)
         new.transform = self.transform
         new.base = self.base.expand(batch_shape)
