@@ -59,11 +59,11 @@ class MaskedAutoregressiveTransform(LazyTransform):
         )
         >>> x = torch.randn(3)
         >>> x
-        tensor([-0.9485,  1.5290,  0.2018])
+        tensor([ 1.7428, -1.6483, -0.9920])
         >>> c = torch.randn(4)
         >>> y = t(c)(x)
         >>> t(c).inv(y)
-        tensor([-0.9485,  1.5290,  0.2018])
+        tensor([ 1.7428, -1.6483, -0.9920], grad_fn=<DivBackward0>)
     """
 
     def __new__(
@@ -205,9 +205,9 @@ class MAF(Flow):
         >>> c = torch.randn(4)
         >>> x = flow(c).sample()
         >>> x
-        tensor([-1.7154, -0.4401,  0.7505])
+        tensor([-0.5005, -1.6303,  0.3805])
         >>> flow(c).log_prob(x)
-        tensor(-4.4630, grad_fn=<AddBackward0>)
+        tensor(-3.7514, grad_fn=<AddBackward0>)
     """
 
     def __init__(

@@ -12,7 +12,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      - uses: pre-commit/action@v3.0.1
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.1
         with:
           extra_args: --all-files --config pre-commit.yml
   pytest:
@@ -34,3 +35,17 @@ jobs:
           pip install .
       - name: Run tests
         run: pytest tests
+  doctest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          pip install pytest
+          pip install torch==2.0 --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install .
+      - name: Run doctests
+        run: pytest zuko --doctest-modules

@@ -8,8 +8,6 @@ from pathlib import Path
 from torch import randn
 from zuko.flows import *
 
-torch.set_default_dtype(torch.float64)
-
 
 @pytest.mark.parametrize('F', [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
 def test_flows(tmp_path: Path, F: callable):

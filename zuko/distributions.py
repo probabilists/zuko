@@ -65,7 +65,7 @@ class NormalizingFlow(Distribution):
     Example:
         >>> d = NormalizingFlow(ExpTransform(), Gamma(2.0, 1.0))
         >>> d.sample()
-        tensor(1.1316)
+        tensor(1.5157)
     """
 
     has_rsample = True
@@ -153,7 +153,7 @@ class Joint(Distribution):
         >>> d.event_shape
         torch.Size([2])
         >>> d.sample()
-        tensor([ 0.8969, -2.6717])
+        tensor([0.4963, 0.2072])
     """
 
     has_rsample = True
@@ -231,7 +231,7 @@ class Mixture(Distribution):
         >>> d.event_shape
         torch.Size([])
         >>> d.sample()
-        tensor(2.8732)
+        tensor(-1.6920)
     """
 
     has_rsample = False
@@ -301,7 +301,7 @@ class GeneralizedNormal(Distribution):
     Example:
         >>> d = GeneralizedNormal(2.0)
         >>> d.sample()
-        tensor(0.7480)
+        tensor(-0.0281)
     """
 
     arg_constraints = {'beta': constraints.positive}
@@ -350,7 +350,7 @@ class DiagNormal(Independent):
         >>> d.event_shape
         torch.Size([3])
         >>> d.sample()
-        tensor([ 0.7304, -0.1976, -1.7591])
+        tensor([ 1.5410, -0.2934, -2.1788])
     """
 
     def __init__(self, loc: Tensor, scale: Tensor, ndims: int = 1):
@@ -383,7 +383,7 @@ class BoxUniform(Independent):
         >>> d.event_shape
         torch.Size([3])
         >>> d.sample()
-        tensor([ 0.1859, -0.9698,  0.0665])
+        tensor([-0.0075,  0.5364, -0.8230])
     """
 
     def __init__(self, lower: Tensor, upper: Tensor, ndims: int = 1):
@@ -416,7 +416,7 @@ class TransformedUniform(NormalizingFlow):
     Example:
         >>> d = TransformedUniform(ExpTransform(), -1.0, 1.0)
         >>> d.sample()
-        tensor(0.5594)
+        tensor(0.4281)
     """
 
     def __init__(self, f: Transform, lower: Tensor, upper: Tensor):
@@ -445,7 +445,7 @@ class Truncated(Distribution):
     Example:
         >>> d = Truncated(Normal(0.0, 1.0), 1.0, 2.0)
         >>> d.sample()
-        tensor(1.2573)
+        tensor(1.3333)
     """
 
     has_rsample = True
@@ -509,7 +509,7 @@ class Sort(Distribution):
         >>> d.event_shape
         torch.Size([3])
         >>> d.sample()
-        tensor([-1.4434, -0.3861,  0.2439])
+        tensor([-2.1788, -0.2934,  1.5410])
     """
 
     def __init__(
@@ -590,7 +590,7 @@ class TopK(Sort):
         >>> d.event_shape
         torch.Size([2])
         >>> d.sample()
-        tensor([-0.2167,  0.6739])
+        tensor([-2.1788, -0.2934])
     """
 
     def __init__(
@@ -646,7 +646,7 @@ class Minimum(TopK):
         >>> d.event_shape
         torch.Size([])
         >>> d.sample()
-        tensor(-1.7552)
+        tensor(-2.1788)
     """
 
     def __init__(self, base: Distribution, n: int = 2):
@@ -687,7 +687,7 @@ class Maximum(Minimum):
         >>> d.event_shape
         torch.Size([])
         >>> d.sample()
-        tensor(1.1644)
+        tensor(1.5410)
     """
 
     def __init__(self, base: Distribution, n: int = 2):

@@ -7,8 +7,6 @@ from torch import randn
 from torch.distributions import *
 from zuko.transforms import *
 
-torch.set_default_dtype(torch.float64)
-
 
 @pytest.mark.parametrize('batched', [False, True])
 def test_univariate_transforms(batched: bool):

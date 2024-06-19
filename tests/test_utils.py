@@ -6,8 +6,6 @@ import torch
 from torch import randn
 from zuko.utils import *
 
-torch.set_default_dtype(torch.float64)
-
 
 def test_bisection():
     alpha = torch.tensor(1.0, requires_grad=True)

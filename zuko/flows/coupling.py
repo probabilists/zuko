@@ -56,11 +56,11 @@ class GeneralCouplingTransform(LazyTransform):
         )
         >>> x = torch.randn(3)
         >>> x
-        tensor([-0.8743,  0.6232,  1.2439])
+        tensor([-0.7900, -0.3259, -1.3184])
         >>> c = torch.randn(4)
         >>> y = t(c)(x)
         >>> t(c).inv(y)
-        tensor([-0.8743,  0.6232,  1.2439])
+        tensor([-0.7900, -0.3259, -1.3184], grad_fn=<IndexPutBackward0>)
     """
 
     def __new__(

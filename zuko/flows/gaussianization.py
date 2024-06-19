@@ -51,11 +51,11 @@ class ElementWiseTransform(LazyTransform):
         )
         >>> x = torch.randn(3)
         >>> x
-        tensor([2.1983,  -1.3182,  0.0329])
+        tensor([ 0.0303,  0.3644, -1.1831])
         >>> c = torch.randn(4)
         >>> y = t(c)(x)
         >>> t(c).inv(y)
-        tensor([2.1983,  -1.3182,  0.0329])
+        tensor([ 0.0303,  0.3644, -1.1831], grad_fn=<DivBackward0>)
     """
 
     def __init__(

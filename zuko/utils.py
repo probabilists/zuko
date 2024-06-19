@@ -302,7 +302,7 @@ def odeint(
         >>> x0 = torch.randn(3)
         >>> x1 = odeint(f, x0, 0.0, 1.0)
         >>> x1
-        tensor([-3.7454, -0.4140,  0.2677])
+        tensor([-1.4596,  0.5008,  1.5828])
     """
 
     settings = (atol, rtol, torch.is_grad_enabled())

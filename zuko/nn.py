@@ -233,10 +233,10 @@ class MaskedMLP(nn.Sequential):
     Example:
         >>> adjacency = torch.randn(4, 3) < 0
         >>> adjacency
-        tensor([[False,  True, False],
-                [ True, False,  True],
-                [False,  True, False],
-                [False,  True,  True]])
+        tensor([[False,  True,  True],
+                [False,  True,  True],
+                [False, False,  True],
+                [ True,  True, False]])
         >>> net = MaskedMLP(adjacency, [16, 32], activation=nn.ELU)
         >>> net
         MaskedMLP(
@@ -248,10 +248,10 @@ class MaskedMLP(nn.Sequential):
         )
         >>> x = torch.randn(3)
         >>> torch.autograd.functional.jacobian(net, x)
-        tensor([[ 0.0000,  0.0031,  0.0000],
-                [-0.0323,  0.0000, -0.0547],
-                [ 0.0000, -0.0245,  0.0000],
-                [ 0.0000,  0.0060, -0.0063]])
+        tensor([[ 0.0000, -0.0065,  0.1158],
+                [ 0.0000, -0.0089,  0.0072],
+                [ 0.0000,  0.0000,  0.0089],
+                [-0.0146, -0.0128,  0.0000]])
     """
 
     def __init__(
@@ -374,10 +374,10 @@ class MonotonicMLP(MLP):
         )
         >>> x = torch.randn(3)
         >>> torch.autograd.functional.jacobian(net, x)
-        tensor([[0.8742, 0.9439, 0.9759],
-                [0.8969, 0.9716, 0.9866],
-                [1.0780, 1.1651, 1.2056],
-                [0.8596, 0.9400, 0.9502]])
+        tensor([[1.0492, 1.3094, 1.1711],
+                [1.1201, 1.3825, 1.2711],
+                [0.9397, 1.1915, 1.0787],
+                [1.1049, 1.3635, 1.2592]])
     """
 
     def __init__(self, *args, **kwargs):

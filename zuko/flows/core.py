@@ -181,19 +181,20 @@ class Unconditional(nn.Module):
         kwargs: The keyword arguments passed to `meta`.
 
     Examples:
+        >>> f = zuko.distributions.DiagNormal
         >>> mu, sigma = torch.zeros(3), torch.ones(3)
-        >>> d = Unconditional(DiagNormal, mu, sigma, buffer=True)
+        >>> d = Unconditional(f, mu, sigma, buffer=True)
         >>> d()
         DiagNormal(loc: torch.Size([3]), scale: torch.Size([3]))
         >>> d().sample()
-        tensor([-0.6687, -0.9690,  1.7461])
+        tensor([ 1.5410, -0.2934, -2.1788])
 
-        >>> t = Unconditional(ExpTransform)
+        >>> t = Unconditional(zuko.transforms.ExpTransform)
         >>> t()
         ExpTransform()
         >>> x = torch.randn(3)
         >>> t()(x)
-        tensor([0.5523, 0.7997, 0.9189])
+        tensor([1.7655, 0.3381, 0.2469])
     """
 
     def __init__(

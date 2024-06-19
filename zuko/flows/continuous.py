@@ -55,11 +55,12 @@ class FFJTransform(LazyTransform):
         )
         >>> x = torch.randn(3)
         >>> x
-        tensor([ 0.1777,  1.0139, -1.0370])
+        tensor([ 0.6365, -0.3181,  1.1519])
         >>> c = torch.randn(4)
         >>> y = t(c)(x)
         >>> t(c).inv(y)
-        tensor([ 0.1777,  1.0139, -1.0370])
+        tensor([ 0.6364, -0.3181,  1.1519],
+               grad_fn=<AdaptiveCheckpointAdjointBackward>)
     """
 
     def __init__(
