@@ -14,7 +14,7 @@ from torch.distributions import Transform
 from typing import Callable, Sequence
 
 # isort: split
-from .core import Flow, LazyTransform, Unconditional
+from .core import Flow, LazyTransform, UnconditionalDistribution
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
 from ..nn import MaskedMLP
@@ -200,7 +200,7 @@ class MAF(Flow):
               )
             )
           )
-          (base): Unconditional(DiagNormal(loc: torch.Size([3]), scale: torch.Size([3])))
+          (base): UnconditionalDistribution(DiagNormal(loc: torch.Size([3]), scale: torch.Size([3])))
         )
         >>> c = torch.randn(4)
         >>> x = flow(c).sample()
@@ -233,7 +233,7 @@ class MAF(Flow):
             for i in range(transforms)
         ]
 
-        base = Unconditional(
+        base = UnconditionalDistribution(
             DiagNormal,
             torch.zeros(features),
             torch.ones(features),

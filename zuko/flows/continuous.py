@@ -14,7 +14,7 @@ from torch import Tensor
 from torch.distributions import Transform
 
 # isort: split
-from .core import Flow, LazyTransform, Unconditional
+from .core import Flow, LazyTransform, UnconditionalDistribution
 from ..distributions import DiagNormal
 from ..nn import MLP
 from ..transforms import FreeFormJacobianTransform
@@ -138,7 +138,7 @@ class CNF(Flow):
             **kwargs,
         )
 
-        base = Unconditional(
+        base = UnconditionalDistribution(
             DiagNormal,
             torch.zeros(features),
             torch.ones(features),

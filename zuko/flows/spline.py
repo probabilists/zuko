@@ -12,7 +12,7 @@ from torch.distributions import Transform
 
 # isort: split
 from .autoregressive import MAF
-from .core import Unconditional
+from .core import UnconditionalDistribution
 from ..distributions import BoxUniform
 from ..transforms import CircularShiftTransform, ComposedTransform, MonotonicRQSTransform
 
@@ -104,7 +104,7 @@ class NCSF(MAF):
             **kwargs,
         )
 
-        self.base = Unconditional(
+        self.base = UnconditionalDistribution(
             BoxUniform,
             torch.full((features,), -pi - 1e-5),
             torch.full((features,), pi + 1e-5),
