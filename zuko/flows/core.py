@@ -265,7 +265,7 @@ class UnconditionalDistribution(Partial, LazyDistribution):
         f: Callable[..., Distribution],
         *args: Any,
         buffer: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(f, *args, buffer=buffer, **kwargs)
 
