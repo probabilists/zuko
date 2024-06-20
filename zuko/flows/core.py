@@ -8,10 +8,13 @@ __all__ = [
     'LazyDistribution',
     'LazyTransform',
     'Unconditional',
+    'UnconditionalDistribution',
+    'UnconditionalTransform',
 ]
 
 import abc
 import torch.nn as nn
+import warnings
 
 from torch import Tensor
 from torch.distributions import Distribution, Transform
@@ -20,6 +23,7 @@ from typing import Any, Callable, Sequence, Union
 # isort: split
 from ..distributions import NormalizingFlow
 from ..transforms import ComposedTransform
+from ..utils import Partial
 
 
 class LazyDistribution(nn.Module, abc.ABC):
@@ -174,27 +178,15 @@ class Unconditional(nn.Module):
     Typically, the constructor returns a distribution or transformation. The positional
     arguments of the constructor are registered as buffers or parameters.
 
+    Warning:
+        :class:`Unconditional` is deprecated and will be removed in the future. Use
+        :class:`UnconditionalDistribution` or  :class:`UnconditionalTransform` instead.
+
     Arguments:
         meta: An arbitrary constructor function.
         args: The positional tensor arguments passed to `meta`.
         buffer: Whether tensors are registered as buffers or parameters.
         kwargs: The keyword arguments passed to `meta`.
-
-    Examples:
-        >>> f = zuko.distributions.DiagNormal
-        >>> mu, sigma = torch.zeros(3), torch.ones(3)
-        >>> d = Unconditional(f, mu, sigma, buffer=True)
-        >>> d()
-        DiagNormal(loc: torch.Size([3]), scale: torch.Size([3]))
-        >>> d().sample()
-        tensor([ 1.5410, -0.2934, -2.1788])
-
-        >>> t = Unconditional(zuko.transforms.ExpTransform)
-        >>> t()
-        ExpTransform()
-        >>> x = torch.randn(3)
-        >>> t()(x)
-        tensor([1.7655, 0.3381, 0.2469])
     """
 
     def __init__(
@@ -205,6 +197,15 @@ class Unconditional(nn.Module):
         **kwargs,
     ):
         super().__init__()
+
+        warnings.warn(
+            (
+                "'Unconditional' is deprecated and will be removed in the future. "
+                "Use 'UnconditionalDistribution' or 'UnconditionalTransform' instead."
+            ),
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
 
         self.meta = meta
 
@@ -236,3 +237,99 @@ class Unconditional(nn.Module):
             *self._buffers.values(),
             **self.kwargs,
         )
+
+
+class UnconditionalDistribution(Partial, LazyDistribution):
+    r"""Creates an unconditional lazy distribution from a constructor.
+
+    The arguments of the constructor are registered as buffers or parameters.
+
+    Arguments:
+        f: A distribution constructor. If `f` is a module, it is registered as a submodule.
+        args: The positional arguments passed to `f`.
+        buffer: Whether tensor arguments are registered as buffers or parameters.
+        kwargs: The keyword arguments passed to `f`.
+
+    Examples:
+        >>> f = zuko.distributions.DiagNormal
+        >>> mu, sigma = torch.zeros(3), torch.ones(3)
+        >>> base = UnconditionalDistribution(f, mu, sigma, buffer=True)
+        >>> base()
+        DiagNormal(loc: torch.Size([3]), scale: torch.Size([3]))
+        >>> base().sample()
+        tensor([ 1.5410, -0.2934, -2.1788])
+    """
+
+    def __init__(
+        self,
+        f: Callable[..., Distribution],
+        *args: Any,
+        buffer: bool = False,
+        **kwargs: Any,
+    ):
+        super().__init__(f, *args, buffer=buffer, **kwargs)
+
+    def extra_repr(self) -> str:
+        if isinstance(self.f, nn.Module):
+            return ''
+        else:
+            return repr(self.forward())
+
+    def forward(self, c: Tensor = None) -> Distribution:
+        r"""
+        Arguments:
+            c: A context :math:`c`. This argument is always ignored.
+
+        Returns:
+            :py:`self.f(*self.args, **self.kwargs)`
+        """
+
+        return super().forward()
+
+
+class UnconditionalTransform(Partial, LazyTransform):
+    r"""Creates an unconditional lazy transformation from a constructor.
+
+    The arguments of the constructor are registered as buffers or parameters.
+
+    Arguments:
+        f: A transformation constructor. If `f` is a module, it is registered as a submodule.
+        args: The positional arguments passed to `f`.
+        buffer: Whether tensor arguments are registered as buffers or parameters.
+        kwargs: The keyword arguments passed to `f`.
+
+    Examples:
+        >>> f = zuko.transforms.ExpTransform
+        >>> t = UnconditionalTransform(f)
+        >>> t()
+        ExpTransform()
+        >>> x = torch.randn(3)
+        >>> t()(x)
+        tensor([4.6692, 0.7457, 0.1132])
+    """
+
+    def __init__(
+        self,
+        f: Callable[..., Transform],
+        *args: Any,
+        buffer: bool = False,
+        **kwargs: Any,
+    ):
+        super().__init__(f, *args, buffer=buffer, **kwargs)
+
+    def extra_repr(self) -> str:
+        if isinstance(self.f, nn.Module):
+            return ''
+        else:
+            return repr(self.forward())
+
+    def forward(self, c: Tensor = None) -> Transform:
+        r"""
+        Arguments:
+            c: A context :math:`c`. This argument is always ignored.
+
+        Returns:
+            :py:`self.f(*self.args, **self.kwargs)`
+        """
+
+        return super().forward()

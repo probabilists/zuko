@@ -8,7 +8,7 @@ __all__ = [
 
 # isort: split
 from .autoregressive import MAF
-from .core import Unconditional
+from .core import UnconditionalTransform
 from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform
 
 
@@ -54,7 +54,7 @@ class SOSPF(MAF):
         transforms = self.transform.transforms
 
         for i in reversed(range(1, len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
+            transforms.insert(i, UnconditionalTransform(SoftclipTransform, bound=11.0))
 
 
 class BPF(MAF):

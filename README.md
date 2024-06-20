@@ -55,17 +55,18 @@ x = flow(c_star).sample((64,))
 Alternatively, flows can be built as custom `Flow` objects.
 
 ```python
-from zuko.flows import Flow, MaskedAutoregressiveTransform, Unconditional
+from zuko.flows import Flow, UnconditionalDistribution, UnconditionalTransform
+from zuko.flows.autoregressive import MaskedAutoregressiveTransform
 from zuko.distributions import DiagNormal
 from zuko.transforms import RotationTransform
 
 flow = Flow(
     transform=[
         MaskedAutoregressiveTransform(3, 5, hidden_features=(64, 64)),
-        Unconditional(RotationTransform, torch.randn(3, 3)),
+        UnconditionalTransform(RotationTransform, torch.randn(3, 3)),
         MaskedAutoregressiveTransform(3, 5, hidden_features=(64, 64)),
     ],
-    base=Unconditional(
+    base=UnconditionalDistribution(
         DiagNormal,
         torch.zeros(3),
         torch.ones(3),

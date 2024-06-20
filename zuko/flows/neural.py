@@ -17,7 +17,7 @@ from typing import Any, Dict
 
 # isort: split
 from .autoregressive import MaskedAutoregressiveTransform
-from .core import Flow, Unconditional
+from .core import Flow, UnconditionalDistribution, UnconditionalTransform
 from ..distributions import DiagNormal
 from ..nn import MLP, MonotonicMLP
 from ..transforms import (
@@ -157,9 +157,9 @@ class NAF(Flow):
         ]
 
         for i in reversed(range(1, len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
+            transforms.insert(i, UnconditionalTransform(SoftclipTransform, bound=11.0))
 
-        base = Unconditional(
+        base = UnconditionalDistribution(
             DiagNormal,
             torch.zeros(features),
             torch.ones(features),
@@ -221,9 +221,9 @@ class UNAF(Flow):
         ]
 
         for i in reversed(range(1, len(transforms))):
-            transforms.insert(i, Unconditional(SoftclipTransform, bound=11.0))
+            transforms.insert(i, UnconditionalTransform(SoftclipTransform, bound=11.0))
 
-        base = Unconditional(
+        base = UnconditionalDistribution(
             DiagNormal,
             torch.zeros(features),
             torch.ones(features),

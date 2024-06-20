@@ -3,6 +3,7 @@ r"""General purpose helpers."""
 from __future__ import annotations
 
 __all__ = [
+    'Partial',
     'bisection',
     'broadcast',
     'gauss_legendre',
@@ -13,11 +14,104 @@ __all__ = [
 import math
 import numpy as np
 import torch
+import torch.nn as nn
 
 from functools import lru_cache
 from torch import Size, Tensor
 from torch.autograd.function import once_differentiable
-from typing import Callable, Iterable, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Sequence, Tuple, Union
+
+
+class Partial(nn.Module):
+    r"""A version of :class:`functools.partial` that is a :class:`torch.nn.Module`.
+
+    Arguments:
+        f: An arbitrary callable. If `f` is a module, it is registered as a submodule.
+        args: The positional arguments passed to `f`.
+        buffer: Whether tensor arguments are registered as buffers or parameters.
+        kwargs: The keyword arguments passed to `f`.
+
+    Examples:
+        >>> increment = Partial(torch.add, torch.tensor(1.0), buffer=True)
+        >>> increment(torch.arange(3))
+        tensor([1., 2., 3.])
+
+        >>> weight = torch.randn((5, 3))
+        >>> linear = Partial(torch.nn.functional.linear, weight=weight)
+        >>> x = torch.rand(2, 3)
+        >>> linear(x)
+        tensor([[-0.1364, -0.4034,  0.1887, -0.2045, -0.0151],
+                [-2.0380, -1.5081, -0.4816,  0.0323, -0.7941]], grad_fn=<MmBackward0>)
+
+        >>> f = torch.distributions.Normal
+        >>> loc, scale = torch.zeros(3), torch.ones(3)
+        >>> dist = Partial(f, loc, scale, buffer=True)
+        >>> dist()
+        Normal(loc: torch.Size([3]), scale: torch.Size([3]))
+        >>> dist().sample()
+        tensor([ 0.1227,  0.1494, -0.6709])
+    """
+
+    def __init__(
+        self,
+        f: Callable,
+        /,
+        *args: Any,
+        buffer: bool = False,
+        **kwargs: Any,
+    ):
+        super().__init__()
+
+        self.f = f
+
+        for i, arg in enumerate(args):
+            if torch.is_tensor(arg):
+                if buffer:
+                    self.register_buffer(f'_{i}', arg)
+                else:
+                    self.register_parameter(f'_{i}', nn.Parameter(arg))
+            else:
+                setattr(self, f'_{i}', arg)
+
+        self._nargs = len(args)
+
+        for key, arg in kwargs.items():
+            if torch.is_tensor(arg):
+                if buffer:
+                    self.register_buffer(key, arg)
+                else:
+                    self.register_parameter(key, nn.Parameter(arg))
+            else:
+                setattr(self, key, arg)
+
+        self._keys = list(kwargs.keys())
+
+    @property
+    def args(self) -> Sequence[Any]:
+        return [getattr(self, f'_{i}') for i in range(self._nargs)]
+
+    @property
+    def kwargs(self) -> Dict[str, Any]:
+        return {key: getattr(self, key) for key in self._keys}
+
+    def extra_repr(self) -> str:
+        if isinstance(self.f, nn.Module):
+            return ''
+        else:
+            return f'(f): {self.f}'
+
+    def forward(self, *args, **kwargs) -> Any:
+        r"""
+        Returns:
+            :py:`self.f(*self.args, *args, **self.kwargs, **kwargs)`
+        """
+
+        return self.f(
+            *self.args,
+            *args,
+            **self.kwargs,
+            **kwargs,
+        )
 
 
 def bisection(
