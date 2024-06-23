@@ -3,6 +3,7 @@
 import glob
 import importlib
 import inspect
+import pathlib
 import re
 import subprocess
 import zuko
@@ -15,6 +16,7 @@ version = zuko.__version__
 copyright = '2022-2024'
 repository = 'https://github.com/probabilists/zuko'
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip()
 
 ## Extensions
 
@@ -57,9 +59,12 @@ def linkcode_resolve(domain: str, info: dict) -> str:
     for name in fullname.split('.'):
         objct = getattr(objct, name)
 
+    while hasattr(objct, '__wrapped__'):
+        objct = objct.__wrapped__
+
     try:
         file = inspect.getsourcefile(objct)
-        file = file[file.rindex(package) :]
+        file = pathlib.Path(file).relative_to(root)
 
         lines, start = inspect.getsourcelines(objct)
         end = start + len(lines) - 1
@@ -69,10 +74,7 @@ def linkcode_resolve(domain: str, info: dict) -> str:
         return f'{repository}/blob/{commit}/{file}#L{start}-L{end}'
 
 
-napoleon_custom_sections = [
-    ('Shapes', 'params_style'),
-    'Wikipedia',
-]
+napoleon_custom_sections = ['Wikipedia']
 
 nb_execution_mode = 'off'
 myst_enable_extensions = ['dollarmath']
@@ -113,6 +115,7 @@ html_theme_options = {
         'color-api-pre-name': '#a6e22e',
     },
     'sidebar_hide_name': True,
+    'top_of_page_buttons': ['view'],
 }
 html_title = f'{project} {version}'
 pygments_style = 'sphinx'
