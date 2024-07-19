@@ -197,6 +197,7 @@ class MAF(Flow):
             (0): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [0, 1, 2]
+              (adjacency): None
               (hyper): MaskedMLP(
                 (0): MaskedLinear(in_features=7, out_features=64, bias=True)
                 (1): ReLU()
@@ -208,6 +209,7 @@ class MAF(Flow):
             (1): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [2, 1, 0]
+              (adjacency): None
               (hyper): MaskedMLP(
                 (0): MaskedLinear(in_features=7, out_features=64, bias=True)
                 (1): ReLU()
@@ -219,6 +221,7 @@ class MAF(Flow):
             (2): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [0, 1, 2]
+              (adjacency): None
               (hyper): MaskedMLP(
                 (0): MaskedLinear(in_features=7, out_features=64, bias=True)
                 (1): ReLU()
