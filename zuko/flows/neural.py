@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 
 from functools import partial
-from torch import Tensor, BoolTensor
+from torch import BoolTensor, Tensor
 from torch.distributions import Transform
 from typing import Any, Dict
 

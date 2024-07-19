@@ -9,7 +9,7 @@ import torch
 
 from functools import partial
 from math import ceil, prod
-from torch import LongTensor, BoolTensor, Size, Tensor
+from torch import BoolTensor, LongTensor, Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
