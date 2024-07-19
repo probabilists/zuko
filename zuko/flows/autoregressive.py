@@ -133,6 +133,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
             adjacency.mul_(
                 ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
             )
+            adjacency = torch.repeat_interleave(adjacency.bool(), repeats=2, dim=0)
 
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
