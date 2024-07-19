@@ -107,3 +107,35 @@ def test_triangular_transforms():
 
         assert torch.allclose(t().log_abs_det_jacobian(x, y), ladj, atol=1e-4), T
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
+
+
+def test_adjacency_matrix():
+    Ts = [
+        MaskedAutoregressiveTransform,
+    ]
+
+    for T in Ts:
+        # With adjacency matrix
+        adjacency = torch.tensor((
+            (False, False, False, False),
+            (True, False, False, False),
+            (True, False, False, False),
+            (False, True, True, False),
+        ))
+        t = T(4, adjacency=adjacency)
+        x = randn(4)
+        y = t()(x)
+
+        J = torch.autograd.functional.jacobian(t(), x)
+        ladj = torch.linalg.slogdet(J).logabsdet
+
+        tladj = t().log_abs_det_jacobian(x, y)
+        Jladj = J.diag().abs().log().sum()
+
+        assert torch.allclose(tladj, ladj, atol=1e-4), T
+        assert torch.allclose(Jladj, ladj, atol=1e-4), T
+
+        assert torch.allclose(tladj * (~adjacency).float(), torch.zeros_like(tladj), atol=1e-4), T
+        assert torch.allclose(Jladj * (~adjacency).float(), torch.zeros_like(Jladj), atol=1e-4), T
+
+

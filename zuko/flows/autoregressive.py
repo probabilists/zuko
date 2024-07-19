@@ -9,7 +9,7 @@ import torch
 
 from functools import partial
 from math import ceil, prod
-from torch import LongTensor, Size, Tensor
+from torch import LongTensor, BoolTensor, Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
@@ -41,6 +41,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
         order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
+        adjacency: The adjacency matrix describing the factorization of the
+            joint distribution. If different from :py:`None`, then `order` and `passes`
+            have to be set to :py:`None`.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
 
     Example:
@@ -88,6 +91,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         order: LongTensor = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
+        adjacency: BoolTensor = None,
         **kwargs,
     ):
         super().__init__()
@@ -102,33 +106,50 @@ class MaskedAutoregressiveTransform(LazyTransform):
 
         if passes is None:
             passes = features
-
-        if order is None:
-            order = torch.arange(features)
-        else:
-            order = torch.as_tensor(order)
-
         self.passes = min(max(passes, 1), features)
-        self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
 
-        in_order = torch.cat((self.order, torch.full((context,), -1)))
-        out_order = torch.repeat_interleave(self.order, self.total)
-        adjacency = out_order[:, None] > in_order
+        assert (order is None) or (adjacency is None), \
+            "Parameters `order` and `adjacency_matrix` are mutually exclusive."
+        assert (passes == features) or (adjacency is None), \
+            "When using `adjacency_matrix`, `passes` has to be the number of features."
+
+        if adjacency is None:
+            if order is None:
+                order = torch.arange(features)
+            else:
+                order = torch.as_tensor(order)
+
+            self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
+
+            in_order = torch.cat((self.order, torch.full((context,), -1)))
+            out_order = torch.repeat_interleave(self.order, self.total)
+            adjacency = out_order[:, None] > in_order
+        else:
+            assert (len(adjacency.size()) == 2) and (adjacency.size(0) == adjacency.size(1))
+
+            # Remove the diagonal
+            adjacency.mul_(~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device))
 
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
 
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
-        order = self.order.tolist()
+        order = self.order
 
-        if len(order) > 10:
-            order = order[:5] + [...] + order[-5:]
-            order = str(order).replace('Ellipsis', '...')
+        if self.order is None:
+            adjacency = 'Set!'  # TODO I don't want to show the entire matrix.
+        else:
+            adjacency = None
+            order = order.tolist()
+            if len(order) > 10:
+                order = order[:5] + [...] + order[-5:]
+                order = str(order).replace('Ellipsis', '...')
 
         return '\n'.join([
             f'(base): {base}',
             f'(order): {order}',
+            f'(adjacency): {adjacency}',
         ])
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:
@@ -159,6 +180,8 @@ class MAF(Flow):
         randperm: Whether features are randomly permuted between transformations or not.
             If :py:`False`, features are in ascending (descending) order for even
             (odd) transformations.
+        adjacency: Adjacency matrix that all layers of the flow should follow.
+            If different from :py:`None`, then `randperm` should be :py:`False`.
         kwargs: Keyword arguments passed to :class:`MaskedAutoregressiveTransform`.
 
     Example:
@@ -216,18 +239,24 @@ class MAF(Flow):
         context: int = 0,
         transforms: int = 3,
         randperm: bool = False,
+        adjacency: BoolTensor = None,
         **kwargs,
     ):
-        orders = [
-            torch.arange(features),
-            torch.flipud(torch.arange(features)),
-        ]
+        assert (adjacency is None) or not randperm
+
+        orders = (None, None)
+        if adjacency is None:
+            orders = (
+                torch.arange(features),
+                torch.flipud(torch.arange(features)),
+            )
 
         transforms = [
             MaskedAutoregressiveTransform(
                 features=features,
                 context=context,
                 order=torch.randperm(features) if randperm else orders[i % 2],
+                adjacency=adjacency,
                 **kwargs,
             )
             for i in range(transforms)
