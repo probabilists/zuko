@@ -137,5 +137,3 @@ def test_adjacency_matrix():
 
         assert torch.allclose(tladj * (~adjacency).float(), torch.zeros_like(tladj), atol=1e-4), T
         assert torch.allclose(Jladj * (~adjacency).float(), torch.zeros_like(Jladj), atol=1e-4), T
-
-
