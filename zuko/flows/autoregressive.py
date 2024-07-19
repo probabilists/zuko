@@ -108,10 +108,12 @@ class MaskedAutoregressiveTransform(LazyTransform):
             passes = features
         self.passes = min(max(passes, 1), features)
 
-        assert (order is None) or (adjacency is None), \
-            "Parameters `order` and `adjacency_matrix` are mutually exclusive."
-        assert (passes == features) or (adjacency is None), \
-            "When using `adjacency_matrix`, `passes` has to be the number of features."
+        assert (order is None) or (
+            adjacency is None
+        ), "Parameters `order` and `adjacency_matrix` are mutually exclusive."
+        assert (passes == features) or (
+            adjacency is None
+        ), "When using `adjacency_matrix`, `passes` has to be the number of features."
 
         if adjacency is None:
             if order is None:
@@ -128,7 +130,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             assert (len(adjacency.size()) == 2) and (adjacency.size(0) == adjacency.size(1))
 
             # Remove the diagonal
-            adjacency.mul_(~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device))
+            adjacency.mul_(
+                ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
+            )
 
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
