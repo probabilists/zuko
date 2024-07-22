@@ -130,11 +130,13 @@ class MaskedAutoregressiveTransform(LazyTransform):
         else:
             assert (len(adjacency.size()) == 2) and (adjacency.size(0) == adjacency.size(1))
 
-            # Remove the diagonal
-            adjacency.mul_(
+            adjacency.mul_(  # Remove the diagonal
                 ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
             )
-            adjacency = torch.repeat_interleave(adjacency.bool(), repeats=2, dim=0)
+            adjacency = torch.cat(
+                (adjacency, torch.ones((adjacency.shape[0], context), dtype=bool)), dim=1
+            )
+            adjacency = torch.repeat_interleave(adjacency.bool(), repeats=self.total, dim=0)
 
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
