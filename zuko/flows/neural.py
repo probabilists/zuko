@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 
 from functools import partial
-from torch import BoolTensor, Tensor
+from torch import Tensor
 from torch.distributions import Transform
 from typing import Any, Dict
 
@@ -126,8 +126,6 @@ class NAF(Flow):
             (odd) transformations.
         signal: The number of signal features of the monotonic network.
         network: Keyword arguments passed to :class:`MNN`.
-        adjacency: Adjacency matrix that all layers of the flow should follow.
-            If different from :py:`None`, then `randperm` should be :py:`False`.
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MaskedAutoregressiveTransform`.
     """
 
@@ -139,17 +137,12 @@ class NAF(Flow):
         randperm: bool = False,
         signal: int = 16,
         network: Dict[str, Any] = {},  # noqa: B006
-        adjacency: BoolTensor = None,
         **kwargs,
     ):
-        assert (adjacency is None) or not randperm
-
-        orders = (None, None)
-        if adjacency is None:
-            orders = [
-                torch.arange(features),
-                torch.flipud(torch.arange(features)),
-            ]
+        orders = [
+            torch.arange(features),
+            torch.flipud(torch.arange(features)),
+        ]
 
         transforms = [
             MaskedAutoregressiveTransform(
@@ -158,7 +151,6 @@ class NAF(Flow):
                 order=torch.randperm(features) if randperm else orders[i % 2],
                 univariate=MNN(signal=signal, stack=features, **network),
                 shapes=[(signal,)],
-                adjacency=adjacency,
                 **kwargs,
             )
             for i in range(transforms)
@@ -198,8 +190,6 @@ class UNAF(Flow):
             (odd) transformations.
         signal: The number of signal features of the monotonic network.
         network: Keyword arguments passed to :class:`UMNN`.
-        adjacency: Adjacency matrix that all layers of the flow should follow.
-            If different from :py:`None`, then `randperm` should be :py:`False`.
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MaskedAutoregressiveTransform`.
     """
 
@@ -211,17 +201,12 @@ class UNAF(Flow):
         randperm: bool = False,
         signal: int = 16,
         network: Dict[str, Any] = {},  # noqa: B006
-        adjacency: BoolTensor = None,
         **kwargs,
     ):
-        assert (adjacency is None) or not randperm
-
-        orders = (None, None)
-        if adjacency is None:
-            orders = [
-                torch.arange(features),
-                torch.flipud(torch.arange(features)),
-            ]
+        orders = [
+            torch.arange(features),
+            torch.flipud(torch.arange(features)),
+        ]
 
         transforms = [
             MaskedAutoregressiveTransform(
@@ -230,7 +215,6 @@ class UNAF(Flow):
                 order=torch.randperm(features) if randperm else orders[i % 2],
                 univariate=UMNN(signal=signal, stack=features, **network),
                 shapes=[(signal,), ()],
-                adjacency=adjacency,
                 **kwargs,
             )
             for i in range(transforms)
