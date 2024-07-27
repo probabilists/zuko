@@ -218,8 +218,6 @@ class MAF(Flow):
         randperm: Whether features are randomly permuted between transformations or not.
             If :py:`False`, features are in ascending (descending) order for even
             (odd) transformations.
-        adjacency: Adjacency matrix that all layers of the flow should follow.
-            If different from :py:`None`, then `randperm` should be :py:`False`.
         kwargs: Keyword arguments passed to :class:`MaskedAutoregressiveTransform`.
 
     Example:
@@ -280,24 +278,18 @@ class MAF(Flow):
         context: int = 0,
         transforms: int = 3,
         randperm: bool = False,
-        adjacency: BoolTensor = None,
         **kwargs,
     ):
-        assert (adjacency is None) or not randperm
-
-        orders = (None, None)
-        if adjacency is None:
-            orders = (
-                torch.arange(features),
-                torch.flipud(torch.arange(features)),
-            )
+        orders = (
+            torch.arange(features),
+            torch.flipud(torch.arange(features)),
+        )
 
         transforms = [
             MaskedAutoregressiveTransform(
                 features=features,
                 context=context,
                 order=torch.randperm(features) if randperm else orders[i % 2],
-                adjacency=adjacency,
                 **kwargs,
             )
             for i in range(transforms)
