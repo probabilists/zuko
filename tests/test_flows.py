@@ -170,6 +170,6 @@ def test_adjacency_matrix():
         ))
         with pytest.raises(
             AssertionError,
-            match="`adjacency` should be a 2-dimensional squared tensor \(a matrix\).",
+            match=r"`adjacency` should be a 2-dimensional squared tensor \(a matrix\).",
         ):
             t = T(4, adjacency=adjacency)
