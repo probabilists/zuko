@@ -115,12 +115,12 @@ def test_adjacency_matrix():
     ]
 
     for T in Ts:
-        # With adjacency matrix
+        # With a correct adjacency matrix
         adjacency = torch.tensor((
-            (False, False, False, False),
             (True, False, False, False),
-            (True, False, False, False),
-            (False, True, True, False),
+            (True, True, False, False),
+            (True, False, True, False),
+            (False, True, True, True),
         ))
         t = T(4, adjacency=adjacency)
         x = randn(4)
@@ -131,6 +131,34 @@ def test_adjacency_matrix():
 
         assert torch.allclose(t().log_abs_det_jacobian(x, y), ladj, atol=1e-4), T
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
-
-        adjacency = adjacency + torch.eye(adjacency.size(0)).bool()
         assert torch.allclose(J * (~adjacency).float(), torch.zeros_like(J), atol=1e-4), T
+
+        # With False in the diagonal (3,3)
+        adjacency = torch.tensor((
+            (True, False, False, False),
+            (True, True, False, False),
+            (True, False, False, False),
+            (False, True, True, True),
+        ))
+        with pytest.raises(AssertionError, match="The diagonal of `adjacency` should be all ones."):
+            t = T(4, adjacency=adjacency)
+
+        # With cycles (2, 4)
+        adjacency = torch.tensor((
+            (True, False, False, False),
+            (True, True, False, True),
+            (True, False, True, False),
+            (False, True, True, True),
+        ))
+        with pytest.raises(AssertionError, match="The graph contains cycles."):
+            t = T(4, adjacency=adjacency)
+
+        # Non-squared matrix
+        adjacency = torch.tensor((
+            (True, False, False, False),
+            (True, True, False, False),
+            (True, False, True, False),
+        ))
+        with pytest.raises(AssertionError, match="`adjacency` should be a 2-dimensional squared tensor (a matrix)."):
+            t = T(4, adjacency=adjacency)
+
