@@ -126,6 +126,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
             out_order = torch.repeat_interleave(self.order, self.total)
             adjacency = out_order[:, None] > in_order
         else:
+            adjacency = adjacency.clone()  # Because we are going to remove the diagonal
             diameter = self._check_adjacency(adjacency)
             if passes is None:
                 self.passes = diameter
@@ -153,7 +154,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         ), "`adjacency` should be a 2-dimensional squared tensor (a matrix)."
 
         assert adjacency.diag().all(), "The diagonal of `adjacency` should be all ones."
-        adjacency.mul_(  # Remove the diagonal
+        adjacency = adjacency.mul_(  # Remove the diagonal
             ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
         )
 
