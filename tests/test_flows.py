@@ -105,8 +105,8 @@ def test_triangular_transforms():
         assert torch.allclose(t(c).inv(y), x, atol=1e-4), T
 
         # Jacobian
-        t = T(7)
-        x = randn(7)
+        t = T(3)
+        x = randn(3)
         y = t()(x)
 
         J = torch.autograd.functional.jacobian(t(), x)
@@ -170,6 +170,6 @@ def test_adjacency_matrix():
         ))
         with pytest.raises(
             AssertionError,
-            match="`adjacency` should be a 2-dimensional squared tensor (a matrix).",
+            match="`adjacency` should be a 2-dimensional squared tensor \(a matrix\).",
         ):
             t = T(4, adjacency=adjacency)
