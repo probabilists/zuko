@@ -39,11 +39,11 @@ class MaskedAutoregressiveTransform(LazyTransform):
             :py:`None`, use the number of features instead, making the transformation
             fully autoregressive. Coupling corresponds to :py:`passes=2`.
         order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
-        univariate: The univariate transformation constructor.
-        shapes: The shapes of the univariate transformation parameters.
         adjacency: The adjacency matrix describing the factorization of the
             joint distribution. If different from :py:`None`, then `order` and `passes`
             arguments are ignored and inferred directly from the adjacency matrix.
+        univariate: The univariate transformation constructor.
+        shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
 
     Example:
@@ -90,9 +90,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
         context: int = 0,
         passes: int = None,
         order: LongTensor = None,
+        adjacency: BoolTensor = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
-        adjacency: BoolTensor = None,
         **kwargs,
     ):
         super().__init__()
