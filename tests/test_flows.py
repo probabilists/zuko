@@ -82,7 +82,7 @@ def test_triangular_transforms():
         GeneralCouplingTransform,
         MaskedAutoregressiveTransform,
         partial(MaskedAutoregressiveTransform, passes=2),
-        partial(MaskedAutoregressiveTransform, adjacency=adjacency)
+        partial(MaskedAutoregressiveTransform, adjacency=adjacency),
     ]
 
     for T in Ts:
@@ -147,7 +147,9 @@ def test_adjacency_matrix():
             (True, False, False, False),
             (False, True, True, True),
         ))
-        with pytest.raises(AssertionError, match="The diagonal of `adjacency` should be all ones."):
+        with pytest.raises(
+            AssertionError, match="The diagonal of `adjacency` should be all ones."
+        ):
             t = T(4, adjacency=adjacency)
 
         # With cycles (2, 4)
@@ -166,6 +168,8 @@ def test_adjacency_matrix():
             (True, True, False, False),
             (True, False, True, False),
         ))
-        with pytest.raises(AssertionError, match="`adjacency` should be a 2-dimensional squared tensor (a matrix)."):
+        with pytest.raises(
+            AssertionError,
+            match="`adjacency` should be a 2-dimensional squared tensor (a matrix).",
+        ):
             t = T(4, adjacency=adjacency)
-

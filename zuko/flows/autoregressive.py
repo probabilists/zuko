@@ -7,7 +7,7 @@ __all__ = [
 
 import torch
 
-from functools import partial, reduce
+from functools import partial
 from math import ceil, prod
 from torch import BoolTensor, LongTensor, Size, Tensor
 from torch.distributions import Transform
@@ -148,9 +148,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             Based on the code for computing the topological generations in networkx
             # https://networkx.org/documentation/stable/_modules/networkx/algorithms/dag.html#is_directed_acyclic_graph
         """
-        assert (len(adjacency.size()) == 2) and (adjacency.size(0) == adjacency.size(1)), (
-            "`adjacency` should be a 2-dimensional squared tensor (a matrix)."
-        )
+        assert (len(adjacency.size()) == 2) and (
+            adjacency.size(0) == adjacency.size(1)
+        ), "`adjacency` should be a 2-dimensional squared tensor (a matrix)."
 
         assert adjacency.diag().all(), "The diagonal of `adjacency` should be all ones."
         adjacency.mul_(  # Remove the diagonal
