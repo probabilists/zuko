@@ -128,11 +128,8 @@ class MaskedAutoregressiveTransform(LazyTransform):
             out_order = torch.repeat_interleave(self.order, self.total)
             adjacency = out_order[:, None] > in_order
         else:
-            adjacency.mul_(  # Remove the diagonal (if it is non-zero)
-                ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
-            )
-
-            self._check_adjacency(adjacency)
+            diameter = self._check_adjacency(adjacency)
+            self.passes = diameter
 
             adjacency = torch.cat(
                 (adjacency, torch.ones((adjacency.shape[0], context), dtype=bool)), dim=1
@@ -142,34 +139,41 @@ class MaskedAutoregressiveTransform(LazyTransform):
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
 
-    def _check_adjacency(self, adjacency: BoolTensor) -> None:
+    def _check_adjacency(self, adjacency: BoolTensor) -> int:
+        r"""Checks that adjacency is valid (squared tensor, zeroed diagonal, and acyclic)
+        Args:
+            adjacency: The adjacency matrix.
+
+        Returns:
+            The diameter of the adjacency matrix (which describes the number of passes).
+            Based on the code for computing the topological generations in networkx
+            # https://networkx.org/documentation/stable/_modules/networkx/algorithms/dag.html#is_directed_acyclic_graph
+        """
         assert (len(adjacency.size()) == 2) and (adjacency.size(0) == adjacency.size(1)), (
-            "The adjacency matrix" "should be squared"
+            "`adjacency` should be a 2-dimensional squared tensor (a matrix)."
         )
 
-        # Algorithm to compute all the topological generations
-        # Adapted and simplified from the networkx library:
-        # https://networkx.org/documentation/stable/_modules/networkx/algorithms/dag.html#is_directed_acyclic_graph
-        all_generations = []
-        indegree_map = {v: d.item() for v, d in enumerate(adjacency.sum(dim=1)) if d > 0}
-        zero_indegree = [v for v in range(adjacency.size(0)) if v not in indegree_map]
+        assert adjacency.diag().all(), "The diagonal of `adjacency` should be all ones."
+        adjacency.mul_(  # Remove the diagonal
+            ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
+        )
 
+        all_generations = []
+        indegree = adjacency.sum(dim=1).tolist()
+        zero_indegree = [n for n, d in enumerate(indegree) if d == 0]
         while zero_indegree:
-            this_generation = zero_indegree
-            zero_indegree = []
+            this_generation, zero_indegree = zero_indegree, []
             for node in this_generation:
                 for child in adjacency[:, node].nonzero():
                     child = child.item()
-                    indegree_map[child] -= 1
-                    if indegree_map[child] == 0:
+                    indegree[child] -= 1
+                    if indegree[child] == 0:
                         zero_indegree.append(child)
-                        del indegree_map[child]
             all_generations.append(this_generation)
 
-        assert not indegree_map, "The adjacency matrix contains cycles"
+        assert all(d == 0 for d in indegree), "The graph contains cycles."
 
-        self.passes = len(all_generations)  # Graph diameter
-        self.order = torch.tensor(reduce(list.__add__, all_generations))
+        return len(all_generations)  # Graph diameter
 
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
