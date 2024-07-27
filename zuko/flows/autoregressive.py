@@ -40,8 +40,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             fully autoregressive. Coupling corresponds to :py:`passes=2`.
         order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
         adjacency: The adjacency matrix describing the factorization of the
-            joint distribution. If different from :py:`None`, then `order` and `passes`
-            arguments are ignored and inferred directly from the adjacency matrix.
+            joint distribution. If different from :py:`None`, then `order` must be
+            :py:`None`. If `passes` is :py:`None`, then `passes` is set to the
+            diameter of the matrix described by `adjacency`.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
@@ -105,18 +106,15 @@ class MaskedAutoregressiveTransform(LazyTransform):
         # Adjacency
         self.register_buffer('order', None)
 
-        if passes is None:
-            passes = features
-        self.passes = min(max(passes, 1), features)
-
         assert (order is None) or (
             adjacency is None
         ), "Parameters `order` and `adjacency_matrix` are mutually exclusive."
-        assert (passes == features) or (
-            adjacency is None
-        ), "When using `adjacency_matrix`, `passes` has to be the number of features."
 
         if adjacency is None:
+            if passes is None:
+                passes = features
+            self.passes = min(max(passes, 1), features)
+
             if order is None:
                 order = torch.arange(features)
             else:
@@ -129,7 +127,8 @@ class MaskedAutoregressiveTransform(LazyTransform):
             adjacency = out_order[:, None] > in_order
         else:
             diameter = self._check_adjacency(adjacency)
-            self.passes = diameter
+            if passes is None:
+                self.passes = diameter
 
             adjacency = torch.cat(
                 (adjacency, torch.ones((adjacency.shape[0], context), dtype=bool)), dim=1
