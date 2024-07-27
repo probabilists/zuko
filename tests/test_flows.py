@@ -71,11 +71,18 @@ def test_flows(tmp_path: Path, F: callable):
 
 
 def test_triangular_transforms():
+    adjacency = torch.tensor((
+        (True, False, False),
+        (True, True, False),
+        (True, False, True),
+    ))
+
     Ts = [
         ElementWiseTransform,
         GeneralCouplingTransform,
         MaskedAutoregressiveTransform,
         partial(MaskedAutoregressiveTransform, passes=2),
+        partial(MaskedAutoregressiveTransform, adjacency=adjacency)
     ]
 
     for T in Ts:
