@@ -38,11 +38,10 @@ class MaskedAutoregressiveTransform(LazyTransform):
         passes: The number of sequential passes for the inverse transformation. If
             :py:`None`, use the number of features instead, making the transformation
             fully autoregressive. Coupling corresponds to :py:`passes=2`.
-        order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
-        adjacency: The adjacency matrix describing the factorization of the
-            joint distribution. If different from :py:`None`, then `order` must be
-            :py:`None`. If `passes` is :py:`None`, then `passes` is set to the
-            diameter of the matrix described by `adjacency`.
+        order: A feature ordering. If :py:`None`, use :py:`range(features)` instead.
+        adjacency: An adjacency matrix describing the conditioning graph. If `adjacency`
+            is provided, `order` is ignored and `passes` is replaced by the diameter of
+            the graph.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
@@ -53,7 +52,6 @@ class MaskedAutoregressiveTransform(LazyTransform):
         MaskedAutoregressiveTransform(
           (base): MonotonicAffineTransform()
           (order): [0, 1, 2]
-          (adjacency): None
           (hyper): MaskedMLP(
             (0): MaskedLinear(in_features=7, out_features=64, bias=True)
             (1): ReLU()
@@ -77,6 +75,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         context: int = 0,
         passes: int = None,
         order: LongTensor = None,
+        adjacency: BoolTensor = None,
         *args,
         **kwargs,
     ) -> LazyTransform:
@@ -106,57 +105,58 @@ class MaskedAutoregressiveTransform(LazyTransform):
         # Adjacency
         self.register_buffer('order', None)
 
-        assert (order is None) or (
-            adjacency is None
-        ), "Parameters `order` and `adjacency_matrix` are mutually exclusive."
-
         if adjacency is None:
             if passes is None:
                 passes = features
-            self.passes = min(max(passes, 1), features)
 
             if order is None:
                 order = torch.arange(features)
             else:
-                order = torch.as_tensor(order)
+                order = torch.as_tensor(order, dtype=int)
 
+            assert order.ndim == 1, "'order' should be a vector."
+            assert order.shape[0] == features, f"'order' should have {features} elements."
+
+            self.passes = min(max(passes, 1), features)
             self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
 
-            in_order = torch.cat((self.order, torch.full((context,), -1)))
-            out_order = torch.repeat_interleave(self.order, self.total)
-            adjacency = out_order[:, None] > in_order
+            adjacency = self.order[:, None] > self.order
         else:
-            adjacency = adjacency.clone()  # Because we are going to remove the diagonal
-            diameter = self._check_adjacency(adjacency)
-            if passes is None:
-                self.passes = diameter
+            adjacency = torch.as_tensor(adjacency, dtype=bool)
 
+            assert adjacency.ndim == 2, "'adjacency' should be a matrix."
+            assert adjacency.shape[0] == features, f"'adjacency' should have {features} rows."
+            assert adjacency.shape[1] == features, f"'adjacency' should have {features} columns."
+            assert not adjacency.diag().any(), "'adjacency' should have zeros on the diagonal."
+
+            self.passes = self._dag_diameter(adjacency)
+
+        if context > 0:
             adjacency = torch.cat(
-                (adjacency, torch.ones((adjacency.shape[0], context), dtype=bool)), dim=1
+                (adjacency, torch.ones((features, context), dtype=bool)),
+                dim=1,
             )
-            adjacency = torch.repeat_interleave(adjacency.bool(), repeats=self.total, dim=0)
+
+        adjacency = torch.repeat_interleave(adjacency, repeats=self.total, dim=0)
 
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
 
-    def _check_adjacency(self, adjacency: BoolTensor) -> int:
-        r"""Checks that adjacency is valid (squared tensor, zeroed diagonal, and acyclic)
-        Args:
-            adjacency: The adjacency matrix.
+    @staticmethod
+    def _dag_diameter(adjacency: BoolTensor) -> int:
+        r"""Returns the diameter of a directed acyclic graph.
+
+        If the graph contains cycles, this function raises an error.
+
+        Credits:
+            This code is adapted from :func:`networkx.topological_generations`.
+
+        Arguments:
+            adjacency: An adjacency matrix describing a directed graph.
 
         Returns:
-            The diameter of the adjacency matrix (which describes the number of passes).
-            Based on the code for computing the topological generations in networkx
-            # https://networkx.org/documentation/stable/_modules/networkx/algorithms/dag.html#is_directed_acyclic_graph
+            The diameter of the graph.
         """
-        assert (len(adjacency.size()) == 2) and (
-            adjacency.size(0) == adjacency.size(1)
-        ), "`adjacency` should be a 2-dimensional squared tensor (a matrix)."
-
-        assert adjacency.diag().all(), "The diagonal of `adjacency` should be all ones."
-        adjacency = adjacency.mul_(  # Remove the diagonal
-            ~torch.eye(adjacency.size(0), dtype=torch.bool, device=adjacency.device)
-        )
 
         all_generations = []
         indegree = adjacency.sum(dim=1).tolist()
@@ -173,26 +173,27 @@ class MaskedAutoregressiveTransform(LazyTransform):
 
         assert all(d == 0 for d in indegree), "The graph contains cycles."
 
-        return len(all_generations)  # Graph diameter
+        return len(all_generations)
 
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
-        order = self.order
 
         if self.order is None:
-            adjacency = 'Set!'  # TODO I don't want to show the entire matrix.
+            return '\n'.join([
+                f'(base): {base}',
+                f'(passes): {self.passes}',
+            ])
         else:
-            adjacency = None
-            order = order.tolist()
+            order = self.order.tolist()
+
             if len(order) > 10:
                 order = order[:5] + [...] + order[-5:]
                 order = str(order).replace('Ellipsis', '...')
 
-        return '\n'.join([
-            f'(base): {base}',
-            f'(order): {order}',
-            f'(adjacency): {adjacency}',
-        ])
+            return '\n'.join([
+                f'(base): {base}',
+                f'(order): {order}',
+            ])
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:
         if c is not None:
@@ -232,7 +233,6 @@ class MAF(Flow):
             (0): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [0, 1, 2]
-              (adjacency): None
               (hyper): MaskedMLP(
                 (0): MaskedLinear(in_features=7, out_features=64, bias=True)
                 (1): ReLU()
@@ -244,7 +244,6 @@ class MAF(Flow):
             (1): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [2, 1, 0]
-              (adjacency): None
               (hyper): MaskedMLP(
                 (0): MaskedLinear(in_features=7, out_features=64, bias=True)
                 (1): ReLU()
@@ -256,7 +255,6 @@ class MAF(Flow):
             (2): MaskedAutoregressiveTransform(
               (base): MonotonicAffineTransform()
               (order): [0, 1, 2]
-              (adjacency): None
               (hyper): MaskedMLP(
                 (0): MaskedLinear(in_features=7, out_features=64, bias=True)
                 (1): ReLU()

@@ -71,33 +71,36 @@ def test_flows(tmp_path: Path, F: callable):
 
 
 def test_triangular_transforms():
-    adjacency = torch.tensor((
-        (True, False, False),
-        (True, True, False),
-        (True, False, True),
-    ))
+    order = torch.randperm(5)
+
+    adjacency = torch.rand((5, 5)) < 0.25
+    adjacency = torch.tril(adjacency, diagonal=-1)
+    adjacency[1, 0] = True
+    adjacency = adjacency[order, :][:, order]
 
     Ts = [
         ElementWiseTransform,
         GeneralCouplingTransform,
+        partial(GeneralCouplingTransform, mask=order % 2),
         MaskedAutoregressiveTransform,
         partial(MaskedAutoregressiveTransform, passes=2),
+        partial(MaskedAutoregressiveTransform, order=order),
         partial(MaskedAutoregressiveTransform, adjacency=adjacency),
     ]
 
     for T in Ts:
         # Without context
-        t = T(3)
-        x = randn(3)
+        t = T(5)
+        x = randn(64, 5)
         y = t()(x)
 
-        assert y.shape == x.shape, t
-        assert y.requires_grad, t
+        assert y.shape == x.shape, T
+        assert y.requires_grad, T
         assert torch.allclose(t().inv(y), x, atol=1e-4), T
 
         # With context
-        t = T(3, 5)
-        x, c = randn(256, 3), randn(5)
+        t = T(5, 7)
+        x, c = randn(64, 5), randn(7)
         y = t(c)(x)
 
         assert y.shape == x.shape, T
@@ -105,8 +108,8 @@ def test_triangular_transforms():
         assert torch.allclose(t(c).inv(y), x, atol=1e-4), T
 
         # Jacobian
-        t = T(3)
-        x = randn(3)
+        t = T(5)
+        x = randn(5)
         y = t()(x)
 
         J = torch.autograd.functional.jacobian(t(), x)
@@ -117,59 +120,34 @@ def test_triangular_transforms():
 
 
 def test_adjacency_matrix():
-    Ts = [
-        MaskedAutoregressiveTransform,
-    ]
+    T = MaskedAutoregressiveTransform
 
-    for T in Ts:
-        # With a correct adjacency matrix
-        adjacency = torch.tensor((
-            (True, False, False, False),
-            (True, True, False, False),
-            (True, False, True, False),
-            (False, True, True, True),
-        ))
-        t = T(4, adjacency=adjacency)
-        x = randn(4)
-        y = t()(x)
+    # With a valid adjacency matrix
+    order = torch.randperm(5)
 
-        J = torch.autograd.functional.jacobian(t(), x)
-        ladj = torch.linalg.slogdet(J).logabsdet
+    adjacency = torch.rand((5, 5)) < 0.25
+    adjacency = torch.tril(adjacency, diagonal=-1)
+    adjacency[1, 0] = True
+    adjacency = adjacency[order, :][:, order]
 
-        assert torch.allclose(t().log_abs_det_jacobian(x, y), ladj, atol=1e-4), T
-        assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
-        assert torch.allclose(J * (~adjacency).float(), torch.zeros_like(J), atol=1e-4), T
+    t = T(5, adjacency=adjacency)
+    x = randn(5)
 
-        # With False in the diagonal (3,3)
-        adjacency = torch.tensor((
-            (True, False, False, False),
-            (True, True, False, False),
-            (True, False, False, False),
-            (False, True, True, True),
-        ))
-        with pytest.raises(
-            AssertionError, match="The diagonal of `adjacency` should be all ones."
-        ):
-            t = T(4, adjacency=adjacency)
+    J = torch.autograd.functional.jacobian(t(), x)
 
-        # With cycles (2, 4)
-        adjacency = torch.tensor((
-            (True, False, False, False),
-            (True, True, False, True),
-            (True, False, True, False),
-            (False, True, True, True),
-        ))
-        with pytest.raises(AssertionError, match="The graph contains cycles."):
-            t = T(4, adjacency=adjacency)
+    assert (J[~(adjacency + torch.eye(5, dtype=bool))] == 0).all()
 
-        # Non-squared matrix
-        adjacency = torch.tensor((
-            (True, False, False, False),
-            (True, True, False, False),
-            (True, False, True, False),
-        ))
-        with pytest.raises(
-            AssertionError,
-            match=r"`adjacency` should be a 2-dimensional squared tensor \(a matrix\).",
-        ):
-            t = T(4, adjacency=adjacency)
+    # With True in the diagonal
+    adjacency_invalid = adjacency.clone()
+    adjacency_invalid[0, 0] = True
+
+    with pytest.raises(AssertionError, match="'adjacency' should have zeros on the diagonal."):
+        t = T(5, adjacency=adjacency_invalid)
+
+    # With cycles
+    adjacency_invalid = adjacency.clone()
+    adjacency_invalid[0, 1] = True
+    adjacency_invalid[1, 0] = True
+
+    with pytest.raises(AssertionError, match="The graph contains cycles."):
+        t = T(5, adjacency=adjacency_invalid)

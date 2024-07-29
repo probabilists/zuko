@@ -93,15 +93,21 @@ class GeneralCouplingTransform(LazyTransform):
         self.total = sum(prod(s) for s in shapes)
 
         # Mask
-        self.register_buffer('mask', None)
-
         if mask is None:
-            self.mask = torch.arange(features) % 2 == 1
+            mask = torch.arange(features) % 2 == 1
         else:
-            self.mask = mask
+            mask = torch.as_tensor(mask, dtype=bool)
 
-        features_a = self.mask.sum().item()
+        assert mask.ndim == 1, "'mask' should be a vector."
+        assert mask.shape[0] == features, f"'mask' should have {features} elements."
+
+        features_a = mask.sum().item()
         features_b = features - features_a
+
+        assert features_a > 0
+        assert features_b > 0
+
+        self.register_buffer('mask', mask)
 
         # Hyper network
         self.hyper = MLP(features_a + context, features_b * self.total, **kwargs)
