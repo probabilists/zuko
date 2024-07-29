@@ -282,10 +282,10 @@ class MAF(Flow):
         randperm: bool = False,
         **kwargs,
     ):
-        orders = (
+        orders = [
             torch.arange(features),
             torch.flipud(torch.arange(features)),
-        )
+        ]
 
         transforms = [
             MaskedAutoregressiveTransform(
