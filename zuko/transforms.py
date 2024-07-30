@@ -981,7 +981,9 @@ class CouplingTransform(Transform):
 
     Arguments:
         meta: A function which returns a transformation :math:`f` given :math:`x_a`.
-        mask: A coupling mask defining the split :math:`x \to (x_a, x_b)`.
+        mask: A coupling mask defining the split :math:`x \to (x_a, x_b)`. Ones
+            correspond to the constant split :math:`x_a` and zeros to the transformed
+            split :math:`x_b`.
     """
 
     domain = constraints.real_vector

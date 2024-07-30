@@ -9,7 +9,7 @@ import torch
 
 from functools import partial
 from math import ceil, prod
-from torch import LongTensor, Size, Tensor
+from torch import BoolTensor, LongTensor, Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
@@ -38,7 +38,10 @@ class MaskedAutoregressiveTransform(LazyTransform):
         passes: The number of sequential passes for the inverse transformation. If
             :py:`None`, use the number of features instead, making the transformation
             fully autoregressive. Coupling corresponds to :py:`passes=2`.
-        order: The feature ordering. If :py:`None`, use :py:`range(features)` instead.
+        order: A feature ordering. If :py:`None`, use :py:`range(features)` instead.
+        adjacency: An adjacency matrix describing the transformation graph. If
+            `adjacency` is provided, `order` is ignored and `passes` is replaced by the
+            diameter of the graph.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
@@ -72,6 +75,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         context: int = 0,
         passes: int = None,
         order: LongTensor = None,
+        adjacency: BoolTensor = None,
         *args,
         **kwargs,
     ) -> LazyTransform:
@@ -86,6 +90,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         context: int = 0,
         passes: int = None,
         order: LongTensor = None,
+        adjacency: BoolTensor = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
         **kwargs,
@@ -100,36 +105,97 @@ class MaskedAutoregressiveTransform(LazyTransform):
         # Adjacency
         self.register_buffer('order', None)
 
-        if passes is None:
-            passes = features
+        if adjacency is None:
+            if passes is None:
+                passes = features
 
-        if order is None:
-            order = torch.arange(features)
+            if order is None:
+                order = torch.arange(features)
+            else:
+                order = torch.as_tensor(order, dtype=int)
+
+            assert order.ndim == 1, "'order' should be a vector."
+            assert order.shape[0] == features, f"'order' should have {features} elements."
+
+            self.passes = min(max(passes, 1), features)
+            self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
+
+            adjacency = self.order[:, None] > self.order
         else:
-            order = torch.as_tensor(order)
+            adjacency = torch.as_tensor(adjacency, dtype=bool)
 
-        self.passes = min(max(passes, 1), features)
-        self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
+            assert adjacency.ndim == 2, "'adjacency' should be a matrix."
+            assert adjacency.shape[0] == features, f"'adjacency' should have {features} rows."
+            assert adjacency.shape[1] == features, f"'adjacency' should have {features} columns."
+            assert adjacency.diag().all(), "'adjacency' should have ones on the diagonal."
 
-        in_order = torch.cat((self.order, torch.full((context,), -1)))
-        out_order = torch.repeat_interleave(self.order, self.total)
-        adjacency = out_order[:, None] > in_order
+            adjacency = adjacency * ~torch.eye(features, dtype=bool)
+
+            self.passes = self._dag_diameter(adjacency)
+
+        if context > 0:
+            adjacency = torch.cat(
+                (adjacency, torch.ones((features, context), dtype=bool)),
+                dim=1,
+            )
+
+        adjacency = torch.repeat_interleave(adjacency, repeats=self.total, dim=0)
 
         # Hyper network
         self.hyper = MaskedMLP(adjacency, **kwargs)
 
+    @staticmethod
+    def _dag_diameter(adjacency: BoolTensor) -> int:
+        r"""Returns the diameter of a directed acyclic graph.
+
+        If the graph contains cycles, this function raises an error.
+
+        Credits:
+            This code is adapted from :func:`networkx.topological_generations`.
+
+        Arguments:
+            adjacency: An adjacency matrix representing a directed graph.
+
+        Returns:
+            The diameter of the graph.
+        """
+
+        all_generations = []
+        indegree = adjacency.sum(dim=1).tolist()
+        zero_indegree = [n for n, d in enumerate(indegree) if d == 0]
+        while zero_indegree:
+            this_generation, zero_indegree = zero_indegree, []
+            for node in this_generation:
+                for child in adjacency[:, node].nonzero():
+                    child = child.item()
+                    indegree[child] -= 1
+                    if indegree[child] == 0:
+                        zero_indegree.append(child)
+            all_generations.append(this_generation)
+
+        assert all(d == 0 for d in indegree), "The graph contains cycles."
+
+        return len(all_generations)
+
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
-        order = self.order.tolist()
 
-        if len(order) > 10:
-            order = order[:5] + [...] + order[-5:]
-            order = str(order).replace('Ellipsis', '...')
+        if self.order is None:
+            return '\n'.join([
+                f'(base): {base}',
+                f'(passes): {self.passes}',
+            ])
+        else:
+            order = self.order.tolist()
 
-        return '\n'.join([
-            f'(base): {base}',
-            f'(order): {order}',
-        ])
+            if len(order) > 10:
+                order = order[:5] + [...] + order[-5:]
+                order = str(order).replace('Ellipsis', '...')
+
+            return '\n'.join([
+                f'(base): {base}',
+                f'(order): {order}',
+            ])
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:
         if c is not None:

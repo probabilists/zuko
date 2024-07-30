@@ -71,26 +71,37 @@ def test_flows(tmp_path: Path, F: callable):
 
 
 def test_triangular_transforms():
+    order = torch.randperm(5)
+
+    adjacency = torch.rand((5, 5)) < 0.25
+    adjacency = adjacency + torch.eye(5, dtype=bool)
+    adjacency = torch.tril(adjacency)
+    adjacency[1, 0] = True
+    adjacency = adjacency[order, :][:, order]
+
     Ts = [
         ElementWiseTransform,
         GeneralCouplingTransform,
+        partial(GeneralCouplingTransform, mask=order % 2),
         MaskedAutoregressiveTransform,
         partial(MaskedAutoregressiveTransform, passes=2),
+        partial(MaskedAutoregressiveTransform, order=order),
+        partial(MaskedAutoregressiveTransform, adjacency=adjacency),
     ]
 
     for T in Ts:
         # Without context
-        t = T(3)
-        x = randn(3)
+        t = T(5)
+        x = randn(64, 5)
         y = t()(x)
 
-        assert y.shape == x.shape, t
-        assert y.requires_grad, t
+        assert y.shape == x.shape, T
+        assert y.requires_grad, T
         assert torch.allclose(t().inv(y), x, atol=1e-4), T
 
         # With context
-        t = T(3, 5)
-        x, c = randn(256, 3), randn(5)
+        t = T(5, 7)
+        x, c = randn(64, 5), randn(7)
         y = t(c)(x)
 
         assert y.shape == x.shape, T
@@ -98,8 +109,8 @@ def test_triangular_transforms():
         assert torch.allclose(t(c).inv(y), x, atol=1e-4), T
 
         # Jacobian
-        t = T(7)
-        x = randn(7)
+        t = T(5)
+        x = randn(5)
         y = t()(x)
 
         J = torch.autograd.functional.jacobian(t(), x)
@@ -107,3 +118,38 @@ def test_triangular_transforms():
 
         assert torch.allclose(t().log_abs_det_jacobian(x, y), ladj, atol=1e-4), T
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
+
+
+def test_adjacency_matrix():
+    T = MaskedAutoregressiveTransform
+
+    # With a valid adjacency matrix
+    order = torch.randperm(5)
+
+    adjacency = torch.rand((5, 5)) < 0.25
+    adjacency = adjacency + torch.eye(5, dtype=bool)
+    adjacency = torch.tril(adjacency)
+    adjacency[1, 0] = True
+    adjacency = adjacency[order, :][:, order]
+
+    t = T(5, adjacency=adjacency)
+    x = randn(5)
+
+    J = torch.autograd.functional.jacobian(t(), x)
+
+    assert (J[~adjacency] == 0).all()
+
+    # With False in the diagonal
+    adjacency_invalid = adjacency.clone()
+    adjacency_invalid[0, 0] = False
+
+    with pytest.raises(AssertionError, match="'adjacency' should have ones on the diagonal."):
+        t = T(5, adjacency=adjacency_invalid)
+
+    # With cycles
+    adjacency_invalid = adjacency.clone()
+    adjacency_invalid[0, 1] = True
+    adjacency_invalid[1, 0] = True
+
+    with pytest.raises(AssertionError, match="The graph contains cycles."):
+        t = T(5, adjacency=adjacency_invalid)
