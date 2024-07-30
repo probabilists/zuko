@@ -39,9 +39,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             :py:`None`, use the number of features instead, making the transformation
             fully autoregressive. Coupling corresponds to :py:`passes=2`.
         order: A feature ordering. If :py:`None`, use :py:`range(features)` instead.
-        adjacency: An adjacency matrix describing the conditioning graph. If `adjacency`
-            is provided, `order` is ignored and `passes` is replaced by the diameter of
-            the graph.
+        adjacency: An adjacency matrix describing the transformation graph. If
+            `adjacency` is provided, `order` is ignored and `passes` is replaced by the
+            diameter of the graph.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
@@ -127,7 +127,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             assert adjacency.ndim == 2, "'adjacency' should be a matrix."
             assert adjacency.shape[0] == features, f"'adjacency' should have {features} rows."
             assert adjacency.shape[1] == features, f"'adjacency' should have {features} columns."
-            assert not adjacency.diag().any(), "'adjacency' should have zeros on the diagonal."
+            assert adjacency.diag().all(), "'adjacency' should have ones on the diagonal."
+
+            adjacency = adjacency * ~torch.eye(features, dtype=bool)
 
             self.passes = self._dag_diameter(adjacency)
 
@@ -152,7 +154,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
             This code is adapted from :func:`networkx.topological_generations`.
 
         Arguments:
-            adjacency: An adjacency matrix describing a directed graph.
+            adjacency: An adjacency matrix representing a directed graph.
 
         Returns:
             The diameter of the graph.

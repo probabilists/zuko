@@ -74,7 +74,8 @@ def test_triangular_transforms():
     order = torch.randperm(5)
 
     adjacency = torch.rand((5, 5)) < 0.25
-    adjacency = torch.tril(adjacency, diagonal=-1)
+    adjacency = adjacency + torch.eye(5, dtype=bool)
+    adjacency = torch.tril(adjacency)
     adjacency[1, 0] = True
     adjacency = adjacency[order, :][:, order]
 
@@ -126,7 +127,8 @@ def test_adjacency_matrix():
     order = torch.randperm(5)
 
     adjacency = torch.rand((5, 5)) < 0.25
-    adjacency = torch.tril(adjacency, diagonal=-1)
+    adjacency = adjacency + torch.eye(5, dtype=bool)
+    adjacency = torch.tril(adjacency)
     adjacency[1, 0] = True
     adjacency = adjacency[order, :][:, order]
 
@@ -135,13 +137,13 @@ def test_adjacency_matrix():
 
     J = torch.autograd.functional.jacobian(t(), x)
 
-    assert (J[~(adjacency + torch.eye(5, dtype=bool))] == 0).all()
+    assert (J[~adjacency] == 0).all()
 
-    # With True in the diagonal
+    # With False in the diagonal
     adjacency_invalid = adjacency.clone()
-    adjacency_invalid[0, 0] = True
+    adjacency_invalid[0, 0] = False
 
-    with pytest.raises(AssertionError, match="'adjacency' should have zeros on the diagonal."):
+    with pytest.raises(AssertionError, match="'adjacency' should have ones on the diagonal."):
         t = T(5, adjacency=adjacency_invalid)
 
     # With cycles
