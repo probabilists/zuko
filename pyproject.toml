@@ -61,7 +61,6 @@ relative-imports-order = "closest-to-furthest"
 
 [tool.ruff.format]
 preview = true
-quote-style = "preserve"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}

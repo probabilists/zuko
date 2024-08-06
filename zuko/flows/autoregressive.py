@@ -1,8 +1,8 @@
 r"""Autoregressive flows and transformations."""
 
 __all__ = [
-    'MAF',
-    'MaskedAutoregressiveTransform',
+    "MAF",
+    "MaskedAutoregressiveTransform",
 ]
 
 import torch
@@ -103,7 +103,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         self.total = sum(prod(s) for s in shapes)
 
         # Adjacency
-        self.register_buffer('order', None)
+        self.register_buffer("order", None)
 
         if adjacency is None:
             if passes is None:
@@ -118,7 +118,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
             assert order.shape[0] == features, f"'order' should have {features} elements."
 
             self.passes = min(max(passes, 1), features)
-            self.order = torch.div(order, ceil(features / self.passes), rounding_mode='floor')
+            self.order = torch.div(order, ceil(features / self.passes), rounding_mode="floor")
 
             adjacency = self.order[:, None] > self.order
         else:
@@ -181,20 +181,20 @@ class MaskedAutoregressiveTransform(LazyTransform):
         base = self.univariate(*map(torch.randn, self.shapes))
 
         if self.order is None:
-            return '\n'.join([
-                f'(base): {base}',
-                f'(passes): {self.passes}',
+            return "\n".join([
+                f"(base): {base}",
+                f"(passes): {self.passes}",
             ])
         else:
             order = self.order.tolist()
 
             if len(order) > 10:
                 order = order[:5] + [...] + order[-5:]
-                order = str(order).replace('Ellipsis', '...')
+                order = str(order).replace("Ellipsis", "...")
 
-            return '\n'.join([
-                f'(base): {base}',
-                f'(order): {order}',
+            return "\n".join([
+                f"(base): {base}",
+                f"(order): {order}",
             ])
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:

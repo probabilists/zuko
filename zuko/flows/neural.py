@@ -1,10 +1,10 @@
 r"""Neural flows and transformations."""
 
 __all__ = [
-    'MNN',
-    'NAF',
-    'UMNN',
-    'UNAF',
+    "MNN",
+    "NAF",
+    "UMNN",
+    "UNAF",
 ]
 
 import torch
@@ -87,7 +87,7 @@ class UMNN(nn.Module):
     def __init__(self, signal: int = 16, **kwargs):
         super().__init__()
 
-        kwargs.setdefault('activation', nn.ELU)
+        kwargs.setdefault("activation", nn.ELU)
 
         self.integrand = MLP(1 + signal, 1, **kwargs)
 

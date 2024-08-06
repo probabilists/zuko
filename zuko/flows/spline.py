@@ -1,8 +1,8 @@
 r"""Spline flows."""
 
 __all__ = [
-    'NCSF',
-    'NSF',
+    "NCSF",
+    "NSF",
 ]
 
 import torch

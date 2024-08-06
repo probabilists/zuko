@@ -1,8 +1,8 @@
 r"""Gaussianization flows."""
 
 __all__ = [
-    'GF',
-    'ElementWiseTransform',
+    "GF",
+    "ElementWiseTransform",
 ]
 
 import torch
@@ -80,8 +80,8 @@ class ElementWiseTransform(LazyTransform):
     def extra_repr(self) -> str:
         base = self.univariate(*map(torch.randn, self.shapes))
 
-        return '\n'.join([
-            f'(base): {base}',
+        return "\n".join([
+            f"(base): {base}",
         ])
 
     def forward(self, c: Tensor = None) -> Transform:

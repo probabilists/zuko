@@ -8,7 +8,7 @@ from torch.distributions import *
 from zuko.transforms import *
 
 
-@pytest.mark.parametrize('batched', [False, True])
+@pytest.mark.parametrize("batched", [False, True])
 def test_univariate_transforms(batched: bool):
     batch = (256,) if batched else ()
 
@@ -31,7 +31,7 @@ def test_univariate_transforms(batched: bool):
 
     for t in ts:
         # Call
-        if hasattr(t.domain, 'lower_bound'):
+        if hasattr(t.domain, "lower_bound"):
             x = torch.linspace(t.domain.lower_bound + 1e-2, t.domain.upper_bound - 1e-2, 256)
         else:
             x = torch.linspace(-5.0, 5.0, 256)

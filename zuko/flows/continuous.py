@@ -1,8 +1,8 @@
 r"""Continuous flows and transformations."""
 
 __all__ = [
-    'CNF',
-    'FFJTransform',
+    "CNF",
+    "FFJTransform",
 ]
 
 import torch
@@ -75,12 +75,12 @@ class FFJTransform(LazyTransform):
     ):
         super().__init__()
 
-        kwargs.setdefault('activation', nn.ELU)
+        kwargs.setdefault("activation", nn.ELU)
 
         self.ode = MLP(features + context + 2 * freqs, features, **kwargs)
 
-        self.register_buffer('times', torch.tensor((0.0, 1.0)))
-        self.register_buffer('freqs', torch.arange(1, freqs + 1) * pi)
+        self.register_buffer("times", torch.tensor((0.0, 1.0)))
+        self.register_buffer("freqs", torch.arange(1, freqs + 1) * pi)
 
         self.atol = atol
         self.rtol = rtol

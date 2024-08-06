@@ -59,7 +59,6 @@ ruff format --check .
 
 Additionally, please follow these rules:
 
-* Use single quotes for strings (`'single-quoted'`) but double quotes (`"double-quoted"`) for text such as error messages.
 * Use informative but concise variable names. Single-letter names are fine if the context is clear.
 * Avoid explaining code with comments. If something is hard to understand, simplify or decompose it.
 

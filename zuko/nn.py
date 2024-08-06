@@ -1,6 +1,6 @@
 r"""Neural networks, layers and modules."""
 
-__all__ = ['MLP', 'Linear', 'MaskedMLP', 'MonotonicMLP']
+__all__ = ["MLP", "Linear", "MaskedMLP", "MonotonicMLP"]
 
 import torch
 import torch.nn as nn
@@ -14,7 +14,7 @@ def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
     if W.dim() == 2:
         return F.linear(x, W, b)
     else:
-        x = torch.einsum('...ij,...j->...i', W, x)
+        x = torch.einsum("...ij,...j->...i", W, x)
 
     if b is None:
         return x
@@ -103,9 +103,9 @@ class Linear(nn.Module):
         bias = self.bias is not None
 
         if stack is None:
-            return f'in_features={fin}, out_features={fout}, bias={bias}'
+            return f"in_features={fin}, out_features={fout}, bias={bias}"
         else:
-            return f'in_features={fin}, out_features={fout}, bias={bias}, stack={stack}'
+            return f"in_features={fin}, out_features={fout}, bias={bias}, stack={stack}"
 
     def forward(self, x: Tensor) -> Tensor:
         r"""
@@ -211,7 +211,7 @@ class MaskedLinear(nn.Linear):
     def __init__(self, adjacency: BoolTensor, **kwargs):
         super().__init__(*reversed(adjacency.shape), **kwargs)
 
-        self.register_buffer('mask', adjacency)
+        self.register_buffer("mask", adjacency)
 
     def forward(self, x: Tensor) -> Tensor:
         return F.linear(x, self.mask * self.weight, self.bias)
@@ -381,8 +381,8 @@ class MonotonicMLP(MLP):
     """
 
     def __init__(self, *args, **kwargs):
-        kwargs['activation'] = TwoWayELU
-        kwargs['normalize'] = False
+        kwargs["activation"] = TwoWayELU
+        kwargs["normalize"] = False
 
         super().__init__(*args, **kwargs)
 

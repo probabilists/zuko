@@ -9,7 +9,7 @@ from torch import randn
 from zuko.flows import *
 
 
-@pytest.mark.parametrize('F', [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
+@pytest.mark.parametrize("F", [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
 def test_flows(tmp_path: Path, F: callable):
     flow = F(3, 5)
 
@@ -52,10 +52,10 @@ def test_flows(tmp_path: Path, F: callable):
         assert torch.allclose(x, z, atol=1e-4)
 
     # Saving
-    torch.save(flow, tmp_path / 'flow.pth')
+    torch.save(flow, tmp_path / "flow.pth")
 
     # Loading
-    flow_bis = torch.load(tmp_path / 'flow.pth')
+    flow_bis = torch.load(tmp_path / "flow.pth")
 
     x, c = randn(3), randn(5)
 

@@ -3,12 +3,12 @@ r"""General purpose helpers."""
 from __future__ import annotations
 
 __all__ = [
-    'Partial',
-    'bisection',
-    'broadcast',
-    'gauss_legendre',
-    'odeint',
-    'unpack',
+    "Partial",
+    "bisection",
+    "broadcast",
+    "gauss_legendre",
+    "odeint",
+    "unpack",
 ]
 
 import math
@@ -67,11 +67,11 @@ class Partial(nn.Module):
         for i, arg in enumerate(args):
             if torch.is_tensor(arg):
                 if buffer:
-                    self.register_buffer(f'_{i}', arg)
+                    self.register_buffer(f"_{i}", arg)
                 else:
-                    self.register_parameter(f'_{i}', nn.Parameter(arg))
+                    self.register_parameter(f"_{i}", nn.Parameter(arg))
             else:
-                setattr(self, f'_{i}', arg)
+                setattr(self, f"_{i}", arg)
 
         self._nargs = len(args)
 
@@ -88,7 +88,7 @@ class Partial(nn.Module):
 
     @property
     def args(self) -> Sequence[Any]:
-        return [getattr(self, f'_{i}') for i in range(self._nargs)]
+        return [getattr(self, f"_{i}") for i in range(self._nargs)]
 
     @property
     def kwargs(self) -> Dict[str, Any]:
@@ -96,9 +96,9 @@ class Partial(nn.Module):
 
     def extra_repr(self) -> str:
         if isinstance(self.f, nn.Module):
-            return ''
+            return ""
         else:
-            return f'(f): {self.f}'
+            return f"(f): {self.f}"
 
     def forward(self, *args, **kwargs) -> Any:
         r"""
@@ -326,7 +326,7 @@ class GaussLegendre(torch.autograd.Function):
         nodes = (nodes + 1) / 2
         weights = weights / 2
 
-        kwargs.setdefault('dtype', torch.get_default_dtype())
+        kwargs.setdefault("dtype", torch.get_default_dtype())
 
         return (
             torch.as_tensor(nodes, **kwargs),

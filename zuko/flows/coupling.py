@@ -1,8 +1,8 @@
 r"""Coupling flows and transformations."""
 
 __all__ = [
-    'NICE',
-    'GeneralCouplingTransform',
+    "NICE",
+    "GeneralCouplingTransform",
 ]
 
 import torch
@@ -107,7 +107,7 @@ class GeneralCouplingTransform(LazyTransform):
         assert features_a > 0
         assert features_b > 0
 
-        self.register_buffer('mask', mask)
+        self.register_buffer("mask", mask)
 
         # Hyper network
         self.hyper = MLP(features_a + context, features_b * self.total, **kwargs)
@@ -118,11 +118,11 @@ class GeneralCouplingTransform(LazyTransform):
 
         if len(mask) > 10:
             mask = mask[:5] + [...] + mask[-5:]
-            mask = str(mask).replace('Ellipsis', '...')
+            mask = str(mask).replace("Ellipsis", "...")
 
-        return '\n'.join([
-            f'(base): {base}',
-            f'(mask): {mask}',
+        return "\n".join([
+            f"(base): {base}",
+            f"(mask): {mask}",
         ])
 
     def meta(self, c: Tensor, x: Tensor) -> Transform:

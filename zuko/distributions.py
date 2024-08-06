@@ -1,18 +1,18 @@
 r"""Parameterizable probability distributions."""
 
 __all__ = [
-    'BoxUniform',
-    'DiagNormal',
-    'GeneralizedNormal',
-    'Joint',
-    'Maximum',
-    'Minimum',
-    'Mixture',
-    'NormalizingFlow',
-    'Sort',
-    'TopK',
-    'TransformedUniform',
-    'Truncated',
+    "BoxUniform",
+    "DiagNormal",
+    "GeneralizedNormal",
+    "Joint",
+    "Maximum",
+    "Minimum",
+    "Mixture",
+    "NormalizingFlow",
+    "Sort",
+    "TopK",
+    "TransformedUniform",
+    "Truncated",
 ]
 
 import math
@@ -88,12 +88,12 @@ class NormalizingFlow(Distribution):
 
     def __repr__(self) -> str:
         lines = [
-            f'(transform): {self.transform}',
-            f'(base): {self.base}',
+            f"(transform): {self.transform}",
+            f"(base): {self.base}",
         ]
-        lines = indent('\n'.join(lines), '  ')
+        lines = indent("\n".join(lines), "  ")
 
-        return self.__class__.__name__ + '(\n' + lines + '\n)'
+        return self.__class__.__name__ + "(\n" + lines + "\n)"
 
     @property
     def batch_shape(self) -> Size:
@@ -167,9 +167,9 @@ class Joint(Distribution):
 
     def __repr__(self) -> str:
         lines = map(repr, self.marginals)
-        lines = indent('\n'.join(lines), '  ')
+        lines = indent("\n".join(lines), "  ")
 
-        return self.__class__.__name__ + '(\n' + lines + '\n)'
+        return self.__class__.__name__ + "(\n" + lines + "\n)"
 
     @property
     def batch_shape(self) -> Size:
@@ -246,7 +246,7 @@ class Mixture(Distribution):
         self.logits = logits
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.base})'
+        return f"{self.__class__.__name__}({self.base})"
 
     @property
     def batch_shape(self) -> Size:
@@ -304,7 +304,7 @@ class GeneralizedNormal(Distribution):
         tensor(-0.0281)
     """
 
-    arg_constraints = {'beta': constraints.positive}
+    arg_constraints = {"beta": constraints.positive}
     support = constraints.real
     has_rsample = True
 
@@ -357,7 +357,7 @@ class DiagNormal(Independent):
         super().__init__(Normal(torch.as_tensor(loc), torch.as_tensor(scale)), ndims)
 
     def __repr__(self) -> str:
-        return 'Diag' + repr(self.base_dist)
+        return "Diag" + repr(self.base_dist)
 
     def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(DiagNormal, new)
@@ -390,7 +390,7 @@ class BoxUniform(Independent):
         super().__init__(Uniform(torch.as_tensor(lower), torch.as_tensor(upper)), ndims)
 
     def __repr__(self) -> str:
-        return 'Box' + repr(self.base_dist)
+        return "Box" + repr(self.base_dist)
 
     def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
         new = self._get_checked_instance(BoxUniform, new)
@@ -453,8 +453,8 @@ class Truncated(Distribution):
     def __init__(
         self,
         base: Distribution,
-        lower: Tensor = float('-inf'),
-        upper: Tensor = float('+inf'),
+        lower: Tensor = float("-inf"),
+        upper: Tensor = float("+inf"),
     ):
         super().__init__()
 
@@ -464,7 +464,7 @@ class Truncated(Distribution):
         self.uniform = Uniform(base.cdf(lower), base.cdf(upper))
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.base})'
+        return f"{self.__class__.__name__}({self.base})"
 
     @property
     def batch_shape(self) -> Size:
@@ -528,7 +528,7 @@ class Sort(Distribution):
         self.log_fact = math.log(math.factorial(n))
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.base}, {self.n})'
+        return f"{self.__class__.__name__}({self.base}, {self.n})"
 
     @property
     def batch_shape(self) -> Size:
@@ -608,7 +608,7 @@ class TopK(Sort):
         self.log_fact = self.log_fact - math.log(math.factorial(n - k))
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.base}, {self.k}, {self.n})'
+        return f"{self.__class__.__name__}({self.base}, {self.k}, {self.n})"
 
     @property
     def event_shape(self) -> Size:

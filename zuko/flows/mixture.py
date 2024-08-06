@@ -1,7 +1,7 @@
 r"""Mixture models."""
 
 __all__ = [
-    'GMM',
+    "GMM",
 ]
 
 import torch

@@ -5,10 +5,10 @@ import torch
 import zuko
 
 
-@pytest.fixture(autouse=True, scope='module')
+@pytest.fixture(autouse=True, scope="module")
 def doctest_imports(doctest_namespace):
-    doctest_namespace['torch'] = torch
-    doctest_namespace['zuko'] = zuko
+    doctest_namespace["torch"] = torch
+    doctest_namespace["zuko"] = zuko
 
 
 @pytest.fixture(autouse=True)

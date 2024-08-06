@@ -3,13 +3,13 @@ r"""Core building blocks."""
 from __future__ import annotations
 
 __all__ = [
-    'Flow',
-    'LazyComposedTransform',
-    'LazyDistribution',
-    'LazyTransform',
-    'Unconditional',
-    'UnconditionalDistribution',
-    'UnconditionalTransform',
+    "Flow",
+    "LazyComposedTransform",
+    "LazyDistribution",
+    "LazyTransform",
+    "Unconditional",
+    "UnconditionalDistribution",
+    "UnconditionalTransform",
 ]
 
 import abc
@@ -114,7 +114,7 @@ class LazyComposedTransform(LazyTransform):
         self.transforms = nn.ModuleList(transforms)
 
     def __repr__(self) -> str:
-        return repr(self.transforms).replace('ModuleList', 'LazyComposedTransform', 1)
+        return repr(self.transforms).replace("ModuleList", "LazyComposedTransform", 1)
 
     def forward(self, c: Any = None) -> Transform:
         r"""
@@ -211,15 +211,15 @@ class Unconditional(nn.Module):
 
         for i, arg in enumerate(args):
             if buffer:
-                self.register_buffer(f'_{i}', arg)
+                self.register_buffer(f"_{i}", arg)
             else:
-                self.register_parameter(f'_{i}', nn.Parameter(arg))
+                self.register_parameter(f"_{i}", nn.Parameter(arg))
 
         self.kwargs = kwargs
 
     def extra_repr(self) -> str:
         if isinstance(self.meta, nn.Module):
-            return ''
+            return ""
         else:
             return repr(self.forward())
 
@@ -271,7 +271,7 @@ class UnconditionalDistribution(Partial, LazyDistribution):
 
     def extra_repr(self) -> str:
         if isinstance(self.f, nn.Module):
-            return ''
+            return ""
         else:
             return repr(self.forward())
 
@@ -319,7 +319,7 @@ class UnconditionalTransform(Partial, LazyTransform):
 
     def extra_repr(self) -> str:
         if isinstance(self.f, nn.Module):
-            return ''
+            return ""
         else:
             return repr(self.forward())
 

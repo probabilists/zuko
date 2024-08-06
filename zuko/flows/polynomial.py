@@ -1,8 +1,8 @@
 r"""Polynomial flows."""
 
 __all__ = [
-    'BPF',
-    'SOSPF',
+    "BPF",
+    "SOSPF",
 ]
 
 
