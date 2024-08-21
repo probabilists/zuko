@@ -60,7 +60,7 @@ ruff format --check .
 Additionally, please follow these rules:
 
 * Use informative but concise variable names. Single-letter names are fine if the context is clear.
-* Avoid explaining code with comments. If something is hard to understand, simplify or decompose it.
+* Good comments [explain WHY, not HOW](https://www.jackfranklin.co.uk/blog/code-comments-why-not-how/).
 
 ### Documentation
 
