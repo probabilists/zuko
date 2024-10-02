@@ -14,9 +14,9 @@ from torch.distributions import Transform
 from typing import Callable, Sequence
 
 # isort: split
-from .core import Flow, LazyTransform, UnconditionalDistribution
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
+from ..lazy import Flow, LazyTransform, UnconditionalDistribution
 from ..nn import MaskedMLP
 from ..transforms import AutoregressiveTransform, DependentTransform, MonotonicAffineTransform
 from ..utils import broadcast, unpack

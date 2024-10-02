@@ -14,8 +14,8 @@ from torch import Tensor
 from torch.distributions import Transform
 
 # isort: split
-from .core import Flow, LazyTransform, UnconditionalDistribution
 from ..distributions import DiagNormal
+from ..lazy import Flow, LazyTransform, UnconditionalDistribution
 from ..nn import MLP
 from ..transforms import FreeFormJacobianTransform
 from ..utils import broadcast

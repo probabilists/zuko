@@ -9,7 +9,7 @@ from torch import randn
 from zuko.flows import *
 
 
-@pytest.mark.parametrize("F", [GMM, NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
+@pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
 def test_flows(tmp_path: Path, F: callable):
     flow = F(3, 5)
 
@@ -44,12 +44,11 @@ def test_flows(tmp_path: Path, F: callable):
             assert p.grad is not None
 
     # Invertibility
-    if isinstance(flow, Flow):
-        x, c = randn(256, 3), randn(256, 5)
-        t = flow(c).transform
-        z = t.inv(t(x))
+    x, c = randn(256, 3), randn(256, 5)
+    t = flow(c).transform
+    z = t.inv(t(x))
 
-        assert torch.allclose(x, z, atol=1e-4)
+    assert torch.allclose(x, z, atol=1e-4)
 
     # Saving
     torch.save(flow, tmp_path / "flow.pth")

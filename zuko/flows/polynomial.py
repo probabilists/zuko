@@ -8,7 +8,7 @@ __all__ = [
 
 # isort: split
 from .autoregressive import MAF
-from .core import UnconditionalTransform
+from ..lazy import UnconditionalTransform
 from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform
 
 

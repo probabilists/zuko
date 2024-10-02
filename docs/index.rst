@@ -10,7 +10,7 @@ Zuko
 Zuko is a Python package that implements normalizing flows in `PyTorch <https://pytorch.org>`_. It relies as much as possible on distributions and transformations already provided by PyTorch. Unfortunately, the `Distribution` and `Transform` classes of :mod:`torch` are not sub-classes of :class:`torch.nn.Module`, which means you cannot send their internal tensors to GPU with :py:`.to('cuda')` or retrieve their parameters with :py:`.parameters()`. Worse, the concepts of conditional distribution and transformation, which are essential for probabilistic inference, are impossible to express.
 
 
-To solve these problems, :mod:`zuko` defines two concepts: the :class:`zuko.flows.core.LazyDistribution` and :class:`zuko.flows.core.LazyTransform`, which are any modules whose forward pass returns a `Distribution` or `Transform`, respectively. Because the creation of the actual distribution/transformation is delayed, an eventual condition can be easily taken into account. This design enables lazy distributions, including normalizing flows, to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easy to understand and extend.
+To solve these problems, :mod:`zuko` defines two concepts: the :class:`zuko.lazy.LazyDistribution` and :class:`zuko.lazy.LazyTransform`, which are any modules whose forward pass returns a `Distribution` or `Transform`, respectively. Because the creation of the actual distribution/transformation is delayed, an eventual condition can be easily taken into account. This design enables lazy distributions, including normalizing flows, to act like distributions while retaining features inherent to modules, such as trainable parameters. It also makes the implementations easy to understand and extend.
 
 Installation
 ------------
@@ -54,11 +54,11 @@ Normalizing flows are provided in the :mod:`zuko.flows` module. To build one, su
     # Sample 64 points x ~ p(x | c*)
     x = flow(c_star).sample((64,))
 
-Alternatively, flows can be built as custom :class:`zuko.flows.core.Flow` objects.
+Alternatively, flows can be built as custom :class:`zuko.lazy.Flow` objects.
 
 .. code-block:: python
 
-    from zuko.flows import Flow, UnconditionalDistribution, UnconditionalTransform
+    from zuko.lazy import Flow, UnconditionalDistribution, UnconditionalTransform
     from zuko.flows.autoregressive import MaskedAutoregressiveTransform
     from zuko.distributions import DiagNormal
     from zuko.transforms import RotationTransform

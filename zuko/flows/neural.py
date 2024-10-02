@@ -17,8 +17,8 @@ from typing import Any, Dict
 
 # isort: split
 from .autoregressive import MaskedAutoregressiveTransform
-from .core import Flow, UnconditionalDistribution, UnconditionalTransform
 from ..distributions import DiagNormal
+from ..lazy import Flow, UnconditionalDistribution, UnconditionalTransform
 from ..nn import MLP, MonotonicMLP
 from ..transforms import (
     MonotonicTransform,

@@ -12,8 +12,8 @@ from torch.distributions import Transform
 
 # isort: split
 from .autoregressive import MAF
-from .core import UnconditionalDistribution
 from ..distributions import BoxUniform
+from ..lazy import UnconditionalDistribution
 from ..transforms import CircularShiftTransform, ComposedTransform, MonotonicRQSTransform
 
 

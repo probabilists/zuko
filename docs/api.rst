@@ -9,6 +9,8 @@ API
 
    zuko.distributions
    zuko.flows
+   zuko.lazy
+   zuko.mixtures
    zuko.nn
    zuko.transforms
    zuko.utils
