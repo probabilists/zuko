@@ -9,5 +9,4 @@ __all__ = [
     "GMM",
 ]
 
-# isort: split
 from ..mixtures import GMM

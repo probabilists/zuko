@@ -13,7 +13,6 @@ from torch import Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
-# isort: split
 from ..distributions import DiagNormal
 from ..lazy import Flow, LazyTransform, UnconditionalDistribution, UnconditionalTransform
 from ..nn import MLP

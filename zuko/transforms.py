@@ -36,7 +36,6 @@ from torch.distributions.transforms import *  # noqa: F403
 from torch.distributions.utils import _sum_rightmost
 from typing import Any, Callable, Iterable, Tuple, Union
 
-# isort: split
 from .utils import bisection, broadcast, gauss_legendre, odeint
 
 torch.distributions.transforms._InverseTransform.__name__ = "Inverse"

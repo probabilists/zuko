@@ -15,7 +15,6 @@ from torch import Tensor
 from torch.distributions import Transform
 from typing import Any, Dict
 
-# isort: split
 from .autoregressive import MaskedAutoregressiveTransform
 from ..distributions import DiagNormal
 from ..lazy import Flow, UnconditionalDistribution, UnconditionalTransform

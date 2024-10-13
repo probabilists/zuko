@@ -5,8 +5,6 @@ __all__ = [
     "SOSPF",
 ]
 
-
-# isort: split
 from .autoregressive import MAF
 from ..lazy import UnconditionalTransform
 from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform

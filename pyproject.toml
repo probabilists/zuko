@@ -56,8 +56,8 @@ preview = true
 
 [tool.ruff.lint.isort]
 lines-between-types = 1
-no-sections = true
 relative-imports-order = "closest-to-furthest"
+section-order = ["future", "third-party", "first-party", "local-folder"]
 
 [tool.ruff.format]
 preview = true

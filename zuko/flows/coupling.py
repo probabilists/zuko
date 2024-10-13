@@ -13,7 +13,6 @@ from torch import BoolTensor, Size, Tensor
 from torch.distributions import Transform
 from typing import Callable, Sequence
 
-# isort: split
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
 from ..lazy import Flow, LazyTransform, UnconditionalDistribution

@@ -9,7 +9,6 @@ __all__ = [
     "Flow",
 ]
 
-# isort: split
 from ..lazy import (  # noqa: F401
     Flow,
     LazyComposedTransform,

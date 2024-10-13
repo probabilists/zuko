@@ -13,7 +13,6 @@ from math import pi
 from torch import Tensor
 from torch.distributions import Transform
 
-# isort: split
 from ..distributions import DiagNormal
 from ..lazy import Flow, LazyTransform, UnconditionalDistribution
 from ..nn import MLP

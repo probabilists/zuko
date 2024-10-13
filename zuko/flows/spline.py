@@ -10,7 +10,6 @@ import torch
 from math import pi
 from torch.distributions import Transform
 
-# isort: split
 from .autoregressive import MAF
 from ..distributions import BoxUniform
 from ..lazy import UnconditionalDistribution

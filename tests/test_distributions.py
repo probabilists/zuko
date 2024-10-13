@@ -3,6 +3,7 @@ r"""Tests for the zuko.distributions module."""
 import torch
 
 from torch.distributions import *
+
 from zuko.distributions import *
 
 

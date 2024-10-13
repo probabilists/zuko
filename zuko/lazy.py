@@ -20,7 +20,6 @@ from torch import Tensor
 from torch.distributions import Distribution, Transform
 from typing import Any, Callable, Sequence, Union
 
-# isort: split
 from .distributions import NormalizingFlow
 from .transforms import ComposedTransform
 from .utils import Partial
