@@ -270,7 +270,7 @@ class MaskedMLP(nn.Sequential):
         adjacency, inverse = torch.unique(adjacency, dim=0, return_inverse=True)
 
         # P_ij = 1 if A_ik = 1 for all k such that A_jk = 1
-        precedence = adjacency.int() @ adjacency.int().t() == adjacency.sum(dim=-1)
+        precedence = adjacency.double() @ adjacency.double().t() == adjacency.sum(dim=-1)
 
         # Layers
         layers = []
