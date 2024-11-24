@@ -11,7 +11,13 @@ from zuko.flows import *
 
 
 @pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
-def test_flows(tmp_path: Path, F: callable):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_flows(tmp_path: Path, F: callable, device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     flow = F(3, 5)
 
     # Evaluation of log_prob
@@ -70,7 +76,13 @@ def test_flows(tmp_path: Path, F: callable):
     assert repr(flow)
 
 
-def test_triangular_transforms():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_triangular_transforms(device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     order = torch.randperm(5)
 
     adjacency = torch.rand((5, 5)) < 0.25
@@ -120,7 +132,13 @@ def test_triangular_transforms():
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
 
 
-def test_adjacency_matrix():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_adjacency_matrix(device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     T = MaskedAutoregressiveTransform
 
     # With a valid adjacency matrix

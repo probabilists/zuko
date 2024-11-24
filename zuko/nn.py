@@ -270,7 +270,11 @@ class MaskedMLP(nn.Sequential):
         adjacency, inverse = torch.unique(adjacency, dim=0, return_inverse=True)
 
         # P_ij = 1 if A_ik = 1 for all k such that A_jk = 1
-        precedence = adjacency.int() @ adjacency.int().t() == adjacency.sum(dim=-1)
+        # PyTorch doesn't support this operation for integer arrays on CUDA devices
+        precedence = (
+            adjacency.cpu().int() @ adjacency.cpu().int().t() == adjacency.sum(dim=-1).cpu()
+        )
+        precedence = precedence.to(torch.get_default_device())
 
         # Layers
         layers = []

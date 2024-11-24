@@ -10,7 +10,13 @@ from zuko.transforms import *
 
 
 @pytest.mark.parametrize("batched", [False, True])
-def test_univariate_transforms(batched: bool):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_univariate_transforms(batched: bool, device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     batch = (256,) if batched else ()
 
     ts = [
@@ -73,7 +79,13 @@ def test_univariate_transforms(batched: bool):
         assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
 
 
-def test_multivariate_transforms():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_multivariate_transforms(device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     A, B = torch.randn(5, 16), torch.randn(16, 5)
     f = lambda t, x: torch.sigmoid(x @ A) @ B
 

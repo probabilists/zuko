@@ -1,5 +1,6 @@
 r"""Tests for the zuko.distributions module."""
 
+import pytest
 import torch
 
 from torch.distributions import *
@@ -7,7 +8,13 @@ from torch.distributions import *
 from zuko.distributions import *
 
 
-def test_distributions():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_distributions(device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     ds = [
         NormalizingFlow(ExpTransform(), Gamma(2.0, 1.0)),
         Joint(Uniform(0.0, 1.0), Normal(0.0, 1.0)),

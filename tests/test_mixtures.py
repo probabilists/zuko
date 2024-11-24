@@ -10,7 +10,13 @@ from zuko.mixtures import *
 
 
 @pytest.mark.parametrize("M", [GMM])
-def test_mixtures(tmp_path: Path, M: callable):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_mixtures(tmp_path: Path, M: callable, device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     mixture = M(3, 5)
 
     # Evaluation of log_prob

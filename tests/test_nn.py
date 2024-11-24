@@ -10,7 +10,13 @@ from zuko.nn import *
 
 
 @pytest.mark.parametrize("bias", [True, False])
-def test_Linear(bias: bool):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_Linear(bias: bool, device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     net = Linear(3, 5, bias=True)
 
     # Non-batched
@@ -29,7 +35,13 @@ def test_Linear(bias: bool):
 
 @pytest.mark.parametrize("activation", [None, torch.nn.ELU])
 @pytest.mark.parametrize("normalize", [True, False])
-def test_MLP(activation: callable, normalize: bool):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_MLP(activation: callable, normalize: bool, device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     net = MLP(3, 5, activation=activation, normalize=normalize)
 
     # Non-batched
@@ -47,7 +59,13 @@ def test_MLP(activation: callable, normalize: bool):
 
 
 @pytest.mark.parametrize("residual", [True, False])
-def test_MaskedMLP(residual: bool):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_MaskedMLP(residual: bool, device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     adjacency = randn(5, 3) < 0
     net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual)
 
@@ -71,7 +89,13 @@ def test_MaskedMLP(residual: bool):
     assert (J[~adjacency] == 0).all()
 
 
-def test_MonotonicMLP():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_MonotonicMLP(device: str):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("No CUDA devices available")
+
+    torch.set_default_device(device)
+
     net = MonotonicMLP(3, 5)
 
     # Non-batched
