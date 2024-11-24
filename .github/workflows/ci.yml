@@ -21,17 +21,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10"]
-        torch-version: ["1.12", "2.0"]
+        version:
+          - {python: "3.9", torch: "1.13"}
+          - {python: "3.10", torch: "2.0"}
+          - {python: "3.11", torch: "2.2"}
+          - {python: "3.12", torch: "2.4"}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.version.python }}
       - name: Install dependencies
         run: |
           pip install pytest
-          pip install torch==${{ matrix.torch-version }} --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install torch==${{ matrix.version.torch }} --extra-index-url https://download.pytorch.org/whl/cpu
           pip install .
       - name: Run tests
         run: pytest tests
