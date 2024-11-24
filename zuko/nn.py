@@ -274,7 +274,10 @@ class MaskedMLP(nn.Sequential):
         precedence = (
             adjacency.cpu().int() @ adjacency.cpu().int().t() == adjacency.sum(dim=-1).cpu()
         )
-        precedence = precedence.to(torch.get_default_device())
+        try:
+            precedence = precedence.to(torch.get_default_device())
+        except AttributeError:
+            precedence = torch.tensor(precedence.detach().cpu().numpy())
 
         # Layers
         layers = []

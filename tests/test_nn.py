@@ -15,7 +15,12 @@ def test_Linear(bias: bool, device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     net = Linear(3, 5, bias=True)
 
@@ -40,7 +45,12 @@ def test_MLP(activation: callable, normalize: bool, device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     net = MLP(3, 5, activation=activation, normalize=normalize)
 
@@ -64,7 +74,12 @@ def test_MaskedMLP(residual: bool, device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     adjacency = randn(5, 3) < 0
     net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual)
@@ -94,7 +109,12 @@ def test_MonotonicMLP(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     net = MonotonicMLP(3, 5)
 

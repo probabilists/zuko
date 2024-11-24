@@ -16,7 +16,12 @@ def test_flows(tmp_path: Path, F: callable, device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     flow = F(3, 5)
 
@@ -81,7 +86,12 @@ def test_triangular_transforms(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     order = torch.randperm(5)
 
@@ -137,7 +147,12 @@ def test_adjacency_matrix(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     T = MaskedAutoregressiveTransform
 

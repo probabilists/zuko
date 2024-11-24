@@ -15,7 +15,12 @@ def test_univariate_transforms(batched: bool, device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     batch = (256,) if batched else ()
 
@@ -84,7 +89,12 @@ def test_multivariate_transforms(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     A, B = torch.randn(5, 16), torch.randn(16, 5)
     f = lambda t, x: torch.sigmoid(x @ A) @ B

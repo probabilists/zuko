@@ -13,7 +13,12 @@ def test_bisection(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     alpha = torch.tensor(1.0, requires_grad=True)
 
@@ -40,7 +45,12 @@ def test_broadcast(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     # Trivial
     a = randn(2, 3)
@@ -81,7 +91,12 @@ def test_gauss_legendre(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     # Polynomial
     alpha = torch.tensor(1.0, requires_grad=True)
@@ -108,7 +123,12 @@ def test_odeint(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     # Linear
     alpha = torch.tensor(1.0, requires_grad=True)
@@ -137,7 +157,12 @@ def test_unpack(device: str):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("No CUDA devices available")
 
-    torch.set_default_device(device)
+    try:
+        torch.set_default_device(device)
+    except AttributeError:
+        # torch.set_default_device() may not be available
+        if device != "cpu":
+            pytest.skip("torch.set_default_device() not supported")
 
     # Normal
     x = randn(26)
