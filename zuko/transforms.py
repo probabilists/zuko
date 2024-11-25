@@ -487,10 +487,7 @@ class MonotonicRQSTransform(Transform):
 
     @staticmethod
     def searchsorted(seq: Tensor, value: Tensor) -> LongTensor:
-        seq, value = broadcast(seq, value.unsqueeze(dim=-1), ignore=1)
-        seq = seq.contiguous()
-
-        return torch.searchsorted(seq, value).squeeze(dim=-1)
+        return torch.sum(seq < value[..., None], dim=-1)
 
     def _call(self, x: Tensor) -> Tensor:
         k = self.searchsorted(self.horizontal, x) - 1
