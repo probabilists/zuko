@@ -19,7 +19,6 @@ from torch import Tensor
 from torch.distributions import (
     Distribution,
     Independent,
-    LowRankMultivariateNormal,
     MultivariateNormal,
     Normal,
 )
@@ -82,10 +81,6 @@ def _estimate_gaussian_covariances_full(resp, f, nk, means, tied, cov_rank):
         torch.tril_indices(n_features, n_features, -1)[1],
     ]
     return diag, tril
-
-
-def _estimate_gaussian_covariances_lowrank(resp, f, nk, means, tied, cov_rank):
-    raise NotImplementedError("Initalisation for lowrank covariance is not implemented yet.")
 
 
 def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank):
@@ -248,9 +243,6 @@ class GMM(LazyDistribution):
         if self.strategy == "random":
             resp = _initialize_random(f, self.components)
 
-        elif self.strategy == "random_from_data":
-            raise NotImplementedError("Random initialization from data is not implemented yet.")
-
         elif self.strategy == "kmeans++":
             resp = _initialize_kmeans_plus_plus(f, self.components)
 
@@ -288,17 +280,6 @@ class GMM(LazyDistribution):
         mask = torch.tril(torch.ones_like(scale, dtype=bool), diagonal=-1)
         scale = torch.masked_scatter(scale, mask, tril)
         return Mixture(MultivariateNormal(loc=loc, scale_tril=scale), logits)
-
-    def _forward_lowrank(self, phi):
-        logits, loc, diag, lowrank = phi
-
-        diag = diag.exp() + self.reg_covar
-        lowrank = lowrank.view(-1, self.feature, self.cov_rank)
-
-        return Mixture(
-            LowRankMultivariateNormal(loc=loc, cov_factor=lowrank, cov_diag=diag),
-            logits=logits.log(),
-        )
 
     def _forward_diag_or_spherical(self, phi):
         logits, loc, diag = phi
@@ -356,7 +337,6 @@ class GMM(LazyDistribution):
 
         diag, off_diag = {
             "full": _estimate_gaussian_covariances_full,
-            "lowrank": _estimate_gaussian_covariances_lowrank,
             "diag": _estimate_gaussian_covariances_diag,
             "spherical": _estimate_gaussian_covariances_spherical,
         }[self.covariance_type](resp, f, nk, means, self.tied, self.cov_rank)
