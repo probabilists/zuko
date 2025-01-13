@@ -156,3 +156,5 @@ cython_debug/
 
 # TensorBoard
 runs/
+test_new_gmm.ipynb
+test_new_gmm_context.ipynb

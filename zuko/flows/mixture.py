@@ -263,7 +263,6 @@ class GMM(LazyDistribution):
 
         forward_methods = {
             "full": self._forward_full,
-            "lowrank": self._forward_lowrank,
             "diag": self._forward_diag_or_spherical,
             "spherical": self._forward_diag_or_spherical,
         }
