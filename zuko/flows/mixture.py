@@ -29,133 +29,6 @@ from ..nn import MLP
 from ..utils import unpack
 
 
-def _determine_shapes(components, features, covariance_type, tied, cov_rank):
-    leading = 1 if tied else components
-
-    shapes = [
-        (components,),  # probabilities
-        (components, features),  # mean
-    ]
-    if covariance_type == "full":
-        shapes.extend([
-            (leading, features),  # diagonal
-            (leading, features * (features - 1) // 2),  # off diagonal
-        ])
-    elif covariance_type == "lowrank":
-        if cov_rank is None:
-            raise ValueError("cov_rank must be specified when covariance_type is lowrank")
-        shapes.extend([
-            (leading, features),  # diagonal
-            (leading, features * cov_rank),  # low-rank
-        ])
-    elif covariance_type == "diag":
-        shapes.extend([
-            (leading, features),  # diagonal
-        ])
-    elif covariance_type == "spherical":
-        shapes.extend([
-            (leading, 1),  # diagonal
-        ])
-    else:
-        raise ValueError(
-            f"Invalid covariance type: {covariance_type} (choose from full, lowrank, diag, or spherical)"
-        )
-    return shapes
-
-
-def _estimate_gaussian_covariances_full(resp, f, nk, means, tied, cov_rank):
-    n_components, n_features = means.shape
-    covariances = torch.empty((n_components, n_features, n_features))
-    for k in range(n_components):
-        covariances[k] = torch.cov((f[resp[:, k] > 0]).T)
-
-    if tied:
-        covariances = covariances.mean(dim=0)
-
-    covariances = torch.linalg.cholesky(covariances)
-
-    diag = torch.diagonal(covariances, dim1=-2, dim2=-1)
-    tril = covariances[
-        ...,
-        torch.tril_indices(n_features, n_features, -1)[0],
-        torch.tril_indices(n_features, n_features, -1)[1],
-    ]
-    return diag, tril
-
-
-def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank):
-    n_components, n_features = means.shape
-
-    diag = torch.empty((n_components, n_features))
-    for k in range(n_components):
-        diag[k] = torch.cov((f[resp[:, k] > 0]).T).diagonal()
-
-    if tied:
-        diag = diag.mean(dim=0)
-
-    return diag, None
-
-
-def _estimate_gaussian_covariances_spherical(resp, f, nk, means, tied, cov_rank):
-    diag, _ = _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank)
-
-    return diag.mean(dim=-1).unsqueeze(-1), None
-
-
-def _initialize_random(f, components):
-    n_samples = f.shape[0]
-    resp = torch.rand((n_samples, components))
-    resp /= resp.sum(dim=1)[:, None]
-    return resp
-
-
-def _initialize_kmeans(f, components):
-    n_samples = f.shape[0]
-    centers = torch.empty((components, f.shape[1]))
-    idx = torch.randint(0, n_samples, (components,))
-    centers = f[idx]
-
-    for _ in range(10):  # number of iterations
-        dist = torch.cdist(f, centers).pow(2)
-        resp = torch.zeros((n_samples, components))
-        resp[torch.arange(n_samples), dist.argmin(dim=-1)] = 1
-
-        for k in range(components):
-            if resp[:, k].sum() == 0:
-                centers[k] = f[torch.randint(0, n_samples, (1,))]
-            else:
-                centers[k] = (resp[:, k][:, None] * f).sum(dim=0) / resp[:, k].sum()
-
-    dist = torch.cdist(f, centers).pow(2)
-    resp = torch.zeros((n_samples, components))
-    resp[torch.arange(n_samples), dist.argmin(dim=-1)] = 1
-    return resp
-
-
-def _initialize_kmeans_plus_plus(f, components):
-    n_samples = f.shape[0]
-    centers = torch.empty((components, f.shape[1]))
-
-    idx = torch.randint(0, n_samples, (components,))
-    centers = f[idx]
-
-    mask = torch.zeros((n_samples, components), dtype=torch.bool, device=f.device)
-    mask[idx.view(-1), 0] = True
-
-    for k_i in range(1, components):
-        dist = torch.cdist(f, centers[:k_i]).pow(2)
-        dist[mask[:, :k_i]] = 0
-        dist = dist.min(dim=-1).values
-        idx = torch.multinomial(dist, 1)
-        centers[k_i] = f[idx]
-        mask[idx, k_i] = True
-
-    resp = torch.zeros((n_samples, components))
-    dist = torch.cdist(f, centers).pow(2)
-    resp[torch.arange(n_samples), dist.argmin(dim=-1)] = 1
-    return resp
-
-
 class GMM(LazyDistribution):
     r"""Creates a Gaussian mixture model (GMM).
 
@@ -340,3 +213,130 @@ class GMM(LazyDistribution):
             "spherical": _estimate_gaussian_covariances_spherical,
         }[self.covariance_type](resp, f, nk, means, self.tied, self.cov_rank)
         return nk, means, diag, off_diag
+
+
+def _determine_shapes(components, features, covariance_type, tied, cov_rank):
+    leading = 1 if tied else components
+
+    shapes = [
+        (components,),  # probabilities
+        (components, features),  # mean
+    ]
+    if covariance_type == "full":
+        shapes.extend([
+            (leading, features),  # diagonal
+            (leading, features * (features - 1) // 2),  # off diagonal
+        ])
+    elif covariance_type == "lowrank":
+        if cov_rank is None:
+            raise ValueError("cov_rank must be specified when covariance_type is lowrank")
+        shapes.extend([
+            (leading, features),  # diagonal
+            (leading, features * cov_rank),  # low-rank
+        ])
+    elif covariance_type == "diag":
+        shapes.extend([
+            (leading, features),  # diagonal
+        ])
+    elif covariance_type == "spherical":
+        shapes.extend([
+            (leading, 1),  # diagonal
+        ])
+    else:
+        raise ValueError(
+            f"Invalid covariance type: {covariance_type} (choose from full, lowrank, diag, or spherical)"
+        )
+    return shapes
+
+
+def _estimate_gaussian_covariances_full(resp, f, nk, means, tied, cov_rank):
+    n_components, n_features = means.shape
+    covariances = torch.empty((n_components, n_features, n_features))
+    for k in range(n_components):
+        covariances[k] = torch.cov((f[resp[:, k] > 0]).T)
+
+    if tied:
+        covariances = covariances.mean(dim=0)
+
+    covariances = torch.linalg.cholesky(covariances)
+
+    diag = torch.diagonal(covariances, dim1=-2, dim2=-1)
+    tril = covariances[
+        ...,
+        torch.tril_indices(n_features, n_features, -1)[0],
+        torch.tril_indices(n_features, n_features, -1)[1],
+    ]
+    return diag, tril
+
+
+def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank):
+    n_components, n_features = means.shape
+
+    diag = torch.empty((n_components, n_features))
+    for k in range(n_components):
+        diag[k] = torch.cov((f[resp[:, k] > 0]).T).diagonal()
+
+    if tied:
+        diag = diag.mean(dim=0)
+
+    return diag, None
+
+
+def _estimate_gaussian_covariances_spherical(resp, f, nk, means, tied, cov_rank):
+    diag, _ = _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank)
+
+    return diag.mean(dim=-1).unsqueeze(-1), None
+
+
+def _initialize_random(f, components):
+    n_samples = f.shape[0]
+    resp = torch.rand((n_samples, components))
+    resp /= resp.sum(dim=1)[:, None]
+    return resp
+
+
+def _initialize_kmeans(f, components):
+    n_samples = f.shape[0]
+    centers = torch.empty((components, f.shape[1]))
+    idx = torch.randint(0, n_samples, (components,))
+    centers = f[idx]
+
+    for _ in range(10):  # number of iterations
+        dist = torch.cdist(f, centers).pow(2)
+        resp = torch.zeros((n_samples, components))
+        resp[torch.arange(n_samples), dist.argmin(dim=-1)] = 1
+
+        for k in range(components):
+            if resp[:, k].sum() == 0:
+                centers[k] = f[torch.randint(0, n_samples, (1,))]
+            else:
+                centers[k] = (resp[:, k][:, None] * f).sum(dim=0) / resp[:, k].sum()
+
+    dist = torch.cdist(f, centers).pow(2)
+    resp = torch.zeros((n_samples, components))
+    resp[torch.arange(n_samples), dist.argmin(dim=-1)] = 1
+    return resp
+
+
+def _initialize_kmeans_plus_plus(f, components):
+    n_samples = f.shape[0]
+    centers = torch.empty((components, f.shape[1]))
+
+    idx = torch.randint(0, n_samples, (components,))
+    centers = f[idx]
+
+    mask = torch.zeros((n_samples, components), dtype=torch.bool, device=f.device)
+    mask[idx.view(-1), 0] = True
+
+    for k_i in range(1, components):
+        dist = torch.cdist(f, centers[:k_i]).pow(2)
+        dist[mask[:, :k_i]] = 0
+        dist = dist.min(dim=-1).values
+        idx = torch.multinomial(dist, 1)
+        centers[k_i] = f[idx]
+        mask[idx, k_i] = True
+
+    resp = torch.zeros((n_samples, components))
+    dist = torch.cdist(f, centers).pow(2)
+    resp[torch.arange(n_samples), dist.argmin(dim=-1)] = 1
+    return resp
