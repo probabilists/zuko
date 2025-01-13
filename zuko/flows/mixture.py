@@ -102,9 +102,9 @@ def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank):
 
 
 def _estimate_gaussian_covariances_spherical(resp, f, nk, means, tied, cov_rank):
-    diag, off_diag = _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank)
+    diag, _ = _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank)
 
-    return diag.mean(dim=0).unsqueeze(0), off_diag
+    return diag.mean(dim=-1).unsqueeze(-1), None
 
 
 def _initialize_random(f, components):
@@ -232,8 +232,6 @@ class GMM(LazyDistribution):
 
                 - 'random': Random initialization.
 
-                - 'random_from_data': Random initialization from the data.
-
                 - 'kmeans': K-means initialization.
 
                 - 'kmeans++': K-means++ initialization.
@@ -295,7 +293,8 @@ class GMM(LazyDistribution):
         logits, loc, diag, lowrank = phi
 
         diag = diag.exp() + self.reg_covar
-        lowrank = lowrank.reshape(lowrank.shape[0], lowrank.shape[1], self.cov_rank)
+        lowrank = lowrank.view(-1, self.feature, self.cov_rank)
+
         return Mixture(
             LowRankMultivariateNormal(loc=loc, cov_factor=lowrank, cov_diag=diag),
             logits=logits.log(),
@@ -305,6 +304,7 @@ class GMM(LazyDistribution):
         logits, loc, diag = phi
 
         diag = diag.exp() + self.reg_covar
+
         return Mixture(Independent(Normal(loc, diag), 1), logits)
 
     def _initialize_weights(self, f, resp):
@@ -342,8 +342,10 @@ class GMM(LazyDistribution):
             param_list.append(off_diag_)
 
         if self.context > 0:
-            self.hyper[-1].weight.mul_(1e-2)
-            self.hyper[-1].bias.copy_(torch.cat([p.flatten() for p in param_list]))
+            with torch.no_grad():
+                self.hyper[-1].weight.mul_(1e-2)
+
+                self.hyper[-1].bias.copy_(torch.cat([p.flatten() for p in param_list]))
         else:
             for p, param in zip(self.phi, param_list):
                 p.data = param
