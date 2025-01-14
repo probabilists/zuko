@@ -190,6 +190,7 @@ class GMM(LazyDistribution):
             param_list.append(off_diag_)
 
         if self.context > 0:
+            # If the context variables are not normalised, this can lead to quite slow inital training convergence
             with torch.no_grad():
                 self.hyper[-1].weight.mul_(1e-2)
                 self.hyper[-1].bias.copy_(torch.cat([p.flatten() for p in param_list]))
