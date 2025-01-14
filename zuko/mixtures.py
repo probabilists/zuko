@@ -79,11 +79,19 @@ class GMM(LazyDistribution):
         else:
             self.phi = nn.ParameterList(torch.randn(*s) for s in shapes)
 
-    def initialize(self, f: Tensor = None, strategy: str = "random") -> None:
-        r"""Initializes the parameters of the model.
+    def initialize(
+        self,
+        f: Tensor = None,
+        strategy: str = "random",
+        init_weights: Tensor = None,
+        init_means: Tensor = None,
+        init_covariances: Tensor = None,
+    ) -> None:
+        r"""Initializes the parameters of the model. For more information on the initilisation strategies, see: https://scikit-learn.org/dev/modules/mixture.html#choice-of-the-initialization-method
 
         Arguments:
-            f: Feature samples
+            f: Feature samples. Should be of shape `(n_samples, n_features)`, and have at least as many samples as
+                components.
             strategy: The initialization strategy. Must be one of:
 
                 - 'random': Random initialization.
@@ -99,21 +107,24 @@ class GMM(LazyDistribution):
                 f"Number of samples ({f.shape[0]}) must be greater than number of components ({self.components})."
             )
 
-        self.strategy = strategy
+        self.init_strategy = strategy
 
-        if self.strategy == "random":
+        # resp is a matrix assigning each sample to a component
+        # the assignment is soft, i.e. the sum of each row is 1
+
+        if self.init_strategy == "random":
             resp = _initialize_random(f, self.components)
 
-        elif self.strategy == "kmeans++":
+        elif self.init_strategy == "kmeans++":
             resp = _initialize_kmeans_plus_plus(f, self.components)
 
-        elif self.strategy in ["kmeans"]:
+        elif self.init_strategy == "kmeans":
             resp = _initialize_kmeans(f, self.components)
 
         else:
-            raise ValueError(f"Invalid initialization strategy: {self.strategy}")
+            raise ValueError(f"Invalid initialization strategy: {self.init_strategy}")
 
-        self._initialize_weights(f, resp)
+        self._initialize_weights(f, resp, init_weights, init_means, init_covariances)
 
     def forward(self, c: Tensor = None) -> Distribution:
         if c is None:
@@ -148,23 +159,19 @@ class GMM(LazyDistribution):
 
         return Mixture(Independent(Normal(loc, diag), 1), logits)
 
-    def _initialize_weights(self, f, resp):
+    def _initialize_weights(self, f, resp, weights_init, means_init, covariances_init):
         weights, means, diag, off_diag = None, None, None, None
-
-        n_samples = f.shape[0]
 
         if resp is not None:
             weights, means, diag, off_diag = self._estimate_gaussian_parameters(
                 f,
                 resp,
             )
-            if self.weights_init is None:
-                weights /= n_samples
 
-        weights_ = weights if self.weights_init is None else self.weights_init
-        means_ = means if self.means_init is None else self.means_init
+        weights_ = weights if weights_init is None else weights_init
+        means_ = means if means_init is None else means_init
 
-        if self.covariances_init is None:
+        if covariances_init is None:
             diag_ = diag
             off_diag_ = off_diag
         else:
@@ -185,7 +192,6 @@ class GMM(LazyDistribution):
         if self.context > 0:
             with torch.no_grad():
                 self.hyper[-1].weight.mul_(1e-2)
-
                 self.hyper[-1].bias.copy_(torch.cat([p.flatten() for p in param_list]))
         else:
             for p, param in zip(self.phi, param_list):
@@ -200,7 +206,7 @@ class GMM(LazyDistribution):
             "diag": _estimate_gaussian_covariances_diag,
             "spherical": _estimate_gaussian_covariances_spherical,
         }[self.covariance_type](resp, f, nk, means, self.tied)
-        return nk, means, diag, off_diag
+        return nk / f.shape[0], means, diag, off_diag
 
 
 def _determine_shapes(components, features, covariance_type, tied):
@@ -234,7 +240,7 @@ def _estimate_gaussian_covariances_full(resp, f, nk, means, tied):
     n_components, n_features = means.shape
     covariances = torch.empty((n_components, n_features, n_features))
     for k in range(n_components):
-        covariances[k] = torch.cov((f[resp[:, k] > 0]).T)
+        covariances[k] = torch.cov((f[resp[:, k] > 0]).T, aweights=resp[resp[:, k] > 0, k])
 
     if tied:
         covariances = covariances.mean(dim=0)
@@ -255,7 +261,7 @@ def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied):
 
     diag = torch.empty((n_components, n_features))
     for k in range(n_components):
-        diag[k] = torch.cov((f[resp[:, k] > 0]).T).diagonal()
+        diag[k] = torch.cov((f[resp[:, k] > 0]).T, aweights=resp[resp[:, k] > 0, k]).diagonal()
 
     if tied:
         diag = diag.mean(dim=0)
@@ -302,7 +308,6 @@ def _initialize_kmeans(f, components):
 def _initialize_kmeans_plus_plus(f, components):
     n_samples = f.shape[0]
     centers = torch.empty((components, f.shape[1]))
-
     idx = torch.randint(0, n_samples, (components,))
     centers = f[idx]
 
