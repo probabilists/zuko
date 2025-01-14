@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from zuko.flows import GMM
+from zuko.mixtures import GMM
 
 
 @pytest.fixture
