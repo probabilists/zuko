@@ -38,14 +38,11 @@ class GMM(LazyDistribution):
 
             - ‘full’: each component has its own full rank covariance matrix.
 
-            - ’lowrank’: each component has its own low-rank covariance matrix.
-
             - ‘diag’: each component has its own diagonal covariance matrix.
 
             - ‘spherical’: each component has its own single variance.
 
         tied: Whether to use tied covariance matrices. Tied covariances share the same parameters across components.
-        cov_rank: The rank of the low-rank covariance matrix. Only used when `covariance_type` is 'lowrank'.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
     """
 
@@ -56,7 +53,6 @@ class GMM(LazyDistribution):
         components: int = 2,
         covariance_type: str = "full",
         tied: bool = False,
-        cov_rank: int = None,
         reg_covar: float = 1e-2,
         **kwargs,
     ):
@@ -68,13 +64,12 @@ class GMM(LazyDistribution):
         self.components = components
         self.covariance_type = covariance_type
         self.tied = tied
-        self.cov_rank = cov_rank
         self.reg_covar = reg_covar
         self.weights_init = None
         self.means_init = None
         self.covariances_init = None
 
-        shapes = _determine_shapes(components, features, covariance_type, tied, cov_rank)
+        shapes = _determine_shapes(components, features, covariance_type, tied)
 
         self.shapes = shapes
         self.total = sum(prod(s) for s in shapes)
@@ -204,11 +199,11 @@ class GMM(LazyDistribution):
             "full": _estimate_gaussian_covariances_full,
             "diag": _estimate_gaussian_covariances_diag,
             "spherical": _estimate_gaussian_covariances_spherical,
-        }[self.covariance_type](resp, f, nk, means, self.tied, self.cov_rank)
+        }[self.covariance_type](resp, f, nk, means, self.tied)
         return nk, means, diag, off_diag
 
 
-def _determine_shapes(components, features, covariance_type, tied, cov_rank):
+def _determine_shapes(components, features, covariance_type, tied):
     leading = 1 if tied else components
 
     shapes = [
@@ -220,13 +215,6 @@ def _determine_shapes(components, features, covariance_type, tied, cov_rank):
             (leading, features),  # diagonal
             (leading, features * (features - 1) // 2),  # off diagonal
         ])
-    elif covariance_type == "lowrank":
-        if cov_rank is None:
-            raise ValueError("cov_rank must be specified when covariance_type is lowrank")
-        shapes.extend([
-            (leading, features),  # diagonal
-            (leading, features * cov_rank),  # low-rank
-        ])
     elif covariance_type == "diag":
         shapes.extend([
             (leading, features),  # diagonal
@@ -237,12 +225,12 @@ def _determine_shapes(components, features, covariance_type, tied, cov_rank):
         ])
     else:
         raise ValueError(
-            f"Invalid covariance type: {covariance_type} (choose from full, lowrank, diag, or spherical)"
+            f"Invalid covariance type: {covariance_type} (choose from full, diag, or spherical)"
         )
     return shapes
 
 
-def _estimate_gaussian_covariances_full(resp, f, nk, means, tied, cov_rank):
+def _estimate_gaussian_covariances_full(resp, f, nk, means, tied):
     n_components, n_features = means.shape
     covariances = torch.empty((n_components, n_features, n_features))
     for k in range(n_components):
@@ -262,7 +250,7 @@ def _estimate_gaussian_covariances_full(resp, f, nk, means, tied, cov_rank):
     return diag, tril
 
 
-def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank):
+def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied):
     n_components, n_features = means.shape
 
     diag = torch.empty((n_components, n_features))
@@ -275,8 +263,8 @@ def _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank):
     return diag, None
 
 
-def _estimate_gaussian_covariances_spherical(resp, f, nk, means, tied, cov_rank):
-    diag, _ = _estimate_gaussian_covariances_diag(resp, f, nk, means, tied, cov_rank)
+def _estimate_gaussian_covariances_spherical(resp, f, nk, means, tied):
+    diag, _ = _estimate_gaussian_covariances_diag(resp, f, nk, means, tied)
 
     return diag.mean(dim=-1).unsqueeze(-1), None
 
