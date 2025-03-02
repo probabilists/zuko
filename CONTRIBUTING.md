@@ -21,7 +21,7 @@ If you like the project and wish to contribute, you can start by looking at issu
 To get started with contributing code, we recommend to install Zuko in [editable mode](https://pip.pypa.io/en/latest/topics/local-project-installs) with its development dependencies.
 
 ```
-pip install -e .[dev]
+pip install -e .[docs,lint,test]
 ```
 
 Optionally, we also provide pre-commit hooks to ensure that the code you commit adheres to our conventions.
@@ -50,11 +50,11 @@ When you submit a pull request, tests are automatically (upon approval) executed
 
 ### Code conventions
 
-We use [Ruff](https://github.com/astral-sh/ruff) to lint and format all Python code. After installing `ruff`, you can check if your code follows our conventions with
+We use [Ruff](https://github.com/astral-sh/ruff) to lint and format all Python code. After installing `ruff`, you can apply our conventions with
 
 ```
-ruff check .
-ruff format --check .
+ruff check --fix .
+ruff format .
 ```
 
 Additionally, please follow these rules:
@@ -68,7 +68,6 @@ The package's [documentation](https://zuko.readthedocs.io) is automatically buil
 
 ```
 cd docs
-pip install -r requirements.txt
 sphinx-build . html
 ```
 

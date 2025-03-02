@@ -7,8 +7,7 @@ build:
   jobs:
     post_install:
       - pip install -U setuptools
-      - pip install -e . --extra-index-url https://download.pytorch.org/whl/cpu
-      - pip install -r docs/requirements.txt
+      - pip install -e .[docs] --extra-index-url https://download.pytorch.org/whl/cpu
 
 sphinx:
   configuration: docs/conf.py
