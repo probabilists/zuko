@@ -34,7 +34,7 @@ class GMM(LazyDistribution):
         context: The number of context features.
         components: The number of components :math:`K` in the mixture.
         covariance_type: The type of covariance matrix parameterization to use.
-            One of :py:`['full', 'diagonal', 'isotropic']`.
+            One of :py:`['full', 'diagonal', 'spherical']`.
         tied: Whether to tie the covariance parameters across components.
         epsilon: A numerical stability term.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
@@ -78,7 +78,7 @@ class GMM(LazyDistribution):
             return self._forward_full(*phi)
         elif self.covariance_type == "diagonal":
             return self._forward_diagonal(*phi)
-        elif self.covariance_type == "isotropic":
+        elif self.covariance_type == "spherical":
             return self._forward_diagonal(*phi)
         else:
             raise ValueError(f"Unknown covariance type '{self.covariance_type}'.")
@@ -137,8 +137,8 @@ class GMM(LazyDistribution):
             covs = _estimate_full_cov(x, match, self.tied)
         elif self.covariance_type == "diagonal":
             covs = _estimate_diagonal_cov(x, match, self.tied)
-        elif self.covariance_type == "isotropic":
-            covs = _estimate_isotropic_cov(x, match, self.tied)
+        elif self.covariance_type == "spherical":
+            covs = _estimate_spherical_cov(x, match, self.tied)
         else:
             raise ValueError(f"Unkown covariance type '{self.covariance_type}'.")
 
@@ -179,7 +179,7 @@ def _get_gmm_shapes(
         shapes.extend([
             (leading, features),  # diagonal
         ])
-    elif covariance_type == "isotropic":
+    elif covariance_type == "spherical":
         shapes.extend([
             (leading, 1),  # diagonal
         ])
@@ -229,7 +229,7 @@ def _estimate_diagonal_cov(x: Tensor, match: Tensor, tied: bool) -> Tensor:
     return diag.log()
 
 
-def _estimate_isotropic_cov(x: Tensor, match: Tensor, tied: bool) -> Tensor:
+def _estimate_spherical_cov(x: Tensor, match: Tensor, tied: bool) -> Tensor:
     diag = _estimate_diagonal_cov(x, match, tied)
     diag = diag.exp().mean(dim=-1, keepdim=True)
 

@@ -67,7 +67,7 @@ def test_mixtures(tmp_path: Path, M: callable):
 @pytest.mark.parametrize("features", [3])
 @pytest.mark.parametrize("context", [0, 5])
 @pytest.mark.parametrize("components", [2])
-@pytest.mark.parametrize("covariance_type", ["full", "diagonal", "isotropic"])
+@pytest.mark.parametrize("covariance_type", ["full", "diagonal", "spherical"])
 @pytest.mark.parametrize("tied", [False, True])
 @pytest.mark.parametrize("strategy", [None, "random", "kmeans", "kmeans++"])
 def test_gmm_shapes(
@@ -113,7 +113,7 @@ def test_gmm_shapes(
         assert d.base.base_dist.scale.shape == (*batch, components, features)
 
 
-@pytest.mark.parametrize("covariance_type", ["full", "diagonal", "isotropic"])
+@pytest.mark.parametrize("covariance_type", ["full", "diagonal", "spherical"])
 def test_gmm_tied_covariance(covariance_type: str):
     gmm = GMM(features=3, components=2, covariance_type=covariance_type, tied=True)
     d = gmm()
