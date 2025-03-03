@@ -5,6 +5,7 @@ import torch
 
 from pathlib import Path
 from torch import randn
+from typing import Sequence
 
 from zuko.mixtures import *
 
@@ -60,3 +61,73 @@ def test_mixtures(tmp_path: Path, M: callable):
 
     # Printing
     assert repr(mixture)
+
+
+@pytest.mark.parametrize("batch", [(), (4,)])
+@pytest.mark.parametrize("features", [3])
+@pytest.mark.parametrize("context", [0, 5])
+@pytest.mark.parametrize("components", [2])
+@pytest.mark.parametrize("covariance_type", ["full", "diagonal", "isotropic"])
+@pytest.mark.parametrize("tied", [False, True])
+@pytest.mark.parametrize("strategy", [None, "random", "kmeans", "kmeans++"])
+def test_gmm_shapes(
+    batch: Sequence[int],
+    features: int,
+    context: int,
+    components: int,
+    covariance_type: str,
+    tied: bool,
+    strategy: str,
+):
+    if context > 0:
+        c = torch.randn(*batch, context)
+    else:
+        c, batch = None, ()
+
+    gmm = GMM(
+        features=features,
+        context=context,
+        components=components,
+        covariance_type=covariance_type,
+        tied=tied,
+    )
+
+    # Initialization
+    if strategy is not None:
+        gmm.initialize(torch.randn(1024, features), strategy=strategy)
+
+    # Forward
+    d = gmm(c)
+
+    # Shapes
+    assert d.batch_shape == (*batch,)
+    assert d.event_shape == (features,)
+
+    assert d.logits.shape == (*batch, components)
+
+    if covariance_type == "full":
+        assert d.base.loc.shape == (*batch, components, features)
+        assert d.base.covariance_matrix.shape == (*batch, components, features, features)
+    else:
+        assert d.base.base_dist.loc.shape == (*batch, components, features)
+        assert d.base.base_dist.scale.shape == (*batch, components, features)
+
+
+@pytest.mark.parametrize("covariance_type", ["full", "diagonal", "isotropic"])
+def test_gmm_tied_covariance(covariance_type: str):
+    gmm = GMM(features=3, components=2, covariance_type=covariance_type, tied=True)
+    d = gmm()
+
+    if covariance_type == "full":
+        covs = d.base.covariance_matrix
+    else:
+        covs = d.base.base_dist.scale
+
+    assert torch.allclose(covs[0], covs[1])
+
+
+def test_gmm_insufficient_samples():
+    gmm = GMM(features=3, components=7, covariance_type="full")
+
+    with pytest.raises(AssertionError, match="The number of samples"):
+        gmm.initialize(torch.randn(6, 3), strategy="random")
