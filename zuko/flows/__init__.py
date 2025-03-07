@@ -1,5 +1,6 @@
 r"""Parameterized flows and transformations."""
 
+from .augmented import ANF, AutoencodingTransform, HierarchicalANF
 from .autoregressive import MAF, MaskedAutoregressiveTransform
 from .continuous import CNF, FFJTransform
 from .core import (
