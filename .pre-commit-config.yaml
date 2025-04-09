@@ -1,10 +1,25 @@
+exclude: |
+    (?x)(
+        # Docs
+        ^.*\.md$|
+        ^docs/|
+
+        # Cache files
+        ^.pytest_cache/|
+        ^__pycache__/|
+
+        ^\.env|
+        ^\.vscode/
+    )
+
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.9.9
   hooks:
     - id: ruff
-    - id: ruff-format
-      args: [--diff]
+      args: [--fix]
+      types_or: [python, jupyter]
+
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v5.0.0
   hooks:
