@@ -181,6 +181,7 @@ def test_context_adjacency_matrix():
     J = torch.autograd.functional.jacobian(t(c), x)
 
     assert (J[~adjacency] == 0).all()
+
     ladj = torch.linalg.slogdet(J).logabsdet
 
     assert torch.allclose(t(c).log_abs_det_jacobian(x, y), ladj, atol=1e-4)
