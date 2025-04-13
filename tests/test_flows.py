@@ -153,3 +153,41 @@ def test_adjacency_matrix():
 
     with pytest.raises(AssertionError, match="The graph contains cycles."):
         t = T(5, adjacency=adjacency_invalid)
+
+
+def test_context_adjacency_matrix():
+    T = MaskedAutoregressiveTransform
+
+    # With a valid adjacency matrix
+    order = torch.randperm(5)
+    adjacency = torch.rand((5, 5)) < 0.25
+    adjacency = adjacency + torch.eye(5, dtype=bool)
+    adjacency = torch.tril(adjacency)
+    adjacency = adjacency[order, :][:, order]
+
+    # context adjacency
+    adjacency_context = torch.rand((5, 2)) < 0.25
+    valid_adjacency = torch.concat((adjacency, adjacency_context), dim=1)
+
+    t = T(features=5, context=2, adjacency=valid_adjacency)
+
+    x, c = randn(5), randn(2)
+    y = t(c)(x)
+
+    J = torch.autograd.functional.jacobian(t(c), x)
+    assert (J[~adjacency] == 0).all()
+
+    assert y.shape == x.shape
+    assert y.requires_grad
+    assert torch.allclose(t(c).inv(y), x, atol=1e-4)
+
+    ladj = torch.linalg.slogdet(J).logabsdet
+
+    assert torch.allclose(t(c).log_abs_det_jacobian(x, y), ladj, atol=1e-4)
+    assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4)
+
+    invalid_adjacency_context = torch.rand((5, 1)) < 0.25
+    invalid_adjacency = torch.concat((adjacency, invalid_adjacency_context), dim=1)
+
+    with pytest.raises(AssertionError, match="'adjacency' should have 5 or 7 columns."):
+        t = T(features=5, context=2, adjacency=invalid_adjacency)
