@@ -144,7 +144,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
         if context > 0:
             if adjacency_context is None:
                 adjacency_context = torch.ones((features, context), dtype=bool)
-            adjacency = torch.cat((adjacency, adjacency_context),dim=1)
+            adjacency = torch.cat((adjacency, adjacency_context), dim=1)
 
         adjacency = torch.repeat_interleave(adjacency, repeats=self.total, dim=0)
 
