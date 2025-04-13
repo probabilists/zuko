@@ -167,27 +167,27 @@ def test_context_adjacency_matrix():
 
     # context adjacency
     adjacency_context = torch.rand((5, 2)) < 0.25
-    valid_adjacency = torch.concat((adjacency, adjacency_context), dim=1)
+    adjacency_valid = torch.cat((adjacency, adjacency_context), dim=1)
 
-    t = T(features=5, context=2, adjacency=valid_adjacency)
+    t = T(features=5, context=2, adjacency=adjacency_valid)
 
     x, c = randn(5), randn(2)
     y = t(c)(x)
-
-    J = torch.autograd.functional.jacobian(t(c), x)
-    assert (J[~adjacency] == 0).all()
 
     assert y.shape == x.shape
     assert y.requires_grad
     assert torch.allclose(t(c).inv(y), x, atol=1e-4)
 
+    J = torch.autograd.functional.jacobian(t(c), x)
+
+    assert (J[~adjacency] == 0).all()
     ladj = torch.linalg.slogdet(J).logabsdet
 
     assert torch.allclose(t(c).log_abs_det_jacobian(x, y), ladj, atol=1e-4)
     assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4)
 
-    invalid_adjacency_context = torch.rand((5, 1)) < 0.25
-    invalid_adjacency = torch.concat((adjacency, invalid_adjacency_context), dim=1)
+    adjacency_invalid_context = torch.rand((5, 1)) < 0.25
+    adjacency_invalid = torch.cat((adjacency, adjacency_invalid_context), dim=1)
 
     with pytest.raises(AssertionError, match="'adjacency' should have 5 or 7 columns."):
-        t = T(features=5, context=2, adjacency=invalid_adjacency)
+        t = T(features=5, context=2, adjacency=adjacency_invalid)
