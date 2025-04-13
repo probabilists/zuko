@@ -40,7 +40,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
         order: A feature ordering. If :py:`None`, use :py:`range(features)` instead.
         adjacency: An adjacency matrix describing the transformation graph. If
             `adjacency` is provided, `order` is ignored and `passes` is replaced by the
-            diameter of the graph.
+            diameter of the graph. Its shape must be either `(features, features)`
+            or `(features, features + context)`. If the shape includes context, the rightmost
+            `context` columns define connections to the conditioning variables.
         univariate: The univariate transformation constructor.
         shapes: The shapes of the univariate transformation parameters.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MaskedMLP`.
@@ -120,12 +122,19 @@ class MaskedAutoregressiveTransform(LazyTransform):
             self.order = torch.div(order, ceil(features / self.passes), rounding_mode="floor")
 
             adjacency = self.order[:, None] > self.order
+            adjacency_context = None
         else:
             adjacency = torch.as_tensor(adjacency, dtype=bool)
 
             assert adjacency.ndim == 2, "'adjacency' should be a matrix."
             assert adjacency.shape[0] == features, f"'adjacency' should have {features} rows."
-            assert adjacency.shape[1] == features, f"'adjacency' should have {features} columns."
+            assert adjacency.shape[1] == features or adjacency.shape[1] == features + context, (
+                f"'adjacency' should have {features} or {features + context} columns."
+            )
+
+            adjacency_context = adjacency[:, features:] if adjacency.shape[1] > features else None
+            adjacency = adjacency[:, :features]
+
             assert adjacency.diag().all(), "'adjacency' should have ones on the diagonal."
 
             adjacency = adjacency * ~torch.eye(features, dtype=bool)
@@ -133,10 +142,9 @@ class MaskedAutoregressiveTransform(LazyTransform):
             self.passes = self._dag_diameter(adjacency)
 
         if context > 0:
-            adjacency = torch.cat(
-                (adjacency, torch.ones((features, context), dtype=bool)),
-                dim=1,
-            )
+            if adjacency_context is None:
+                adjacency_context = torch.ones((features, context), dtype=bool)
+            adjacency = torch.cat((adjacency, adjacency_context), dim=1)
 
         adjacency = torch.repeat_interleave(adjacency, repeats=self.total, dim=0)
 
