@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch import BoolTensor, Tensor
 from typing import Callable, Iterable, Sequence, Union
 
+import math
 
 def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
     if W.dim() == 2:
@@ -119,6 +120,103 @@ class Linear(nn.Module):
         return linear(x, self.weight, self.bias)
 
 
+class BayesianLinear(nn.Module):
+    r"""Creates a Bayesian linear layer.
+
+    .. math:: y = x W^T + b
+
+    If the :py:`stack` argument is provided, the module creates a stack of
+    independent linear operators that are applied to a stack of input vectors.
+
+    Arguments:
+        in_features: The number of input features :math:`C`.
+        out_features: The number of output features :math:`C'`.
+        bias: Whether the layer learns an additive bias :math:`b` or not.
+        stack: The number of stacked operators :math:`S`.
+    """
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        stack: int = None,
+        # baysian prior and initialiation
+        prior_prec: float = 1.0,
+        std_init: float = -9 
+    ):
+        super().__init__()
+
+        shape = () if stack is None else (stack,)
+
+        self.weight = nn.Parameter(torch.empty(*shape, out_features, in_features))
+
+        if bias:
+            self.bias = nn.Parameter(torch.empty(*shape, out_features))
+        else:
+            self.bias = None
+
+        self.logsig2_w = nn.Parameter(torch.empty(*shape, out_features, in_features))    
+        self.prior_prec = prior_prec
+        self.std_init = std_init
+        
+        self.reset_parameters()
+        
+        self.in_features = in_features
+        self.out_features = out_features
+
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(-1))
+        self.weight.data.normal_(0, stdv)
+        self.logsig2_w.data.zero_().normal_(self.std_init, 0.001)
+        self.bias.data.zero_()
+
+    def KL(self):
+        logsig2_w = self.logsig2_w.clamp(-11, 11)
+        kl = 0.5 * (self.prior_prec * (self.weight.pow(2) + logsig2_w.exp())
+                    - logsig2_w - 1 - math.log(self.prior_prec)).sum()
+        return kl
+
+    def extra_repr(self) -> str:
+        if self.weight.dim() == 2:
+            stack, fout, fin = (None, *self.weight.shape)
+        else:
+            stack, fout, fin = self.weight.shape
+
+        bias = self.bias is not None
+
+        if stack is None:
+            return f"in_features={fin}, out_features={fout}, bias={bias}"
+        else:
+            return f"in_features={fin}, out_features={fout}, bias={bias}, stack={stack}"
+
+    def forward(self, x: Tensor) -> Tensor:
+        r"""
+        Arguments:
+            x: The input tensor :math:`x`, with shape :math:`(*, C)` or :math:`(*, S, C)`.
+
+        Returns:
+            The output tensor :math:`y`, with shape or :math:`(*, C')` or :math:`(*, S, C')`.
+        """
+        if self.training:
+            # local reparameterization trick is more efficient and leads to
+            # an estimate of the gradient with smaller variance.
+            # https://arxiv.org/pdf/1506.02557.pdf
+            mu_out = linear(x, self.weight, self.bias)
+            logsig2_w = self.logsig2_w.clamp(-11, 11)
+            s2_w = logsig2_w.exp()
+            var_out = linear(x.pow(2), s2_w) + 1e-8
+            return mu_out + var_out.sqrt() * torch.randn_like(mu_out)
+
+        else:
+            logsig2_w = self.logsig2_w.clamp(-11, 11)
+            rnd = torch.randn_like(self.logsig2_w)
+            s2_w = logsig2_w.exp()
+            weight = self.weight + s2_w.sqrt() * rnd
+            return linear(x, weight, self.bias) + 1e-8
+        
+
 class MLP(nn.Sequential):
     r"""Creates a multi-layer perceptron (MLP).
 
@@ -163,6 +261,7 @@ class MLP(nn.Sequential):
         hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
         normalize: bool = False,
+        linear_type: torch.nn.Module = Linear,
         **kwargs,
     ):
         if activation is None:
@@ -177,7 +276,7 @@ class MLP(nn.Sequential):
             (*hidden_features, out_features),
         ):
             layers.extend([
-                Linear(before, after, **kwargs),
+                linear_type(before, after, **kwargs),
                 activation(),
                 normalization(),
             ])
@@ -215,8 +314,42 @@ class MaskedLinear(nn.Linear):
 
     def forward(self, x: Tensor) -> Tensor:
         return F.linear(x, self.mask * self.weight, self.bias)
+        
 
+class MaskedBayesianLinear(BayesianLinear):
+    r"""Creates a masked bayesian linear layer.
 
+    .. math:: y = x (W \odot A)^T + b
+
+    Arguments:
+        adjacency: The adjacency matrix :math:`A \in \{0, 1\}^{M \times N}`.
+        kwargs: Keyword arguments passed to :class:`torch.nn.Linear`.
+    """
+
+    def __init__(self, adjacency: BoolTensor, **kwargs):
+        super().__init__(*reversed(adjacency.shape), **kwargs)
+
+        self.register_buffer("mask", adjacency)
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.training:
+            # local reparameterization trick is more efficient and leads to
+            # an estimate of the gradient with smaller variance.
+            # https://arxiv.org/pdf/1506.02557.pdf
+            mu_out = nn.functional.linear(x, self.mask*self.weight, self.bias)
+            logsig2_w = self.logsig2_w.clamp(-11, 11)
+            s2_w = logsig2_w.exp()
+            var_out = nn.functional.linear(x.pow(2), self.mask*s2_w) + 1e-8
+            return mu_out + var_out.sqrt() * torch.randn_like(mu_out)
+
+        else:
+            logsig2_w = self.logsig2_w.clamp(-11, 11)
+            rnd = torch.randn_like(self.logsig2_w)
+            s2_w = logsig2_w.exp()
+            weight = self.weight + s2_w.sqrt() * rnd
+            return nn.functional.linear(x, self.mask * weight, self.bias) + 1e-8
+            
+      
 class MaskedMLP(nn.Sequential):
     r"""Creates a masked multi-layer perceptron (MaskedMLP).
 
@@ -259,6 +392,7 @@ class MaskedMLP(nn.Sequential):
         adjacency: BoolTensor,
         hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
+        linear_type: torch.nn.Module = MaskedLinear,
         residual: bool = False,
     ):
         out_features, in_features = adjacency.shape
@@ -291,7 +425,7 @@ class MaskedMLP(nn.Sequential):
             else:
                 mask = mask[inverse]
 
-            layers.append(MaskedLinear(adjacency=mask))
+            layers.append(linear_type(adjacency=mask))
 
             if residual:
                 if 0 < i < len(hidden_features) and mask.shape[0] == mask.shape[1]:
@@ -301,9 +435,9 @@ class MaskedMLP(nn.Sequential):
 
                 layers.append(
                     Residual(
-                        MaskedLinear(adjacency=mask),
+                        linear_type(adjacency=mask),
                         activation(),
-                        MaskedLinear(adjacency=mask),
+                        linear_type(adjacency=mask),
                     )
                 )
             else:
