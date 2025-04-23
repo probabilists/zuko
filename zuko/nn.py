@@ -259,7 +259,7 @@ class MLP(nn.Sequential):
     Wikipedia:
         https://wikipedia.org/wiki/Feedforward_neural_network
 
-    If a Bayesian linear layer is used, the MLP becomes a Bayesian neural network.
+    If bayesian=True a Bayesian linear layer is used, and the MLP becomes a Bayesian neural network.
 
     Arguments:
         in_features: The number of input features.
@@ -268,8 +268,8 @@ class MLP(nn.Sequential):
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
         normalize: Whether features are normalized between layers or not.
-        linear_type: The type of linear layer to use. If :py:`None`, use
-            :class:`torch.nn.Linear` instead.
+        bayesian: if True use :class:`BayesianLinear` instead of
+            :class:`torch.nn.Linear`.
         kwargs: Keyword arguments passed to :class:`Linear`.
 
     Example:
@@ -291,14 +291,18 @@ class MLP(nn.Sequential):
         hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
         normalize: bool = False,
-        linear_type: torch.nn.Module = Linear,
+        bayesian: bool = False,
         **kwargs,
     ):
         if activation is None:
             activation = nn.ReLU
 
         normalization = LayerNorm if normalize else lambda: None
-        linear_type = linear_type if linear_type is not None else Linear
+
+        if bayesian:
+            linear_type = BayesianLinear
+        else:
+            linear_type = Linear
 
         layers = []
 
@@ -387,7 +391,7 @@ class MaskedMLP(nn.Sequential):
     The resulting MLP is a transformation :math:`y = f(x)` whose Jacobian entries
     :math:`\frac{\partial y_i}{\partial x_j}` are null if :math:`A_{ij} = 0`.
 
-    If linear_type is :class:`MaskedBayesianLinear`, the MLP becomes a masked Bayesian
+    If bayesian=True, a MaskedBayesianLinear layer is used and the MLP becomes a masked Bayesian
     neural network.
 
     Arguments:
@@ -396,8 +400,8 @@ class MaskedMLP(nn.Sequential):
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
         residual: Whether to use residual blocks or not.
-        linear_type: The type of linear layer to use. If :py:`None`, use
-            :class:`torch.nn.Linear` instead.
+        bayesian: if True use :class:`MaskedBayesianLinear` instead of
+            :class:`MaskedLinear`.
 
     Example:
         >>> adjacency = torch.randn(4, 3) < 0
@@ -428,15 +432,18 @@ class MaskedMLP(nn.Sequential):
         adjacency: BoolTensor,
         hidden_features: Sequence[int] = (64, 64),
         activation: Callable[[], nn.Module] = None,
-        linear_type: torch.nn.Module = MaskedLinear,
         residual: bool = False,
+        bayesian: bool = False,
     ):
         out_features, in_features = adjacency.shape
 
         if activation is None:
             activation = nn.ReLU
 
-        linear_type = linear_type if linear_type is not None else Linear
+        if bayesian:
+            linear_type = MaskedBayesianLinear
+        else:
+            linear_type = MaskedLinear
 
         # Merge outputs with the same dependencies
         adjacency, inverse = torch.unique(adjacency, dim=0, return_inverse=True)

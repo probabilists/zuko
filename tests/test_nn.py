@@ -49,7 +49,7 @@ def test_MLP(activation: callable, normalize: bool):
 @pytest.mark.parametrize("activation", [None, torch.nn.ELU])
 @pytest.mark.parametrize("normalize", [True, False])
 def test_BayesianMLP(activation: callable, normalize: bool):
-    net = MLP(3, 5, activation=activation, normalize=normalize, linear_type=BayesianLinear)
+    net = MLP(3, 5, activation=activation, normalize=normalize, bayesian=True)
 
     # Non-batched
     x = randn(3)
@@ -93,9 +93,7 @@ def test_MaskedMLP(residual: bool):
 @pytest.mark.parametrize("residual", [True, False])
 def test_MaskedBayesianMLP(residual: bool):
     adjacency = randn(5, 3) < 0
-    net = MaskedMLP(
-        adjacency, activation=nn.ELU, residual=residual, linear_type=MaskedBayesianLinear
-    )
+    net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual, bayesian=True)
 
     # Non-batched
     x = randn(3)
