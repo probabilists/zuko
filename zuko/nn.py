@@ -1,6 +1,6 @@
 r"""Neural networks, layers and modules."""
 
-__all__ = ["MLP", "Linear", "MaskedMLP", "MonotonicMLP"]
+__all__ = ["MLP", "BayesianLinear", "Linear", "MaskedBayesianLinear", "MaskedMLP", "MonotonicMLP"]
 
 import math
 import torch

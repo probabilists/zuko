@@ -46,10 +46,56 @@ def test_MLP(activation: callable, normalize: bool):
     assert y.shape == (256, 5)
 
 
+@pytest.mark.parametrize("activation", [None, torch.nn.ELU])
+@pytest.mark.parametrize("normalize", [True, False])
+def test_BayesianMLP(activation: callable, normalize: bool):
+    net = MLP(3, 5, activation=activation, normalize=normalize, linear_type=BayesianLinear)
+
+    # Non-batched
+    x = randn(3)
+    y = net(x)
+
+    assert y.shape == (5,)
+    assert y.requires_grad
+
+    # Batched
+    x = randn(256, 3)
+    y = net(x)
+
+    assert y.shape == (256, 5)
+
+
 @pytest.mark.parametrize("residual", [True, False])
 def test_MaskedMLP(residual: bool):
     adjacency = randn(5, 3) < 0
     net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual)
+
+    # Non-batched
+    x = randn(3)
+    y = net(x)
+
+    assert y.shape == (5,)
+    assert y.requires_grad
+
+    # Batched
+    x = randn(256, 3)
+    y = net(x)
+
+    assert y.shape == (256, 5)
+
+    # Jacobian
+    x = randn(3)
+    J = torch.autograd.functional.jacobian(net, x)
+
+    assert (J[~adjacency] == 0).all()
+
+
+@pytest.mark.parametrize("residual", [True, False])
+def test_MaskedBayesianMLP(residual: bool):
+    adjacency = randn(5, 3) < 0
+    net = MaskedMLP(
+        adjacency, activation=nn.ELU, residual=residual, linear_type=MaskedBayesianLinear
+    )
 
     # Non-batched
     x = randn(3)
