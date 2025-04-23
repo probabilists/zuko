@@ -2,6 +2,7 @@ r"""Neural networks, layers and modules."""
 
 __all__ = ["MLP", "Linear", "MaskedMLP", "MonotonicMLP"]
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +10,6 @@ import torch.nn.functional as F
 from torch import BoolTensor, Tensor
 from typing import Callable, Iterable, Sequence, Union
 
-import math
 
 def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
     if W.dim() == 2:
@@ -125,6 +125,24 @@ class BayesianLinear(nn.Module):
 
     .. math:: y = x W^T + b
 
+    The layer is a linear operator with a Gaussian prior over its weights.
+    The weights are initialized with a Gaussian distribution with mean 0 and
+    standard deviation :math:`\sigma = 1/\sqrt{C}`. The layer learns also the
+    variance of the weights as a separate learnable parameter.
+    At each forward pass, the weights are sampled from a Gaussian
+    distribution with mean :math:`\mu` and standard deviation :math:`\sigma_w`.
+
+    A KL loss computation is added to the loss function, which is the
+    difference between the prior and posterior distributions of the weights. The prior variance
+    of the weight is set to 1.0.
+    The weights variance is initialized to be very small log(var) = -9 at
+    the beginning of the training: doing so the layer behaves like a deterministic
+    linear layer at the beginning of the training, helping the model convergence.
+
+    The implementation is inspired by this tutorial:
+    https://github.com/heidelberg-hepml/ml-tutorials/blob/main/tutorial-13-uncertainties-with-flows.ipynb
+
+
     If the :py:`stack` argument is provided, the module creates a stack of
     independent linear operators that are applied to a stack of input vectors.
 
@@ -133,6 +151,8 @@ class BayesianLinear(nn.Module):
         out_features: The number of output features :math:`C'`.
         bias: Whether the layer learns an additive bias :math:`b` or not.
         stack: The number of stacked operators :math:`S`.
+        prior_prec: The prior std of the weights.
+        std_init: The initial standard deviation of the weights.
     """
 
     def __init__(
@@ -143,7 +163,7 @@ class BayesianLinear(nn.Module):
         stack: int = None,
         # baysian prior and initialiation
         prior_prec: float = 1.0,
-        std_init: float = -9 
+        std_init: float = -9,
     ):
         super().__init__()
 
@@ -156,26 +176,32 @@ class BayesianLinear(nn.Module):
         else:
             self.bias = None
 
-        self.logsig2_w = nn.Parameter(torch.empty(*shape, out_features, in_features))    
+        self.logsig2_w = nn.Parameter(torch.empty(*shape, out_features, in_features))
         self.prior_prec = prior_prec
         self.std_init = std_init
-        
+
         self.reset_parameters()
-        
+
         self.in_features = in_features
         self.out_features = out_features
 
-
     def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.weight.size(-1))
+        stdv = 1.0 / math.sqrt(self.weight.size(-1))
         self.weight.data.normal_(0, stdv)
         self.logsig2_w.data.zero_().normal_(self.std_init, 0.001)
         self.bias.data.zero_()
 
     def KL(self):
         logsig2_w = self.logsig2_w.clamp(-11, 11)
-        kl = 0.5 * (self.prior_prec * (self.weight.pow(2) + logsig2_w.exp())
-                    - logsig2_w - 1 - math.log(self.prior_prec)).sum()
+        kl = (
+            0.5
+            * (
+                self.prior_prec * (self.weight.pow(2) + logsig2_w.exp())
+                - logsig2_w
+                - 1
+                - math.log(self.prior_prec)
+            ).sum()
+        )
         return kl
 
     def extra_repr(self) -> str:
@@ -215,7 +241,7 @@ class BayesianLinear(nn.Module):
             s2_w = logsig2_w.exp()
             weight = self.weight + s2_w.sqrt() * rnd
             return linear(x, weight, self.bias) + 1e-8
-        
+
 
 class MLP(nn.Sequential):
     r"""Creates a multi-layer perceptron (MLP).
@@ -233,6 +259,8 @@ class MLP(nn.Sequential):
     Wikipedia:
         https://wikipedia.org/wiki/Feedforward_neural_network
 
+    If a Bayesian linear layer is used, the MLP becomes a Bayesian neural network.
+
     Arguments:
         in_features: The number of input features.
         out_features: The number of output features.
@@ -240,6 +268,8 @@ class MLP(nn.Sequential):
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
         normalize: Whether features are normalized between layers or not.
+        linear_type: The type of linear layer to use. If :py:`None`, use
+            :class:`torch.nn.Linear` instead.
         kwargs: Keyword arguments passed to :class:`Linear`.
 
     Example:
@@ -268,6 +298,7 @@ class MLP(nn.Sequential):
             activation = nn.ReLU
 
         normalization = LayerNorm if normalize else lambda: None
+        linear_type = linear_type if linear_type is not None else Linear
 
         layers = []
 
@@ -314,10 +345,10 @@ class MaskedLinear(nn.Linear):
 
     def forward(self, x: Tensor) -> Tensor:
         return F.linear(x, self.mask * self.weight, self.bias)
-        
+
 
 class MaskedBayesianLinear(BayesianLinear):
-    r"""Creates a masked bayesian linear layer.
+    r"""Creates a masked Bayesian linear layer.
 
     .. math:: y = x (W \odot A)^T + b
 
@@ -336,10 +367,10 @@ class MaskedBayesianLinear(BayesianLinear):
             # local reparameterization trick is more efficient and leads to
             # an estimate of the gradient with smaller variance.
             # https://arxiv.org/pdf/1506.02557.pdf
-            mu_out = nn.functional.linear(x, self.mask*self.weight, self.bias)
+            mu_out = nn.functional.linear(x, self.mask * self.weight, self.bias)
             logsig2_w = self.logsig2_w.clamp(-11, 11)
             s2_w = logsig2_w.exp()
-            var_out = nn.functional.linear(x.pow(2), self.mask*s2_w) + 1e-8
+            var_out = nn.functional.linear(x.pow(2), self.mask * s2_w) + 1e-8
             return mu_out + var_out.sqrt() * torch.randn_like(mu_out)
 
         else:
@@ -348,13 +379,16 @@ class MaskedBayesianLinear(BayesianLinear):
             s2_w = logsig2_w.exp()
             weight = self.weight + s2_w.sqrt() * rnd
             return nn.functional.linear(x, self.mask * weight, self.bias) + 1e-8
-            
-      
+
+
 class MaskedMLP(nn.Sequential):
     r"""Creates a masked multi-layer perceptron (MaskedMLP).
 
     The resulting MLP is a transformation :math:`y = f(x)` whose Jacobian entries
     :math:`\frac{\partial y_i}{\partial x_j}` are null if :math:`A_{ij} = 0`.
+
+    If linear_type is :class:`MaskedBayesianLinear`, the MLP becomes a masked Bayesian
+    neural network.
 
     Arguments:
         adjacency: The adjacency matrix :math:`A \in \{0, 1\}^{M \times N}`.
@@ -362,6 +396,8 @@ class MaskedMLP(nn.Sequential):
         activation: The activation function constructor. If :py:`None`, use
             :class:`torch.nn.ReLU` instead.
         residual: Whether to use residual blocks or not.
+        linear_type: The type of linear layer to use. If :py:`None`, use
+            :class:`torch.nn.Linear` instead.
 
     Example:
         >>> adjacency = torch.randn(4, 3) < 0
@@ -399,6 +435,8 @@ class MaskedMLP(nn.Sequential):
 
         if activation is None:
             activation = nn.ReLU
+
+        linear_type = linear_type if linear_type is not None else Linear
 
         # Merge outputs with the same dependencies
         adjacency, inverse = torch.unique(adjacency, dim=0, return_inverse=True)
