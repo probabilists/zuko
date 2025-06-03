@@ -55,7 +55,7 @@ def test_flows(tmp_path: Path, F: callable):
     torch.save(flow, tmp_path / "flow.pth")
 
     # Loading
-    flow_bis = torch.load(tmp_path / "flow.pth")
+    flow_bis = torch.load(tmp_path / "flow.pth", weights_only=False)
 
     x, c = randn(3), randn(5)
 

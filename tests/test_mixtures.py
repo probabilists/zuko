@@ -48,7 +48,7 @@ def test_mixtures(tmp_path: Path, M: callable):
     torch.save(mixture, tmp_path / "mixture.pth")
 
     # Loading
-    mixture_bis = torch.load(tmp_path / "mixture.pth")
+    mixture_bis = torch.load(tmp_path / "mixture.pth", weights_only=False)
 
     x, c = randn(3), randn(5)
 

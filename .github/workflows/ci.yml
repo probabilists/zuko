@@ -26,6 +26,7 @@ jobs:
           - {python: "3.10", torch: "2.0"}
           - {python: "3.11", torch: "2.2"}
           - {python: "3.12", torch: "2.4"}
+          - {python: "3.13", torch: "2.6"}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
