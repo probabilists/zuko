@@ -8,6 +8,7 @@ __all__ = [
     "broadcast",
     "gauss_legendre",
     "odeint",
+    "total_KL_divergence",
     "unpack",
 ]
 
@@ -20,6 +21,8 @@ from functools import lru_cache
 from torch import Size, Tensor
 from torch.autograd.function import once_differentiable
 from typing import Any, Callable, Dict, Iterable, List, Sequence, Tuple, Union
+
+from . import nn as zuko_nn
 
 
 class Partial(nn.Module):
@@ -607,3 +610,25 @@ def unpack(x: Tensor, shapes: Sequence[Size]) -> Sequence[Tensor]:
     x = (y.squeeze(-1) for y in x)
 
     return tuple(x)
+
+
+def total_KL_divergence(model: nn.Module) -> Tensor:
+    """
+    Computes the total KL divergence for the Bayesian Linear layers inside a model.
+
+    Arguments:
+        model: The model containing the Bayesian Linear layers.
+
+    Returns:
+        total_KL: The total KL divergence.
+    """
+    total_KL = None
+    for module in model.modules():
+        if isinstance(module, zuko_nn.MaskedBayesianLinear) or isinstance(
+            module, zuko_nn.BayesianLinear
+        ):
+            if total_KL:
+                total_KL += module.KL()
+            else:
+                total_KL = module.KL()
+    return total_KL
