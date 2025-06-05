@@ -10,7 +10,7 @@ from .core import (
     UnconditionalDistribution,
     UnconditionalTransform,
 )
-from .coupling import NICE, GeneralCouplingTransform
+from .coupling import NICE, GeneralCouplingTransform, RealNVP
 from .gaussianization import GF, ElementWiseTransform
 from .mixture import GMM
 from .neural import NAF, UNAF

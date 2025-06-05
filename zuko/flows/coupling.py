@@ -3,6 +3,7 @@ r"""Coupling flows and transformations."""
 __all__ = [
     "NICE",
     "GeneralCouplingTransform",
+    "RealNVP",
 ]
 
 import torch
@@ -139,14 +140,17 @@ class GeneralCouplingTransform(LazyTransform):
 
 
 class NICE(Flow):
-    r"""Creates a NICE flow.
+    r"""Creates a NICE / RealNVP flow.
 
-    Affine transformations are used by default, instead of the additive transformations
-    used by Dinh et al. (2014) originally.
+    Affine transformations are used by default, as in RealNVP (Dinh et al., 2016),
+    instead of additive transformations, as in NICE (Dinh et al., 2014).
 
     References:
         | NICE: Non-linear Independent Components Estimation (Dinh et al., 2014)
         | https://arxiv.org/abs/1410.8516
+
+        | Density estimation using Real NVP (Dinh et al., 2016)
+        | https://arxiv.org/abs/1605.08803
 
     Arguments:
         features: The number of features.
@@ -190,3 +194,7 @@ class NICE(Flow):
         )
 
         super().__init__(temp, base)
+
+
+class RealNVP(NICE):
+    pass

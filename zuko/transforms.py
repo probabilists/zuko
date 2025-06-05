@@ -1,6 +1,7 @@
 r"""Parameterizable transformations."""
 
 __all__ = [
+    "AdditiveTransform",
     "AutoregressiveTransform",
     "BernsteinTransform",
     "BoundedBernsteinTransform",
@@ -374,6 +375,37 @@ class SignedPowerTransform(Transform):
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return self.alpha + torch.expm1(self.alpha) * torch.log(abs(x))
+
+
+class AdditiveTransform(Transform):
+    r"""Creates a transformation :math:`f(x) = x + b`.
+
+    References:
+        | NICE: Non-linear Independent Components Estimation (Dinh et al., 2014)
+        | https://arxiv.org/abs/1410.8516
+
+    Arguments:
+        shift: The shift term :math:`b`, with shape :math:`(*,)`.
+    """
+
+    domain = constraints.real
+    codomain = constraints.real
+    bijective = True
+    sign = +1
+
+    def __init__(self, shift: Tensor, **kwargs):
+        super().__init__(**kwargs)
+
+        self.shift = shift
+
+    def _call(self, x: Tensor) -> Tensor:
+        return x + self.shift
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        return y - self.shift
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        return torch.zeros_like(x)
 
 
 class MonotonicAffineTransform(Transform):

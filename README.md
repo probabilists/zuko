@@ -79,19 +79,20 @@ For more information, check out the documentation and tutorials at [zuko.readthe
 
 ### Available flows
 
-| Class   | Year | Reference |
-|:-------:|:----:|-----------|
-| `GMM`   | -    | [Gaussian Mixture Model](https://wikipedia.org/wiki/Mixture_model#Gaussian_mixture_model) |
-| `NICE`  | 2014 | [Non-linear Independent Components Estimation](https://arxiv.org/abs/1410.8516) |
-| `MAF`   | 2017 | [Masked Autoregressive Flow for Density Estimation](https://arxiv.org/abs/1705.07057) |
-| `NSF`   | 2019 | [Neural Spline Flows](https://arxiv.org/abs/1906.04032) |
-| `NCSF`  | 2020 | [Normalizing Flows on Tori and Spheres](https://arxiv.org/abs/2002.02428) |
-| `SOSPF` | 2019 | [Sum-of-Squares Polynomial Flow](https://arxiv.org/abs/1905.02325) |
-| `NAF`   | 2018 | [Neural Autoregressive Flows](https://arxiv.org/abs/1804.00779) |
-| `UNAF`  | 2019 | [Unconstrained Monotonic Neural Networks](https://arxiv.org/abs/1908.05164) |
-| `CNF`   | 2018 | [Neural Ordinary Differential Equations](https://arxiv.org/abs/1806.07366) |
-| `GF`    | 2020 | [Gaussianization Flows](https://arxiv.org/abs/2003.01941) |
-| `BPF`   | 2020 | [Bernstein-Polynomial Normalizing Flows](https://arxiv.org/abs/2004.00464) |
+| Class     | Year | Reference |
+|:---------:|:----:|-----------|
+| `GMM`     | -    | [Gaussian Mixture Model](https://wikipedia.org/wiki/Mixture_model#Gaussian_mixture_model) |
+| `NICE`    | 2014 | [Non-linear Independent Components Estimation](https://arxiv.org/abs/1410.8516) |
+| `RealNVP` | 2016 | [Density estimation using Real NVP](https://arxiv.org/abs/1605.08803) |
+| `MAF`     | 2017 | [Masked Autoregressive Flow for Density Estimation](https://arxiv.org/abs/1705.07057) |
+| `NSF`     | 2019 | [Neural Spline Flows](https://arxiv.org/abs/1906.04032) |
+| `NCSF`    | 2020 | [Normalizing Flows on Tori and Spheres](https://arxiv.org/abs/2002.02428) |
+| `SOSPF`   | 2019 | [Sum-of-Squares Polynomial Flow](https://arxiv.org/abs/1905.02325) |
+| `NAF`     | 2018 | [Neural Autoregressive Flows](https://arxiv.org/abs/1804.00779) |
+| `UNAF`    | 2019 | [Unconstrained Monotonic Neural Networks](https://arxiv.org/abs/1908.05164) |
+| `CNF`     | 2018 | [Neural Ordinary Differential Equations](https://arxiv.org/abs/1806.07366) |
+| `GF`      | 2020 | [Gaussianization Flows](https://arxiv.org/abs/2003.01941) |
+| `BPF`     | 2020 | [Bernstein-Polynomial Normalizing Flows](https://arxiv.org/abs/2004.00464) |
 
 ## Contributing
 
