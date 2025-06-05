@@ -94,7 +94,7 @@ class UMNN(nn.Module):
         dx = self.integrand(torch.cat(broadcast(x[..., None], signal, ignore=1), dim=-1))
         dx = dx.squeeze(dim=-1)
 
-        return torch.exp(dx / (1 + abs(dx / 9)))  # in [1e-4, 1e4]
+        return torch.exp(dx / (1 + abs(dx / 7)))  # in [1e-3, 1e3]
 
     def forward(self, signal: Tensor, constant: Tensor) -> Transform:
         return UnconstrainedMonotonicTransform(

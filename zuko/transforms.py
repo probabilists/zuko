@@ -426,7 +426,7 @@ class MonotonicAffineTransform(Transform):
         self,
         shift: Tensor,
         scale: Tensor,
-        slope: float = 1e-4,
+        slope: float = 1e-3,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -471,7 +471,7 @@ class MonotonicRQSTransform(Transform):
         heights: Tensor,
         derivatives: Tensor,
         bound: float = 5.0,
-        slope: float = 1e-4,
+        slope: float = 1e-3,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -935,6 +935,7 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     Arguments:
         a: The polynomial coefficients :math:`a`, with shape :math:`(*, K, L + 1)`.
         C: The integration constant :math:`C`.
+        slope: The minimum slope of the transformation.
         kwargs: Keyword arguments passed to :class:`UnconstrainedMonotonicTransform`.
     """
 
@@ -943,18 +944,19 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, a: Tensor, C: Tensor, **kwargs):
+    def __init__(self, a: Tensor, C: Tensor, slope: float = 1e-3, **kwargs):
         super().__init__(None, C, phi=(a,), n=a.shape[-1], **kwargs)
 
         self.a = a
         self.i = torch.arange(a.shape[-1], device=a.device)
+        self.slope = slope
 
     def g(self, x: Tensor) -> Tensor:
         x = x / self.bound
         x = x[..., None] ** self.i
         p = 1 + self.a @ x[..., None]
 
-        return p.squeeze(dim=-1).square().mean(dim=-1)
+        return p.squeeze(dim=-1).square().mean(dim=-1) + self.slope
 
 
 class AutoregressiveTransform(Transform):
