@@ -75,6 +75,12 @@ def test_MaskedBayesianMLP(residual: bool):
     assert y.shape == (5,)
     assert y.requires_grad
 
+    ys = []
+    for _ in range(2):
+        with bnet.sample() as sampled_net:
+            ys.append(sampled_net(x))
+    assert not torch.allclose(ys[0], ys[1])
+
     # Batched
     x = randn(256, 3)
     y = net(x)
@@ -113,15 +119,25 @@ def test_MaskedBayesianMLP(residual: bool):
 
 
 @pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, GF, BPF])
-def test_bayesian_flows(tmp_path: Path, F: callable):
+@pytest.mark.parametrize("train", [True, False])
+def test_bayesian_flows(tmp_path: Path, F: callable, train: bool):
     flow = F(3, 5)
     bflow = BayesianModel(flow)
+
+    if train:
+        bflow.train()
+    else:
+        bflow.eval()
 
     # Evaluation of log_prob
     x, c = randn(256, 3), randn(5)
 
     sampled_flow = bflow.sample_model()
     log_p = sampled_flow(c).log_prob(x)
+
+    sampled_flow_2 = bflow.sample_model()
+    log_p_2 = sampled_flow_2(c).log_prob(x)
+    assert not torch.allclose(log_p, log_p_2)
 
     assert log_p.shape == (256,)
     assert log_p.requires_grad
@@ -160,6 +176,12 @@ def test_bayesian_flows(tmp_path: Path, F: callable):
         log_p_i = sflow(c).log_prob(x)
         assert not torch.allclose(log_p_i, log_p)
 
+    # Checking multiple evaluations
+    out = []
+    for _ in range(2):
+        with bflow.sample() as sflow:
+            out.append(sflow(c).log_prob(x))
+    assert not torch.allclose(out[0], out[1])
     # Saving
     torch.save(bflow, tmp_path / "flow.pth")
 

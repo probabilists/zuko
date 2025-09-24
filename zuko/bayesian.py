@@ -6,12 +6,12 @@ __all__ = [
     "BayesianModel",
 ]
 
+import copy
 import math
 import torch
 import torch.nn as nn
 
 from contextlib import contextmanager
-from torch.func import functional_call
 
 from zuko.nn import linear
 
@@ -143,12 +143,10 @@ class BayesianModel(nn.Module):
     def _sample_params(self):
         """Return sampled parameter dict {full_name: tensor}."""
         sampled = {}
-        sampled_count = 0
 
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Skip non-selected layers when a subset was provided
-
                 if self._bayesian_names is not None and name not in self._bayesian_names:
                     continue
                 safe_name = name.replace(".", "_")
@@ -156,7 +154,6 @@ class BayesianModel(nn.Module):
                 # Weights - always read from base model unless learn_means=True
                 if self.learn_means and safe_name + "_weight" in self.weight_means:
                     w_mu = self.weight_means[safe_name + "_weight"]
-                    # print(f"[BayesianFlow._sample_params] Using stored weight mean for '{name}' (shape={w_mu.shape})")
                 else:
                     w_mu = module.weight
 
@@ -164,7 +161,6 @@ class BayesianModel(nn.Module):
                 w_logvar = self.weight_logvars[safe_name + "_weight"].clamp(-11, 11)
                 w_std = torch.exp(w_logvar)
                 sampled[name + ".weight"] = w_mu + w_std.sqrt() * torch.randn_like(w_mu)
-                sampled_count += 1
 
                 # Bias - always read from base model unless learn_means=True
                 if module.bias is not None:
@@ -177,47 +173,17 @@ class BayesianModel(nn.Module):
                     b_logvar = self.bias_logvars[safe_name + "_bias"].clamp(-11, 11)
                     b_std = torch.exp(b_logvar)
                     sampled[name + ".bias"] = b_mu + b_std.sqrt() * torch.randn_like(b_mu)
-                    sampled_count += 1
 
         return sampled
 
     @contextmanager
     def sample(self):
-        """Context manager yielding a proxy model with sampled parameters."""
-        # print(f"[BayesianFlow.sample] Starting sample context (training={self.training})")
-
-        if self.training:
-            # Use local reparameterization trick for training (more efficient)
-            with self._reparameterization_context():
-                yield self.base
-        else:
-            # Use parameter sampling for evaluation
-            sampled_params = self._sample_params()
-            proxy = self._create_sampled_proxy(sampled_params)
-            try:
-                yield proxy
-            finally:
-                del proxy
-
-    def _create_sampled_proxy(self, sampled_params):
-        """Create proxy with pre-sampled parameters."""
-
-        class SampledProxy(nn.Module):
-            def __init__(self, base, params):
-                super().__init__()
-                self._base = base
-                self._params = params
-
-            def __getattr__(self, name):
-                # delegate attributes (log_prob, transform, etc.) to base
-                if name in {"_base", "_params"}:
-                    return super().__getattr__(name)
-                return getattr(self._base, name)
-
-            def forward(self, *args, **kwargs):
-                return functional_call(self._base, self._params, args, kwargs)
-
-        return SampledProxy(self.base, sampled_params)
+        """Context manager yielding the model with reparametrized forward methods for linear model.
+        This is not cloning the model but just temporarily replacing the forward methods of the
+        selected linear layers to use the local reparameterization trick during training, or
+        sampling once during evaluation."""
+        with self._reparameterization_context():
+            yield self.base
 
     @contextmanager
     def _reparameterization_context(self):
@@ -236,10 +202,19 @@ class BayesianModel(nn.Module):
                 # Create closure to capture current name and module
                 def make_reparameterized_forward(module_name, original_module):
                     # Match original forward signature (x) to avoid type errors
-                    def reparameterized_forward(x):
-                        return self._apply_local_reparameterization(
-                            x, module_name, original_module
-                        )
+                    if self.training:
+
+                        def reparameterized_forward(x):
+                            return self._apply_local_reparameterization_training(
+                                x, module_name, original_module
+                            )
+
+                    else:
+
+                        def reparameterized_forward(x):
+                            return self._apply_local_reparameterization_eval(
+                                x, module_name, original_module
+                            )
 
                     return reparameterized_forward
 
@@ -254,7 +229,7 @@ class BayesianModel(nn.Module):
                 if name in original_forwards:
                     module.forward = original_forwards[name]
 
-    def _apply_local_reparameterization(self, input, name, module):
+    def _apply_local_reparameterization_training(self, input, name, module):
         """Apply local reparameterization trick to a linear layer."""
         # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
         if self._bayesian_names is not None and name not in self._bayesian_names:
@@ -308,6 +283,45 @@ class BayesianModel(nn.Module):
         # Sample output using reparameterization trick
         result = mu_out + var_out.sqrt() * torch.randn_like(mu_out)
         return result
+
+    def _apply_local_reparameterization_eval(self, input, name, module):
+        """Eval the layer after sampling the weights once."""
+        # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
+        if self._bayesian_names is not None and name not in self._bayesian_names:
+            # Fallback to default linear forward
+            return module.forward(input)
+
+        safe_name = name.replace(".", "_")
+
+        # Get mean weights
+        if self.learn_means and safe_name + "_weight" in self.weight_means:
+            w_mu = self.weight_means[safe_name + "_weight"]
+        else:
+            w_mu = module.weight
+
+        # Get bias mean
+        if module.bias is not None:
+            if self.learn_means and safe_name + "_bias" in self.bias_means:
+                b_mu = self.bias_means[safe_name + "_bias"]
+            else:
+                b_mu = module.bias
+        else:
+            b_mu = None
+
+        w_logvar = self.weight_logvars[safe_name + "_weight"].clamp(-11, 11)
+        w_sampled = w_mu + torch.exp(w_logvar).sqrt() * torch.randn_like(w_mu)
+
+        if module.bias is not None:
+            b_logvar = self.bias_logvars[safe_name + "_bias"].clamp(-11, 11)
+            b_sampled = b_mu + torch.exp(b_logvar).sqrt() * torch.randn_like(b_mu)
+        else:
+            b_sampled = None
+
+        # Compute output
+        if isinstance(module, MaskedLinear):
+            return linear(input, module.mask * w_sampled, b_sampled)
+        else:
+            return linear(input, w_sampled, b_sampled)
 
     def kl_divergence(self, prior_std: float = 1.0, clamp: tuple = (-11, 11)):
         """Compute KL divergence between q(w|θ) and prior N(0, σ_p^2)."""
@@ -368,12 +382,18 @@ class BayesianModel(nn.Module):
 
     def sample_model(self):
         """Return a single sampled model instance (not a context manager).
+        This effectively clones the base model and samples new parameters for the
+        selected Bayesian layers.
 
         Returns:
-            A proxy model with sampled parameters that can be used like the original model.
+            A clone of  model with sampled parameters that can be used like the original model.
         """
         sampled_params = self._sample_params()
-        return self._create_sampled_proxy(sampled_params)
+        # Clone the base model and apply sampled parameters
+        # deep copy of the base model
+        new_model = copy.deepcopy(self.base)
+        new_model.load_state_dict(sampled_params, strict=False)
+        return new_model
 
     def forward(self, *args, **kwargs):
         # Default deterministic call: use base weights (means)
