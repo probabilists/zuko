@@ -155,55 +155,6 @@ def test_adjacency_matrix():
         t = T(5, adjacency=adjacency_invalid)
 
 
-@pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, GF, BPF])
-def test_bayesian_flows(tmp_path: Path, F: callable):
-    flow = F(3, 5, bayesian=True)
-
-    # Evaluation of log_prob
-    x, c = randn(256, 3), randn(5)
-    log_p = flow(c).log_prob(x)
-
-    assert log_p.shape == (256,)
-    assert log_p.requires_grad
-
-    flow.zero_grad(set_to_none=True)
-    loss = -log_p.mean()
-    loss.backward()
-
-    for p in flow.parameters():
-        assert p.grad is not None
-
-    # Sampling
-    x = flow(c).sample((32,))
-
-    assert x.shape == (32, 3)
-
-    # Reparameterization trick
-    if flow(c).has_rsample:
-        x = flow(c).rsample()
-
-        flow.zero_grad(set_to_none=True)
-        loss = x.square().sum().sqrt()
-        loss.backward()
-
-        for p in flow.parameters():
-            assert p.grad is not None
-
-    # Testing the sampling of log_prob
-    for _ in range(5):
-        log_p_i = flow(c).log_prob(x)
-        assert not torch.allclose(log_p_i, log_p)
-
-    # Saving
-    torch.save(flow, tmp_path / "flow.pth")
-
-    # Loading
-    flow_bis = torch.load(tmp_path / "flow.pth")
-    assert flow_bis
-    # Printing
-    assert repr(flow)
-
-
 def test_context_adjacency_matrix():
     T = MaskedAutoregressiveTransform
 

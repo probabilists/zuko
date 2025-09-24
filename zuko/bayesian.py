@@ -13,6 +13,8 @@ import torch.nn as nn
 from contextlib import contextmanager
 from torch.func import functional_call
 
+from zuko.nn import linear
+
 from .nn import Linear, MaskedLinear
 
 
@@ -278,9 +280,9 @@ class BayesianModel(nn.Module):
 
         # Compute mean output
         if isinstance(module, MaskedLinear):
-            mu_out = nn.functional.linear(input, module.mask * w_mu, b_mu)
+            mu_out = linear(input, module.mask * w_mu, b_mu)
         else:
-            mu_out = nn.functional.linear(input, w_mu, b_mu)
+            mu_out = linear(input, w_mu, b_mu)
 
         # Get weight variances
         w_logvar = self.weight_logvars[safe_name + "_weight"].clamp(-11, 11)
@@ -288,9 +290,9 @@ class BayesianModel(nn.Module):
 
         # Compute variance of output using local reparameterization trick
         if isinstance(module, MaskedLinear):
-            var_out = nn.functional.linear(input.pow(2), module.mask * w_var) + 1e-8
+            var_out = linear(input.pow(2), module.mask * w_var) + 1e-8
         else:
-            var_out = nn.functional.linear(input.pow(2), w_var) + 1e-8
+            var_out = linear(input.pow(2), w_var) + 1e-8
 
         # Add bias variance if present
         if module.bias is not None:
@@ -299,9 +301,9 @@ class BayesianModel(nn.Module):
             if isinstance(module, MaskedLinear):
                 # Apply mask to bias variance - use mask's output dimension
                 masked_b_var = module.mask.any(dim=1).float() * b_var
-                var_out = var_out + masked_b_var.unsqueeze(0).expand_as(var_out)
+                var_out = var_out + masked_b_var
             else:
-                var_out = var_out + b_var.unsqueeze(0).expand_as(var_out)
+                var_out = var_out + b_var
 
         # Sample output using reparameterization trick
         result = mu_out + var_out.sqrt() * torch.randn_like(mu_out)
@@ -363,6 +365,15 @@ class BayesianModel(nn.Module):
                     kl += bias_kl
 
         return kl
+
+    def sample_model(self):
+        """Return a single sampled model instance (not a context manager).
+
+        Returns:
+            A proxy model with sampled parameters that can be used like the original model.
+        """
+        sampled_params = self._sample_params()
+        return self._create_sampled_proxy(sampled_params)
 
     def forward(self, *args, **kwargs):
         # Default deterministic call: use base weights (means)
