@@ -2,6 +2,8 @@ r"""Utils for bayesian flows."""
 
 from __future__ import annotations
 
+from functools import partial
+
 __all__ = [
     "BayesianModel",
 ]
@@ -17,9 +19,9 @@ from contextlib import contextmanager
 from .nn import Linear, MaskedLinear, linear
 
 
-def _softclip(x, extreme_val=11.0):
-    """Soft clipping function to keep x in [extreme_val, extreme_val]."""
-    return x / (1 + (x.square() / (extreme_val**2))).sqrt()
+def _softclip(x, bound=11.0):
+    """Soft clipping function to keep x in [-bound, bound]."""
+    return x * (1 + (x / bound).square()).rsqrt()
 
 
 class BayesianModel(nn.Module):
@@ -27,22 +29,23 @@ class BayesianModel(nn.Module):
         self,
         base: nn.Module,
         init_logvar: float = -9.0,
+        seed: int = 42,
         learn_means: bool = False,
         bayesian_layers: list[str] | None = None,
     ):
         super().__init__()
         self.base = base
         self.learn_means = learn_means
+
+        self.register_buffer("rng_seed", torch.tensor(seed, dtype=torch.long))
+        self.reset_generator("cuda" if torch.cuda.is_available() else "cpu")
         # bayesian_layers: optional list of module names (dotted, e.g. "layer1.linear")
         # If None, all Linear/MaskedLinear modules are treated as Bayesian (existing behavior).
         # Store both dotted and underscore-safe names for easy matching.
         if bayesian_layers is None:
             self._requested_bayesian = None
         else:
-            safe = set()
-            for n in bayesian_layers:
-                safe.add(n)
-            self._requested_bayesian = safe
+            self._requested_bayesian = set(bayesian_layers)
 
         # Store parameters for Bayesian layers - use underscores instead of dots
         self.weight_means = nn.ParameterDict()
@@ -55,7 +58,7 @@ class BayesianModel(nn.Module):
             if isinstance(module, (Linear, MaskedLinear)):
                 # Convert dots to underscores for ParameterDict keys
                 # If specific bayesian layers selected, skip others
-                if self._bayesian_names is not None and name not in self._bayesian_names:
+                if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
                 safe_name = name.replace(".", "_")
                 # Mark as matched for validation
@@ -86,7 +89,7 @@ class BayesianModel(nn.Module):
 
         # Validate requested bayesian layer names and warn if any weren't found
         if self._requested_bayesian is not None:
-            missing = set(self._requested_bayesian) - matched
+            missing = self._requested_bayesian - matched
             if missing:
                 warnings.warn(
                     f"BayesianModel: requested bayesian_layers not found in base model: {sorted(missing)}",
@@ -94,12 +97,17 @@ class BayesianModel(nn.Module):
                     stacklevel=2,
                 )
 
+    def reset_generator(self, device="cpu"):
+        """Rebuild generator from stored seed (e.g. after loading state_dict).
+        This is call each time"""
+        self.generator = torch.Generator(device=device).manual_seed(int(self.rng_seed))
+
     def _reset_bayesian_parameters(self, init_logvar: float):
         """Initialize posterior means and variances like in original impl."""
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Skip non-selected layers when a subset was provided
-                if self._bayesian_names is not None and name not in self._bayesian_names:
+                if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
 
                 safe_name = name.replace(".", "_")
@@ -137,7 +145,7 @@ class BayesianModel(nn.Module):
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Skip non-selected layers when a subset was provided
-                if self._bayesian_names is not None and name not in self._bayesian_names:
+                if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
                 safe_name = name.replace(".", "_")
 
@@ -149,8 +157,8 @@ class BayesianModel(nn.Module):
 
                 # Apply same softclip as BayesianLinear and use sqrt of exp(logvar)
                 w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
-                sampled[name + ".weight"] = w_mu + torch.exp(w_logvar).sqrt() * torch.randn_like(
-                    w_mu
+                sampled[name + ".weight"] = w_mu + torch.exp(w_logvar).sqrt() * torch.randn(
+                    w_mu.shape, generator=self.generator, device=w_mu.device
                 )
 
                 # Bias - always read from base model unless learn_means=True
@@ -162,20 +170,26 @@ class BayesianModel(nn.Module):
 
                     # Apply same softclip as BayesianLinear and use sqrt of exp(logvar)
                     b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
-                    sampled[name + ".bias"] = b_mu + torch.exp(b_logvar).sqrt() * torch.randn_like(
-                        b_mu
+                    sampled[name + ".bias"] = b_mu + torch.exp(b_logvar).sqrt() * torch.randn(
+                        b_mu.shape, generator=self.generator, device=b_mu.device
                     )
 
         return sampled
 
     @contextmanager
-    def sample(self):
+    def sample(self, trick=False):
         """Context manager yielding the model with reparametrized forward methods for linear model.
         This is not cloning the model but just temporarily replacing the forward methods of the
         selected linear layers to use the local reparameterization trick during training, or
         sampling once during evaluation."""
-        with self._reparameterization_context():
-            yield self.base
+
+        if not trick:
+            sampled_params = self._sample_params()
+            with torch.nn.utils.stateless._reparametrize_module(self.base, sampled_params):
+                yield self.base
+        else:
+            with self._reparameterization_context():
+                yield self.base
 
     @contextmanager
     def _reparameterization_context(self):
@@ -186,32 +200,23 @@ class BayesianModel(nn.Module):
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Skip non-selected layers when a subset was provided
-                if self._bayesian_names is not None and name not in self._bayesian_names:
+                if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
 
                 original_forwards[name] = module.forward
 
-                # Create closure to capture current name and module
-                def make_reparameterized_forward(module_name, original_module):
-                    # Match original forward signature (x) to avoid type errors
-                    if self.training:
-
-                        def reparameterized_forward(x):
-                            return self._apply_local_reparameterization_training(
-                                x, module_name, original_module
-                            )
-
-                    else:
-
-                        def reparameterized_forward(x):
-                            return self._apply_local_reparameterization_eval(
-                                x, module_name, original_module
-                            )
-
-                    return reparameterized_forward
-
-                # Replace the forward method using setattr on instance to avoid mypy complaints
-                module.forward = make_reparameterized_forward(name, module)
+                if self.training:
+                    module.forward = partial(
+                        self._apply_local_reparameterization_training,
+                        name=name,
+                        module=module,
+                    )
+                else:
+                    module.forward = partial(
+                        self._apply_local_reparameterization_eval,
+                        name=name,
+                        module=module,
+                    )
 
         try:
             yield
@@ -224,7 +229,7 @@ class BayesianModel(nn.Module):
     def _apply_local_reparameterization_training(self, input, name, module):
         """Apply local reparameterization trick to a linear layer."""
         # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
-        if self._bayesian_names is not None and name not in self._bayesian_names:
+        if self._requested_bayesian is not None and name not in self._requested_bayesian:
             # Fallback to default linear forward
             return module.forward(input)
 
@@ -273,13 +278,15 @@ class BayesianModel(nn.Module):
                 var_out = var_out + b_var
 
         # Sample output using reparameterization trick
-        result = mu_out + var_out.sqrt() * torch.randn_like(mu_out)
+        result = mu_out + var_out.sqrt() * torch.randn(
+            mu_out.shape, generator=self.generator, device=mu_out.device
+        )
         return result
 
     def _apply_local_reparameterization_eval(self, input, name, module):
         """Eval the layer after sampling the weights once."""
         # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
-        if self._bayesian_names is not None and name not in self._bayesian_names:
+        if self._requested_bayesian is not None and name not in self._requested_bayesian:
             # Fallback to default linear forward
             return module.forward(input)
 
@@ -301,11 +308,15 @@ class BayesianModel(nn.Module):
             b_mu = None
 
         w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
-        w_sampled = w_mu + torch.exp(w_logvar).sqrt() * torch.randn_like(w_mu)
+        w_sampled = w_mu + torch.exp(w_logvar).sqrt() * torch.randn(
+            w_mu.shape, generator=self.generator, device=w_mu.device
+        )
 
         if module.bias is not None:
             b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
-            b_sampled = b_mu + torch.exp(b_logvar).sqrt() * torch.randn_like(b_mu)
+            b_sampled = b_mu + torch.exp(b_logvar).sqrt() * torch.randn(
+                b_mu.shape, generator=self.generator, device=b_mu.device
+            )
         else:
             b_sampled = None
 
@@ -324,7 +335,7 @@ class BayesianModel(nn.Module):
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Skip non-selected layers when a subset was provided
-                if self._bayesian_names is not None and name not in self._bayesian_names:
+                if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
 
                 safe_name = name.replace(".", "_")
@@ -386,6 +397,7 @@ class BayesianModel(nn.Module):
         return new_model
 
     def forward(self, *args, **kwargs):
-        # Default deterministic call: use base weights (means)
-        result = self.base(*args, **kwargs)
-        return result
+        """Exception: the model should not be used directly"""
+        raise RuntimeError(
+            "BayesianModel should not be used directly. Use sample() context manager or sample_model()."
+        )
