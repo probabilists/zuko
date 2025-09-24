@@ -17,11 +17,29 @@ from .nn import Linear, MaskedLinear
 
 
 class BayesianModel(nn.Module):
-    def __init__(self, base: nn.Module, init_logvar: float = -9.0, learn_means: bool = False):
+    def __init__(
+        self,
+        base: nn.Module,
+        init_logvar: float = -9.0,
+        learn_means: bool = False,
+        bayesian_layers: list[str] | None = None,
+    ):
         super().__init__()
         self.base = base
         self.learn_means = learn_means
         self.init_logvar = init_logvar
+        # bayesian_layers: optional list of module names (dotted, e.g. "layer1.linear")
+        # If None, all Linear/MaskedLinear modules are treated as Bayesian (existing behavior).
+        # Store both dotted and underscore-safe names for easy matching.
+        if bayesian_layers is None:
+            self._bayesian_names = None
+        else:
+            safe = set()
+            for n in bayesian_layers:
+                safe.add(n)
+            self._bayesian_names = safe
+        # Keep original requested names for validation/warnings
+        self._requested_bayesian = set(bayesian_layers) if bayesian_layers is not None else None
 
         # Store parameters for Bayesian layers - use underscores instead of dots
         self.weight_means = nn.ParameterDict()
@@ -29,10 +47,17 @@ class BayesianModel(nn.Module):
         self.weight_logvars = nn.ParameterDict()
         self.bias_logvars = nn.ParameterDict()
 
+        matched = set()
         for name, module in base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Convert dots to underscores for ParameterDict keys
+                # If specific bayesian layers selected, skip others
+                if self._bayesian_names is not None and name not in self._bayesian_names:
+                    continue
                 safe_name = name.replace(".", "_")
+                # Mark as matched for validation
+                if self._bayesian_names is not None:
+                    matched.add(name)
 
                 # Only store mean parameters if learn_means=True
                 if learn_means:
@@ -56,10 +81,31 @@ class BayesianModel(nn.Module):
         # Initialize them properly
         self._reset_bayesian_parameters()
 
+        # Validate requested bayesian layer names and warn if any weren't found
+        if self._requested_bayesian is not None:
+            # Consider a requested name found if either dotted or underscore form matched
+            found = set()
+            for r in self._requested_bayesian:
+                if r in matched:
+                    found.add(r)
+            missing = set(self._requested_bayesian) - found
+            if missing:
+                import warnings
+
+                warnings.warn(
+                    f"BayesianModel: requested bayesian_layers not found in base model: {sorted(missing)}",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
     def _reset_bayesian_parameters(self):
         """Initialize posterior means and variances like in original impl."""
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
+                # Skip non-selected layers when a subset was provided
+                if self._bayesian_names is not None and name not in self._bayesian_names:
+                    continue
+
                 safe_name = name.replace(".", "_")
                 fan_in = module.weight.size(-1)
                 stdv = 1.0 / math.sqrt(fan_in)
@@ -99,6 +145,10 @@ class BayesianModel(nn.Module):
 
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
+                # Skip non-selected layers when a subset was provided
+
+                if self._bayesian_names is not None and name not in self._bayesian_names:
+                    continue
                 safe_name = name.replace(".", "_")
 
                 # Weights - always read from base model unless learn_means=True
@@ -175,18 +225,23 @@ class BayesianModel(nn.Module):
 
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
+                # Skip non-selected layers when a subset was provided
+                if self._bayesian_names is not None and name not in self._bayesian_names:
+                    continue
+
                 original_forwards[name] = module.forward
 
                 # Create closure to capture current name and module
                 def make_reparameterized_forward(module_name, original_module):
-                    def reparameterized_forward(input):
+                    # Match original forward signature (x) to avoid type errors
+                    def reparameterized_forward(x):
                         return self._apply_local_reparameterization(
-                            input, module_name, original_module
+                            x, module_name, original_module
                         )
 
                     return reparameterized_forward
 
-                # Replace the forward method using setattr to avoid type checker issues
+                # Replace the forward method using setattr on instance to avoid mypy complaints
                 module.forward = make_reparameterized_forward(name, module)
 
         try:
@@ -199,6 +254,11 @@ class BayesianModel(nn.Module):
 
     def _apply_local_reparameterization(self, input, name, module):
         """Apply local reparameterization trick to a linear layer."""
+        # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
+        if self._bayesian_names is not None and name not in self._bayesian_names:
+            # Fallback to default linear forward
+            return module.forward(input)
+
         safe_name = name.replace(".", "_")
 
         # Get mean weights
@@ -256,6 +316,10 @@ class BayesianModel(nn.Module):
 
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
+                # Skip non-selected layers when a subset was provided
+                if self._bayesian_names is not None and name not in self._bayesian_names:
+                    continue
+
                 layer_count += 1
                 safe_name = name.replace(".", "_")
 
