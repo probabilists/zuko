@@ -14,7 +14,8 @@ import warnings
 from contextlib import contextmanager
 from functools import partial
 
-from .nn import Linear, MaskedLinear, linear
+from .flows import GF, NAF
+from .nn import Linear, MaskedLinear, MonotonicLinear, linear
 
 
 def _softclip(x, bound=11.0):
@@ -27,7 +28,6 @@ class BayesianModel(nn.Module):
         self,
         base: nn.Module,
         init_logvar: float = -9.0,
-        seed: int = 42,
         learn_means: bool = False,
         bayesian_layers: list[str] | None = None,
     ):
@@ -176,7 +176,7 @@ class BayesianModel(nn.Module):
         Arguments:
             trick: if True, use the local reparameterization trick even in eval mode."""
 
-        if not trick and not self.training:
+        if (not trick and not self.training) or isinstance(self.base, (NAF, GF)):
             sampled_params = self._sample_params()
             with torch.nn.utils.stateless._reparametrize_module(self.base, sampled_params):
                 yield self.base
@@ -231,6 +231,9 @@ class BayesianModel(nn.Module):
             w_mu = self.weight_means[safe_name + "_weight"]
         else:
             w_mu = module.weight
+
+        if isinstance(module, MonotonicLinear):
+            w_mu = w_mu.abs()
 
         # Get bias mean
         if module.bias is not None:
