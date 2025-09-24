@@ -10,12 +10,16 @@ import copy
 import math
 import torch
 import torch.nn as nn
+import warnings
 
 from contextlib import contextmanager
 
-from zuko.nn import linear
+from .nn import Linear, MaskedLinear, linear
 
-from .nn import Linear, MaskedLinear
+
+def _softclip(x, extreme_val=11.0):
+    """Soft clipping function to keep x in [extreme_val, extreme_val]."""
+    return x / (1 + (x.square() / (extreme_val**2))).sqrt()
 
 
 class BayesianModel(nn.Module):
@@ -29,19 +33,16 @@ class BayesianModel(nn.Module):
         super().__init__()
         self.base = base
         self.learn_means = learn_means
-        self.init_logvar = init_logvar
         # bayesian_layers: optional list of module names (dotted, e.g. "layer1.linear")
         # If None, all Linear/MaskedLinear modules are treated as Bayesian (existing behavior).
         # Store both dotted and underscore-safe names for easy matching.
         if bayesian_layers is None:
-            self._bayesian_names = None
+            self._requested_bayesian = None
         else:
             safe = set()
             for n in bayesian_layers:
                 safe.add(n)
-            self._bayesian_names = safe
-        # Keep original requested names for validation/warnings
-        self._requested_bayesian = set(bayesian_layers) if bayesian_layers is not None else None
+            self._requested_bayesian = safe
 
         # Store parameters for Bayesian layers - use underscores instead of dots
         self.weight_means = nn.ParameterDict()
@@ -58,7 +59,7 @@ class BayesianModel(nn.Module):
                     continue
                 safe_name = name.replace(".", "_")
                 # Mark as matched for validation
-                if self._bayesian_names is not None:
+                if self._requested_bayesian is not None:
                     matched.add(name)
 
                 # Only store mean parameters if learn_means=True
@@ -81,26 +82,19 @@ class BayesianModel(nn.Module):
                     )
 
         # Initialize them properly
-        self._reset_bayesian_parameters()
+        self._reset_bayesian_parameters(init_logvar)
 
         # Validate requested bayesian layer names and warn if any weren't found
         if self._requested_bayesian is not None:
-            # Consider a requested name found if either dotted or underscore form matched
-            found = set()
-            for r in self._requested_bayesian:
-                if r in matched:
-                    found.add(r)
-            missing = set(self._requested_bayesian) - found
+            missing = set(self._requested_bayesian) - matched
             if missing:
-                import warnings
-
                 warnings.warn(
                     f"BayesianModel: requested bayesian_layers not found in base model: {sorted(missing)}",
                     UserWarning,
                     stacklevel=2,
                 )
 
-    def _reset_bayesian_parameters(self):
+    def _reset_bayesian_parameters(self, init_logvar: float):
         """Initialize posterior means and variances like in original impl."""
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
@@ -123,9 +117,7 @@ class BayesianModel(nn.Module):
                     module.weight.data.normal_(0, stdv)
 
                 # Weight logvar - match BayesianLinear initialization pattern
-                self.weight_logvars[safe_name + "_weight"].data.zero_().normal_(
-                    self.init_logvar, 0.001
-                )
+                self.weight_logvars[safe_name + "_weight"].data.zero_().normal_(init_logvar, 0.001)
 
                 # Bias mean
                 if module.bias is not None:
@@ -136,9 +128,7 @@ class BayesianModel(nn.Module):
 
                 # Bias logvar - match BayesianLinear initialization pattern
                 if module.bias is not None:
-                    self.bias_logvars[safe_name + "_bias"].data.zero_().normal_(
-                        self.init_logvar, 0.001
-                    )
+                    self.bias_logvars[safe_name + "_bias"].data.zero_().normal_(init_logvar, 0.001)
 
     def _sample_params(self):
         """Return sampled parameter dict {full_name: tensor}."""
@@ -157,10 +147,11 @@ class BayesianModel(nn.Module):
                 else:
                     w_mu = module.weight
 
-                # Apply same clamping as BayesianLinear and use sqrt of exp(logvar)
-                w_logvar = self.weight_logvars[safe_name + "_weight"].clamp(-11, 11)
-                w_std = torch.exp(w_logvar)
-                sampled[name + ".weight"] = w_mu + w_std.sqrt() * torch.randn_like(w_mu)
+                # Apply same softclip as BayesianLinear and use sqrt of exp(logvar)
+                w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
+                sampled[name + ".weight"] = w_mu + torch.exp(w_logvar).sqrt() * torch.randn_like(
+                    w_mu
+                )
 
                 # Bias - always read from base model unless learn_means=True
                 if module.bias is not None:
@@ -169,10 +160,11 @@ class BayesianModel(nn.Module):
                     else:
                         b_mu = module.bias
 
-                    # Apply same clamping as BayesianLinear and use sqrt of exp(logvar)
-                    b_logvar = self.bias_logvars[safe_name + "_bias"].clamp(-11, 11)
-                    b_std = torch.exp(b_logvar)
-                    sampled[name + ".bias"] = b_mu + b_std.sqrt() * torch.randn_like(b_mu)
+                    # Apply same softclip as BayesianLinear and use sqrt of exp(logvar)
+                    b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
+                    sampled[name + ".bias"] = b_mu + torch.exp(b_logvar).sqrt() * torch.randn_like(
+                        b_mu
+                    )
 
         return sampled
 
@@ -260,18 +252,18 @@ class BayesianModel(nn.Module):
             mu_out = linear(input, w_mu, b_mu)
 
         # Get weight variances
-        w_logvar = self.weight_logvars[safe_name + "_weight"].clamp(-11, 11)
+        w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
         w_var = torch.exp(w_logvar)
 
         # Compute variance of output using local reparameterization trick
         if isinstance(module, MaskedLinear):
-            var_out = linear(input.pow(2), module.mask * w_var) + 1e-8
+            var_out = linear(input.square(), module.mask * w_var) + 1e-8
         else:
-            var_out = linear(input.pow(2), w_var) + 1e-8
+            var_out = linear(input.square(), w_var) + 1e-8
 
         # Add bias variance if present
         if module.bias is not None:
-            b_logvar = self.bias_logvars[safe_name + "_bias"].clamp(-11, 11)
+            b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
             b_var = torch.exp(b_logvar)
             if isinstance(module, MaskedLinear):
                 # Apply mask to bias variance - use mask's output dimension
@@ -308,11 +300,11 @@ class BayesianModel(nn.Module):
         else:
             b_mu = None
 
-        w_logvar = self.weight_logvars[safe_name + "_weight"].clamp(-11, 11)
+        w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
         w_sampled = w_mu + torch.exp(w_logvar).sqrt() * torch.randn_like(w_mu)
 
         if module.bias is not None:
-            b_logvar = self.bias_logvars[safe_name + "_bias"].clamp(-11, 11)
+            b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
             b_sampled = b_mu + torch.exp(b_logvar).sqrt() * torch.randn_like(b_mu)
         else:
             b_sampled = None
@@ -323,12 +315,11 @@ class BayesianModel(nn.Module):
         else:
             return linear(input, w_sampled, b_sampled)
 
-    def kl_divergence(self, prior_std: float = 1.0, clamp: tuple = (-11, 11)):
+    def kl_divergence(self, prior_std: float = 1.0):
         """Compute KL divergence between q(w|θ) and prior N(0, σ_p^2)."""
         kl = 0.0
         prior_var = prior_std**2
         log_prior_var = math.log(prior_var)
-        layer_count = 0
 
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
@@ -336,7 +327,6 @@ class BayesianModel(nn.Module):
                 if self._bayesian_names is not None and name not in self._bayesian_names:
                     continue
 
-                layer_count += 1
                 safe_name = name.replace(".", "_")
 
                 # Weights - always read from base model unless learn_means=True
@@ -345,7 +335,7 @@ class BayesianModel(nn.Module):
                 else:
                     mu = module.weight
 
-                logvar = self.weight_logvars[safe_name + "_weight"].clamp(*clamp)
+                logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11.0)
                 post_var = torch.exp(logvar)
 
                 weight_kl = (
@@ -363,7 +353,7 @@ class BayesianModel(nn.Module):
                     else:
                         mu = module.bias
 
-                    logvar = self.bias_logvars[safe_name + "_bias"].clamp(*clamp)
+                    logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11.0)
                     post_var = torch.exp(logvar)
 
                     bias_kl = (
