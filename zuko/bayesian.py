@@ -183,7 +183,7 @@ class BayesianModel(nn.Module):
         selected linear layers to use the local reparameterization trick during training, or
         sampling once during evaluation."""
 
-        if not trick:
+        if not trick and not self.training:
             sampled_params = self._sample_params()
             with torch.nn.utils.stateless._reparametrize_module(self.base, sampled_params):
                 yield self.base
@@ -197,12 +197,14 @@ class BayesianModel(nn.Module):
         # Store original forward methods and replace them
         original_forwards = {}
 
+        # Sample a new seed for each module call
         for name, module in self.base.named_modules():
             if isinstance(module, (Linear, MaskedLinear)):
                 # Skip non-selected layers when a subset was provided
                 if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
 
+                seed = int(torch.randint(0, 2**31 - 1, (1,), generator=self.generator).item())
                 original_forwards[name] = module.forward
 
                 if self.training:
@@ -210,12 +212,14 @@ class BayesianModel(nn.Module):
                         self._apply_local_reparameterization_training,
                         name=name,
                         module=module,
+                        seed=seed,
                     )
                 else:
                     module.forward = partial(
                         self._apply_local_reparameterization_eval,
                         name=name,
                         module=module,
+                        seed=seed,
                     )
 
         try:
@@ -226,7 +230,7 @@ class BayesianModel(nn.Module):
                 if name in original_forwards:
                     module.forward = original_forwards[name]
 
-    def _apply_local_reparameterization_training(self, input, name, module):
+    def _apply_local_reparameterization_training(self, input, name, module, seed):
         """Apply local reparameterization trick to a linear layer."""
         # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
         if self._requested_bayesian is not None and name not in self._requested_bayesian:
@@ -234,6 +238,9 @@ class BayesianModel(nn.Module):
             return module.forward(input)
 
         safe_name = name.replace(".", "_")
+
+        # each model has its generator, which get reset to the same seed at each call of forward
+        generator = torch.Generator(device=input.device).manual_seed(seed)
 
         # Get mean weights
         if self.learn_means and safe_name + "_weight" in self.weight_means:
@@ -279,52 +286,9 @@ class BayesianModel(nn.Module):
 
         # Sample output using reparameterization trick
         result = mu_out + var_out.sqrt() * torch.randn(
-            mu_out.shape, generator=self.generator, device=mu_out.device
+            mu_out.shape, generator=generator, device=mu_out.device
         )
         return result
-
-    def _apply_local_reparameterization_eval(self, input, name, module):
-        """Eval the layer after sampling the weights once."""
-        # Skip non-selected layers when a subset was provided (shouldn't happen if context applied correctly)
-        if self._requested_bayesian is not None and name not in self._requested_bayesian:
-            # Fallback to default linear forward
-            return module.forward(input)
-
-        safe_name = name.replace(".", "_")
-
-        # Get mean weights
-        if self.learn_means and safe_name + "_weight" in self.weight_means:
-            w_mu = self.weight_means[safe_name + "_weight"]
-        else:
-            w_mu = module.weight
-
-        # Get bias mean
-        if module.bias is not None:
-            if self.learn_means and safe_name + "_bias" in self.bias_means:
-                b_mu = self.bias_means[safe_name + "_bias"]
-            else:
-                b_mu = module.bias
-        else:
-            b_mu = None
-
-        w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
-        w_sampled = w_mu + torch.exp(w_logvar).sqrt() * torch.randn(
-            w_mu.shape, generator=self.generator, device=w_mu.device
-        )
-
-        if module.bias is not None:
-            b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
-            b_sampled = b_mu + torch.exp(b_logvar).sqrt() * torch.randn(
-                b_mu.shape, generator=self.generator, device=b_mu.device
-            )
-        else:
-            b_sampled = None
-
-        # Compute output
-        if isinstance(module, MaskedLinear):
-            return linear(input, module.mask * w_sampled, b_sampled)
-        else:
-            return linear(input, w_sampled, b_sampled)
 
     def kl_divergence(self, prior_std: float = 1.0):
         """Compute KL divergence between q(w|θ) and prior N(0, σ_p^2)."""
