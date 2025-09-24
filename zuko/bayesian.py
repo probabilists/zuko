@@ -2,12 +2,9 @@ r"""Utils for bayesian flows."""
 
 from __future__ import annotations
 
-from functools import partial
-
 __all__ = [
     "BayesianModel",
 ]
-
 import copy
 import math
 import torch
@@ -15,6 +12,7 @@ import torch.nn as nn
 import warnings
 
 from contextlib import contextmanager
+from functools import partial
 
 from .nn import Linear, MaskedLinear, linear
 
@@ -37,11 +35,8 @@ class BayesianModel(nn.Module):
         self.base = base
         self.learn_means = learn_means
 
-        self.register_buffer("rng_seed", torch.tensor(seed, dtype=torch.long))
-        self.reset_generator("cuda" if torch.cuda.is_available() else "cpu")
         # bayesian_layers: optional list of module names (dotted, e.g. "layer1.linear")
         # If None, all Linear/MaskedLinear modules are treated as Bayesian (existing behavior).
-        # Store both dotted and underscore-safe names for easy matching.
         if bayesian_layers is None:
             self._requested_bayesian = None
         else:
@@ -96,11 +91,6 @@ class BayesianModel(nn.Module):
                     UserWarning,
                     stacklevel=2,
                 )
-
-    def reset_generator(self, device="cpu"):
-        """Rebuild generator from stored seed (e.g. after loading state_dict).
-        This is call each time"""
-        self.generator = torch.Generator(device=device).manual_seed(int(self.rng_seed))
 
     def _reset_bayesian_parameters(self, init_logvar: float):
         """Initialize posterior means and variances like in original impl."""
@@ -157,8 +147,8 @@ class BayesianModel(nn.Module):
 
                 # Apply same softclip as BayesianLinear and use sqrt of exp(logvar)
                 w_logvar = _softclip(self.weight_logvars[safe_name + "_weight"], 11)
-                sampled[name + ".weight"] = w_mu + torch.exp(w_logvar).sqrt() * torch.randn(
-                    w_mu.shape, generator=self.generator, device=w_mu.device
+                sampled[name + ".weight"] = w_mu + torch.exp(w_logvar).sqrt() * torch.randn_like(
+                    w_mu
                 )
 
                 # Bias - always read from base model unless learn_means=True
@@ -170,8 +160,8 @@ class BayesianModel(nn.Module):
 
                     # Apply same softclip as BayesianLinear and use sqrt of exp(logvar)
                     b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
-                    sampled[name + ".bias"] = b_mu + torch.exp(b_logvar).sqrt() * torch.randn(
-                        b_mu.shape, generator=self.generator, device=b_mu.device
+                    sampled[name + ".bias"] = b_mu + torch.exp(b_logvar).sqrt() * torch.randn_like(
+                        b_mu
                     )
 
         return sampled
@@ -181,7 +171,10 @@ class BayesianModel(nn.Module):
         """Context manager yielding the model with reparametrized forward methods for linear model.
         This is not cloning the model but just temporarily replacing the forward methods of the
         selected linear layers to use the local reparameterization trick during training, or
-        sampling once during evaluation."""
+        sampling once during evaluation.
+
+        Arguments:
+            trick: if True, use the local reparameterization trick even in eval mode."""
 
         if not trick and not self.training:
             sampled_params = self._sample_params()
@@ -204,24 +197,15 @@ class BayesianModel(nn.Module):
                 if self._requested_bayesian is not None and name not in self._requested_bayesian:
                     continue
 
-                seed = int(torch.randint(0, 2**31 - 1, (1,), generator=self.generator).item())
+                seed = torch.randint(0, 2**31 - 1, ()).item()
                 original_forwards[name] = module.forward
 
-                if self.training:
-                    module.forward = partial(
-                        self._apply_local_reparameterization_training,
-                        name=name,
-                        module=module,
-                        seed=seed,
-                    )
-                else:
-                    module.forward = partial(
-                        self._apply_local_reparameterization_eval,
-                        name=name,
-                        module=module,
-                        seed=seed,
-                    )
-
+                module.forward = partial(
+                    self._apply_local_reparameterization_training,
+                    name=name,
+                    module=module,
+                    seed=seed,
+                )
         try:
             yield
         finally:
@@ -276,18 +260,10 @@ class BayesianModel(nn.Module):
         # Add bias variance if present
         if module.bias is not None:
             b_logvar = _softclip(self.bias_logvars[safe_name + "_bias"], 11)
-            b_var = torch.exp(b_logvar)
-            if isinstance(module, MaskedLinear):
-                # Apply mask to bias variance - use mask's output dimension
-                masked_b_var = module.mask.any(dim=1).float() * b_var
-                var_out = var_out + masked_b_var
-            else:
-                var_out = var_out + b_var
+            var_out = var_out + torch.exp(b_logvar)
 
         # Sample output using reparameterization trick
-        result = mu_out + var_out.sqrt() * torch.randn(
-            mu_out.shape, generator=generator, device=mu_out.device
-        )
+        result = torch.normal(mu_out, var_out.sqrt(), generator=generator)
         return result
 
     def kl_divergence(self, prior_std: float = 1.0):
