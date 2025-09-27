@@ -11,7 +11,7 @@ from zuko.mixtures import *
 
 
 @pytest.mark.parametrize("M", [GMM])
-def test_mixtures(tmp_path: Path, M: callable):
+def test_mixtures(tmp_path: Path, M: type):
     mixture = M(3, 5)
 
     # Evaluation of log_prob
@@ -48,14 +48,15 @@ def test_mixtures(tmp_path: Path, M: callable):
     torch.save(mixture, tmp_path / "mixture.pth")
 
     # Loading
-    mixture_bis = torch.load(tmp_path / "mixture.pth")
+    mixture_bis = torch.load(tmp_path / "mixture.pth", weights_only=False)
 
     x, c = randn(3), randn(5)
 
-    seed = torch.seed()
-    log_p = mixture(c).log_prob(x)
-    torch.manual_seed(seed)
-    log_p_bis = mixture_bis(c).log_prob(x)
+    with torch.random.fork_rng():
+        log_p = mixture(c).log_prob(x)
+
+    with torch.random.fork_rng():
+        log_p_bis = mixture_bis(c).log_prob(x)
 
     assert torch.allclose(log_p, log_p_bis)
 
