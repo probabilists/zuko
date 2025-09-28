@@ -184,14 +184,15 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
         for p in bflow.parameters(recurse=False):
             assert p.grad is not None
 
-        assert any(p.grad is None for p in bflow.base.parameters())
+        for p in bflow.base.parameters():
+            assert p.grad is None
 
     # Invertibility
     x, c = randn(256, 3), randn(256, 5)
 
     with bflow.reparameterize(local_trick=local_trick) as rflow:
-        y = rflow(c).transform(x)
-        z = rflow(c).transform.inv(y)
+        t = rflow(c).transform
+        z = t.inv(t(x))
 
         assert torch.allclose(x, z, atol=1e-4)
 

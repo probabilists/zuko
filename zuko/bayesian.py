@@ -9,14 +9,13 @@ import copy
 import math
 import torch
 import torch.nn as nn
-import warnings
 
 from contextlib import contextmanager
 from functools import partial
 from torch import Tensor
 from typing import Dict, Generator, Sequence
 
-from .nn import Linear, MaskedLinear, MonotonicLinear, linear
+from .nn import Linear, MaskedLinear, linear
 
 
 def _softclip(x: Tensor, bound: float) -> Tensor:
@@ -26,76 +25,44 @@ def _softclip(x: Tensor, bound: float) -> Tensor:
 class BayesianModel(nn.Module):
     r"""Creates a Bayesian wrapper around a base model.
 
-    Currently, only linear layers are supported.
-
     Arguments:
         base: A base model.
-        bayesian_layers: A subset of layer names to target. The names should match those
-            returned by `base.named_modules()`.
+        exclude_modules: A subset of module names to exclude. The names should match
+            those returned by `base.named_modules()`.
     """
 
     def __init__(
         self,
         base: nn.Module,
-        bayesian_layers: Sequence[str] = (),
+        exclude_modules: Sequence[str] = (),
     ):
         super().__init__()
 
         self.base = base
-        self.bayesian_layers = set(bayesian_layers)
 
         self.means = nn.ParameterDict()
         self.logvars = nn.ParameterDict()
 
-        layers = set()
-
-        for name, module in self.base.named_modules():
-            if self.bayesian_layers and name not in self.bayesian_layers:
+        for name, param in self.base.named_parameters():
+            if any(name.startswith(prefix) for prefix in exclude_modules):
                 continue
-            elif not isinstance(module, (nn.Linear, Linear, MaskedLinear)):
-                continue
-            elif isinstance(module, MonotonicLinear):
-                continue
-
-            layers.add(name)
 
             key = name.replace(".", "-")
 
-            self.means[key + "-weight"] = nn.Parameter(torch.empty_like(module.weight))
-            self.logvars[key + "-weight"] = nn.Parameter(torch.empty_like(module.weight))
-
-            if module.bias is not None:
-                self.means[key + "-bias"] = nn.Parameter(torch.empty_like(module.bias))
-                self.logvars[key + "-bias"] = nn.Parameter(torch.empty_like(module.bias))
-
-        if self.bayesian_layers:
-            missing = sorted(self.bayesian_layers - layers)
-            if missing:
-                warnings.warn(
-                    f"BayesianModel: some layers were not found in the base model:\n\t{missing}",
-                    category=UserWarning,
-                    stacklevel=2,
-                )
-        else:
-            self.bayesian_layers = layers
+            self.means[key] = nn.Parameter(torch.empty_like(param))
+            self.logvars[key] = nn.Parameter(torch.empty_like(param))
 
         self._reset_bayesian_parameters()
 
     def _reset_bayesian_parameters(self, logvar_mean: float = -9.0, logvar_std: float = 1e-3):
         r"""Initializes the posterior means and log-variances."""
 
-        for name, module in self.base.named_modules():
-            if name not in self.bayesian_layers:
-                continue
-
+        for name, param in self.base.named_parameters():
             key = name.replace(".", "-")
 
-            self.means[key + "-weight"].data.copy_(module.weight.data)
-            self.logvars[key + "-weight"].data.normal_(logvar_mean, logvar_std)
-
-            if module.bias is not None:
-                self.means[key + "-bias"].data.copy_(module.bias.data)
-                self.logvars[key + "-bias"].data.normal_(logvar_mean, logvar_std)
+            if key in self.means:
+                self.means[key].data.copy_(param.data)
+                self.logvars[key].data.normal_(logvar_mean, logvar_std)
 
     def forward(self, *args, **kwargs):
         raise RuntimeError(
@@ -108,10 +75,11 @@ class BayesianModel(nn.Module):
         params = {}
 
         for key in self.means.keys():
+            name = key.replace("-", ".")
+
             mean = self.means[key]
             std = _softclip(self.logvars[key], 11.0).div(2.0).exp()
 
-            name = key.replace("-", ".")
             params[name] = mean + std * torch.randn_like(mean)
 
         return params
@@ -139,11 +107,13 @@ class BayesianModel(nn.Module):
     def reparameterize(self, local_trick: bool = False) -> Generator[nn.Module]:
         r"""Reparameterizes the base model from the posterior.
 
-        Within this context, the base model is temporarily reparametrized and
-        behaves deterministically.
+        Within this context, the base model is temporarily reparametrized and behaves
+        deterministically, meaning that two calls to a method with the same inputs,
+        leads to the same outputs.
 
         Arguments:
-            local_trick: Whether to use the local reparameterization trick.
+            local_trick: Whether to use the local reparameterization trick for linear
+                layers.
 
         Yields:
             The reparametrized base model.
@@ -153,28 +123,35 @@ class BayesianModel(nn.Module):
             | https://arxiv.org/abs/1506.02557
         """
 
-        if local_trick:
-            with self._reparametrize_trick():
-                yield self.base
-        else:
-            params = self.sample_params()
-            with torch.nn.utils.stateless._reparametrize_module(self.base, params):
+        params = self.sample_params()
+
+        with torch.nn.utils.stateless._reparametrize_module(self.base, params):
+            if local_trick:
+                with self._reparametrize_trick():
+                    yield self.base
+            else:
                 yield self.base
 
     @contextmanager
     def _reparametrize_trick(self):
         original_forwards = {}
+        randn_cache = {}
 
         for name, module in self.base.named_modules():
-            if name in self.bayesian_layers:
-                seed = torch.randint(0, 2**31 - 1, (), device="cpu").item()
-                original_forwards[name] = module.forward
-                module.forward = partial(
-                    self._local_reparameterization_trick,
-                    name=name,
-                    module=module,
-                    seed=seed,
-                )
+            key = name.replace(".", "-")
+
+            if type(module) not in (nn.Linear, Linear, MaskedLinear):
+                continue
+            elif key + "-weight" not in self.means:
+                continue
+
+            original_forwards[name] = module.forward
+            module.forward = partial(
+                self._local_reparameterization_trick,
+                name=name,
+                module=module,
+                randn_cache=randn_cache,
+            )
 
         try:
             yield
@@ -188,11 +165,9 @@ class BayesianModel(nn.Module):
         x: Tensor,
         name: str,
         module: nn.Module,
-        seed: int,
+        randn_cache: Dict[(str, torch.Size), Tensor],
     ) -> Tensor:
         """Applies the local reparameterization trick to a linear layer."""
-
-        generator = torch.Generator(device=x.device).manual_seed(seed)
 
         key = name.replace(".", "-")
 
@@ -213,12 +188,18 @@ class BayesianModel(nn.Module):
         y_mean = linear(x, w_mean, b_mean)
         y_var = linear(x.square(), w_var, b_var)
 
-        y = y_mean + y_var.sqrt() * torch.randn(
-            y_mean.shape,
-            dtype=y_mean.dtype,
-            device=y_mean.device,
-            generator=generator,
-        )
+        address = (name, y_mean.shape)
+
+        if address in randn_cache:
+            eta = randn_cache[address]
+        else:
+            eta = randn_cache[address] = torch.randn(
+                y_mean.shape,
+                dtype=y_mean.dtype,
+                device=y_mean.device,
+            )
+
+        y = y_mean + y_var.sqrt() * eta
 
         return y
 
