@@ -5,8 +5,10 @@ from __future__ import annotations
 __all__ = [
     "BayesianModel",
 ]
+
 import copy
 import math
+import re
 import torch
 import torch.nn as nn
 
@@ -18,6 +20,26 @@ from typing import Dict, Generator, Sequence
 from .nn import Linear, MaskedLinear, linear
 
 
+def _compile(prefix: str) -> re.Pattern:
+    assert re.fullmatch(r"[\w\.\*]*", prefix) is not None, f"Invalid prefix {prefix}."
+
+    # fmt: off
+    pattern = (
+        prefix
+        .replace(".", r"\.")
+        .replace("**", r"[\w\.]+")
+        .replace("*", r"\w+")
+        + r".*"
+    )
+    # fmt: on
+
+    return re.compile(pattern)
+
+
+def _match(pattern: re.Pattern, string: str) -> bool:
+    return re.fullmatch(pattern, string) is not None
+
+
 def _softclip(x: Tensor, bound: float) -> Tensor:
     return x * (1 + (x / bound).square()).rsqrt()
 
@@ -27,14 +49,18 @@ class BayesianModel(nn.Module):
 
     Arguments:
         base: A base model.
-        exclude_modules: A subset of module names to exclude. The names should match
-            those returned by `base.named_modules()`.
+        include_params: A list of parameter name prefixes to include. In a prefix, a
+            single star `*` matches alphanumeric strings (`[a-zA-Z0-9_]+`) and a double
+            star `**` matches dot-separated alphanumeric strings (`[a-zA-Z0-9_\.]+`). By
+            default, all parameters are included.
+        exclude_params: A list of parameter name prefixes to exclude.
     """
 
     def __init__(
         self,
         base: nn.Module,
-        exclude_modules: Sequence[str] = (),
+        include_params: Sequence[str] = ("",),
+        exclude_params: Sequence[str] = (),
     ):
         super().__init__()
 
@@ -43,8 +69,13 @@ class BayesianModel(nn.Module):
         self.means = nn.ParameterDict()
         self.logvars = nn.ParameterDict()
 
+        include_patterns = [_compile(prefix) for prefix in include_params]
+        exclude_patterns = [_compile(prefix) for prefix in exclude_params]
+
         for name, param in self.base.named_parameters():
-            if any(name.startswith(prefix) for prefix in exclude_modules):
+            if not any(_match(pattern, name) for pattern in include_patterns):
+                continue
+            elif any(_match(pattern, name) for pattern in exclude_patterns):
                 continue
 
             key = name.replace(".", "-")
