@@ -138,7 +138,8 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     for p in bflow.parameters(recurse=False):
         assert p.grad is not None
 
-    assert any(p.grad is None for p in bflow.base.parameters())
+    for p in bflow.base.parameters():
+        assert p.grad is None
 
     ## sample_model
     sflow = bflow.sample_model()
