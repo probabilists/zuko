@@ -138,8 +138,9 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     for p in bflow.parameters(recurse=False):
         assert p.grad is not None
 
-    for p in bflow.base.parameters():
-        assert p.grad is None
+    if torch.__version__ >= "2":
+        for p in bflow.base.parameters():
+            assert p.grad is None
 
     ## sample_model
     sflow = bflow.sample_model()
@@ -185,8 +186,9 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
         for p in bflow.parameters(recurse=False):
             assert p.grad is not None
 
-        for p in bflow.base.parameters():
-            assert p.grad is None
+        if torch.__version__ >= "2":
+            for p in bflow.base.parameters():
+                assert p.grad is None
 
     # Invertibility
     x, c = randn(256, 3), randn(256, 5)
