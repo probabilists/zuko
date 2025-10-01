@@ -33,6 +33,11 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 [project.optional-dependencies]
+benchmark = [
+  "dawgz>=2.0.0",
+  "tqdm>=4.64.0",
+  "wandb>=0.19.0",
+]
 dev = [
   "ipykernel>=6.29.0",
   "matplotlib>=3.8.0",
