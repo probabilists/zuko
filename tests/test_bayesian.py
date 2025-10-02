@@ -119,6 +119,8 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     x, c = randn(256, 3), randn(5)
 
     ## reparametrize
+    bflow.zero_grad(set_to_none=True)
+
     with bflow.reparameterize(local_trick=local_trick) as rflow:
         log_p1 = rflow(c).log_prob(x)
         log_p2 = rflow(c).log_prob(x)
@@ -126,23 +128,23 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     with bflow.reparameterize(local_trick=local_trick) as rflow:
         log_p3 = rflow(c).log_prob(x)
 
+    loss = -log_p3.mean()
+    loss.backward()
+
     assert log_p1.shape == (256,)
     assert log_p1.requires_grad
     assert torch.allclose(log_p1, log_p2)
     assert not torch.allclose(log_p1, log_p3)
 
-    bflow.zero_grad(set_to_none=True)
-    loss = -log_p3.mean()
-    loss.backward()
-
-    for p in bflow.parameters(recurse=False):
+    for p in (*bflow.means.parameters(), *bflow.logvars.parameters()):
         assert p.grad is not None
 
-    if torch.__version__ >= "2":
-        for p in bflow.base.parameters():
-            assert p.grad is None
+    for p in bflow.base.parameters():
+        assert p.grad is None
 
     ## sample_model
+    bflow.zero_grad(set_to_none=True)
+
     sflow = bflow.sample_model()
     log_p1 = sflow(c).log_prob(x)
     log_p2 = sflow(c).log_prob(x)
@@ -150,15 +152,13 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     sflow = bflow.sample_model()
     log_p3 = sflow(c).log_prob(x)
 
+    loss = -log_p3.mean()
+    loss.backward()
+
     assert log_p1.shape == (256,)
     assert log_p1.requires_grad
     assert torch.allclose(log_p1, log_p2)
     assert not torch.allclose(log_p1, log_p3)
-
-    bflow.zero_grad(set_to_none=True)
-    sflow.zero_grad(set_to_none=True)
-    loss = -log_p3.mean()
-    loss.backward()
 
     for p in bflow.parameters():
         assert p.grad is None
@@ -175,20 +175,20 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
         assert x.shape == (32, 3)
 
     # Reparameterization trick
+    bflow.zero_grad(set_to_none=True)
+
     if bflow.base(c).has_rsample:
         with bflow.reparameterize(local_trick=local_trick) as rflow:
             x = rflow(c).rsample()
 
-        bflow.zero_grad(set_to_none=True)
         loss = x.square().sum().sqrt()
         loss.backward()
 
-        for p in bflow.parameters(recurse=False):
+        for p in (*bflow.means.parameters(), *bflow.logvars.parameters()):
             assert p.grad is not None
 
-        if torch.__version__ >= "2":
-            for p in bflow.base.parameters():
-                assert p.grad is None
+        for p in bflow.base.parameters():
+            assert p.grad is None
 
     # Invertibility
     x, c = randn(256, 3), randn(256, 5)
