@@ -110,7 +110,7 @@ class BayesianModel(nn.Module):
             name = key.replace("-", ".")
 
             mean = self.means[key]
-            std = _softclip(self.logvars[key], 11.0).div(2.0).exp()
+            std = _softclip(self.logvars[key], 18.0).div(2.0).exp()
 
             params[name] = mean + std * torch.randn_like(mean)
 
@@ -204,7 +204,7 @@ class BayesianModel(nn.Module):
         key = name.replace(".", "-")
 
         w_mean = self.means[key + "-weight"]
-        w_var = _softclip(self.logvars[key + "-weight"], 11.0).exp()
+        w_var = _softclip(self.logvars[key + "-weight"], 18.0).exp()
 
         if isinstance(module, MaskedLinear):
             w_mean = module.mask * w_mean
@@ -212,7 +212,7 @@ class BayesianModel(nn.Module):
 
         if key + "-bias" in self.means:
             b_mean = self.means[key + "-bias"]
-            b_var = _softclip(self.logvars[key + "-bias"], 11.0).exp()
+            b_var = _softclip(self.logvars[key + "-bias"], 18.0).exp()
         else:
             b_mean = module.bias
             b_var = None
@@ -242,7 +242,7 @@ class BayesianModel(nn.Module):
 
         for key in self.means.keys():
             mean = self.means[key]
-            log_var = _softclip(self.logvars[key], 11.0)
+            log_var = _softclip(self.logvars[key], 18.0)
             var = log_var.exp()
 
             # fmt: off
