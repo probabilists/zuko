@@ -210,11 +210,11 @@ class BayesianModel(nn.Module):
             w_mean = module.mask * w_mean
             w_var = module.mask * w_var
 
-        if module.bias is not None:
+        if key + "-bias" in self.means:
             b_mean = self.means[key + "-bias"]
             b_var = _softclip(self.logvars[key + "-bias"], 11.0).exp()
         else:
-            b_mean = None
+            b_mean = module.bias
             b_var = None
 
         y_mean = linear(x, w_mean, b_mean)
