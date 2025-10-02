@@ -59,6 +59,7 @@ class BayesianModel(nn.Module):
     def __init__(
         self,
         base: nn.Module,
+        init_logvar: float = -9.0,
         include_params: Sequence[str] = ("",),
         exclude_params: Sequence[str] = (),
     ):
@@ -83,7 +84,7 @@ class BayesianModel(nn.Module):
             self.means[key] = nn.Parameter(torch.empty_like(param))
             self.logvars[key] = nn.Parameter(torch.empty_like(param))
 
-        self._reset_bayesian_parameters()
+        self._reset_bayesian_parameters(logvar_mean=init_logvar)
 
     def _reset_bayesian_parameters(self, logvar_mean: float = -9.0, logvar_std: float = 1e-3):
         r"""Initializes the posterior means and log-variances."""
