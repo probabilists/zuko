@@ -5,9 +5,27 @@ __all__ = [
     "SOSPF",
 ]
 
+from torch import Tensor
+from torch.distributions import Transform
+
 from .autoregressive import MAF
 from ..lazy import UnconditionalTransform
-from ..transforms import BoundedBernsteinTransform, SoftclipTransform, SOSPolynomialTransform
+from ..transforms import (
+    AdditiveTransform,
+    BoundedBernsteinTransform,
+    ComposedTransform,
+    SoftclipTransform,
+    SOSPolynomialTransform,
+)
+
+
+def ShiftedSOSPTransform(a: Tensor, constant: Tensor) -> Transform:
+    r"""Creates a shifted sum-of-squares polynomial (SOSP) transformation."""
+
+    return ComposedTransform(
+        SOSPolynomialTransform(a=a),
+        AdditiveTransform(shift=constant),
+    )
 
 
 class SOSPF(MAF):
@@ -44,7 +62,7 @@ class SOSPF(MAF):
         super().__init__(
             features=features,
             context=context,
-            univariate=SOSPolynomialTransform,
+            univariate=ShiftedSOSPTransform,
             shapes=[(polynomials, degree + 1), ()],
             **kwargs,
         )

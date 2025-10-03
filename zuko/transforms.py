@@ -871,14 +871,13 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
     r"""Creates a monotonic transformation :math:`f(x)` by integrating a positive
     univariate function :math:`g(x)`.
 
-    .. math:: f(x) = \int_0^x g(u) ~ du + C
+    .. math:: f(x) = \int_0^x g(u) ~ du
 
     The definite integral is estimated by a :math:`n`-point Gauss-Legendre quadrature.
 
     Arguments:
         g: A positive univariate function :math:`g`. If :py:`None`, :py:`self.g` is
             used instead.
-        C: The integration constant :math:`C`.
         n: The number of points :math:`n` for the quadrature.
         kwargs: Keyword arguments passed to :class:`MonotonicTransform`.
     """
@@ -891,7 +890,6 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
     def __init__(
         self,
         g: Callable[[Tensor], Tensor] = None,
-        C: Tensor = 0.0,
         n: int = 32,
         **kwargs,
     ):
@@ -900,11 +898,10 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
         if g is not None:
             self.g = g
 
-        self.C = C
         self.n = n
 
     def f(self, x: Tensor) -> Tensor:
-        return self.C + gauss_legendre(
+        return gauss_legendre(
             f=self.g,
             a=torch.zeros_like(x),
             b=x,
@@ -922,11 +919,11 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
 class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     r"""Creates a sum-of-squares (SOS) polynomial transformation.
 
-    The transformation :math:`f(x)` is expressed as the primitive integral of the
+    The transformation :math:`f(x)` is expressed as the integral of the
     sum of :math:`K` squared polynomials of degree :math:`L`.
 
     .. math:: f(x) = \int_0^x \frac{1}{K} \sum_{i = 1}^K
-        \left( 1 + \sum_{j = 0}^L a_{i,j} ~ u^j \right)^2 ~ du + C
+        \left( 1 + \sum_{j = 0}^L a_{i,j} ~ u^j \right)^2 ~ du
 
     References:
         | Sum-of-Squares Polynomial Flow (Jaini et al., 2019)
@@ -934,7 +931,6 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
 
     Arguments:
         a: The polynomial coefficients :math:`a`, with shape :math:`(*, K, L + 1)`.
-        C: The integration constant :math:`C`.
         slope: The minimum slope of the transformation.
         kwargs: Keyword arguments passed to :class:`UnconstrainedMonotonicTransform`.
     """
@@ -944,8 +940,8 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, a: Tensor, C: Tensor, slope: float = 1e-3, **kwargs):
-        super().__init__(None, C, phi=(a,), n=a.shape[-1], **kwargs)
+    def __init__(self, a: Tensor, slope: float = 1e-3, **kwargs):
+        super().__init__(None, phi=(a,), n=a.shape[-1], **kwargs)
 
         self.a = a
         self.i = torch.arange(a.shape[-1], device=a.device)

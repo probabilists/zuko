@@ -20,6 +20,8 @@ from ..distributions import DiagNormal
 from ..lazy import Flow, UnconditionalDistribution, UnconditionalTransform
 from ..nn import MLP, MonotonicMLP
 from ..transforms import (
+    AdditiveTransform,
+    ComposedTransform,
     MonotonicTransform,
     SoftclipTransform,
     UnconstrainedMonotonicTransform,
@@ -97,10 +99,12 @@ class UMNN(nn.Module):
         return torch.exp(dx / (1 + abs(dx / 7)))  # in [1e-3, 1e3]
 
     def forward(self, signal: Tensor, constant: Tensor) -> Transform:
-        return UnconstrainedMonotonicTransform(
-            g=partial(self.g, signal),
-            C=constant,
-            phi=(signal, *self.parameters()),
+        return ComposedTransform(
+            UnconstrainedMonotonicTransform(
+                g=partial(self.g, signal),
+                phi=(signal, *self.parameters()),
+            ),
+            AdditiveTransform(shift=constant),
         )
 
 

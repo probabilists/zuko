@@ -195,7 +195,7 @@ class Bisection(torch.autograd.Function):
         grad_y = grad_x / jacobian
 
         if phi:
-            grad_phi = torch.autograd.grad(y, phi, -grad_y, retain_graph=True, allow_unused=True)
+            grad_phi = torch.autograd.grad(y, phi, -grad_y, retain_graph=True)
         else:
             grad_phi = ()
 
@@ -304,9 +304,7 @@ class GaussLegendre(torch.autograd.Function):
             with torch.enable_grad():
                 area = GaussLegendre.quadrature(f, a, b, n)
 
-            grad_phi = torch.autograd.grad(
-                area, phi, grad_area, create_graph=True, allow_unused=True
-            )
+            grad_phi = torch.autograd.grad(area, phi, grad_area, create_graph=True)
         else:
             grad_phi = ()
 
