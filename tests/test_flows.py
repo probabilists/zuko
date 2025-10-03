@@ -11,7 +11,7 @@ from zuko.flows import *
 
 
 @pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
-def test_flows(tmp_path: Path, F: callable):
+def test_flows(tmp_path: Path, F: type):
     flow = F(3, 5)
 
     # Evaluation of log_prob
@@ -59,10 +59,11 @@ def test_flows(tmp_path: Path, F: callable):
 
     x, c = randn(3), randn(5)
 
-    seed = torch.seed()
-    log_p = flow(c).log_prob(x)
-    torch.manual_seed(seed)
-    log_p_bis = flow_bis(c).log_prob(x)
+    with torch.random.fork_rng():
+        log_p = flow(c).log_prob(x)
+
+    with torch.random.fork_rng():
+        log_p_bis = flow_bis(c).log_prob(x)
 
     assert torch.allclose(log_p, log_p_bis)
 

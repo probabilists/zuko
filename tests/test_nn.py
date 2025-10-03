@@ -1,94 +1,82 @@
 r"""Tests for the zuko.nn module."""
 
+import math
 import pytest
 import torch
 import torch.nn as nn
 
 from torch import randn
+from typing import Sequence
 
 from zuko.nn import *
 
 
 @pytest.mark.parametrize("bias", [True, False])
-def test_Linear(bias: bool):
-    net = Linear(3, 5, bias=True)
+@pytest.mark.parametrize("batch", [(), (256,)])
+def test_Linear(bias: bool, batch: Sequence[int]):
+    net = Linear(3, 5, bias=bias)
 
-    # Non-batched
-    x = randn(3)
+    x = randn(*batch, 3)
     y = net(x)
 
-    assert y.shape == (5,)
+    assert y.shape == (*batch, 5)
     assert y.requires_grad
-
-    # Batched
-    x = randn(256, 3)
-    y = net(x)
-
-    assert y.shape == (256, 5)
 
 
 @pytest.mark.parametrize("activation", [None, torch.nn.ELU])
 @pytest.mark.parametrize("normalize", [True, False])
-def test_MLP(activation: callable, normalize: bool):
+@pytest.mark.parametrize("batch", [(), (256,)])
+def test_MLP(activation: type, normalize: bool, batch: Sequence[int]):
     net = MLP(3, 5, activation=activation, normalize=normalize)
 
-    # Non-batched
-    x = randn(3)
+    x = randn(*batch, 3)
     y = net(x)
 
-    assert y.shape == (5,)
+    assert y.shape == (*batch, 5)
     assert y.requires_grad
-
-    # Batched
-    x = randn(256, 3)
-    y = net(x)
-
-    assert y.shape == (256, 5)
 
 
 @pytest.mark.parametrize("residual", [True, False])
-def test_MaskedMLP(residual: bool):
+@pytest.mark.parametrize("batch", [(), (256,)])
+def test_MaskedMLP(residual: bool, batch: Sequence[int]):
     adjacency = randn(5, 3) < 0
     net = MaskedMLP(adjacency, activation=nn.ELU, residual=residual)
 
-    # Non-batched
-    x = randn(3)
+    x = randn(*batch, 3)
     y = net(x)
 
-    assert y.shape == (5,)
+    assert y.shape == (*batch, 5)
     assert y.requires_grad
 
-    # Batched
-    x = randn(256, 3)
-    y = net(x)
-
-    assert y.shape == (256, 5)
-
     # Jacobian
-    x = randn(3)
+    x = randn(*batch, 3)
     J = torch.autograd.functional.jacobian(net, x)
+    J = J.movedim(len(batch), -2)
 
-    assert (J[~adjacency] == 0).all()
+    mask = torch.eye(math.prod(batch), dtype=bool)
+    mask = mask.reshape(batch + batch)
+
+    assert (J[mask][..., ~adjacency] == 0).all()
+    assert (J[~mask] == 0).all()
 
 
-def test_MonotonicMLP():
+@pytest.mark.parametrize("batch", [(), (256,)])
+def test_MonotonicMLP(batch: Sequence[int]):
     net = MonotonicMLP(3, 5)
 
-    # Non-batched
-    x = randn(3)
+    x = randn(*batch, 3)
     y = net(x)
 
-    assert y.shape == (5,)
+    assert y.shape == (*batch, 5)
     assert y.requires_grad
 
-    # Batched
-    x = randn(256, 3)
-    y = net(x)
-
-    assert y.shape == (256, 5)
-
     # Jacobian
-    x = randn(3)
+    x = randn(*batch, 3)
     J = torch.autograd.functional.jacobian(net, x)
+    J = J.movedim(len(batch), -2)
 
-    assert (J >= 0).all()
+    mask = torch.eye(math.prod(batch), dtype=bool)
+    mask = mask.reshape(batch + batch)
+
+    assert (J[mask] > 0).all()
+    assert (J[~mask] == 0).all()
