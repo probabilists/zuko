@@ -1,4 +1,4 @@
-r"""Utils for bayesian flows."""
+r"""Bayesian models."""
 
 from __future__ import annotations
 

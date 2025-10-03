@@ -7,6 +7,7 @@ API
    :toctree: api
    :recursive:
 
+   zuko.bayesian
    zuko.distributions
    zuko.flows
    zuko.lazy
