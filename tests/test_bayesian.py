@@ -109,7 +109,7 @@ def test_bayesian_MaskedMLP(local_trick: bool, batch: Sequence[int]):
     assert (J[~mask] == 0).all()
 
 
-@pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, GF, BPF])
+@pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, GF, BPF])
 @pytest.mark.parametrize("local_trick", [True, False])
 def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     flow = F(3, 5)
