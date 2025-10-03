@@ -278,7 +278,7 @@ class MAF(Flow):
         >>> c = torch.randn(4)
         >>> x = flow(c).sample()
         >>> x
-        tensor([-0.5005, -1.6303,  0.3805])
+        tensor([-0.5012, -1.6298,  0.3803])
         >>> flow(c).log_prob(x)
         tensor(-3.7514, grad_fn=<AddBackward0>)
     """
