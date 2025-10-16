@@ -105,7 +105,7 @@ class NCSF(MAF):
 
         self.base = UnconditionalDistribution(
             BoxUniform,
-            torch.full((features,), -pi - 1e-5),
-            torch.full((features,), pi + 1e-5),
+            lower=torch.full((features,), -pi - 1e-5),
+            upper=torch.full((features,), pi + 1e-5),
             buffer=True,
         )

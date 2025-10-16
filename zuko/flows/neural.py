@@ -164,8 +164,8 @@ class NAF(Flow):
 
         base = UnconditionalDistribution(
             DiagNormal,
-            torch.zeros(features),
-            torch.ones(features),
+            loc=torch.zeros(features),
+            scale=torch.ones(features),
             buffer=True,
         )
 
@@ -228,8 +228,8 @@ class UNAF(Flow):
 
         base = UnconditionalDistribution(
             DiagNormal,
-            torch.zeros(features),
-            torch.ones(features),
+            loc=torch.zeros(features),
+            scale=torch.ones(features),
             buffer=True,
         )
 

@@ -71,8 +71,8 @@ Alternatively, flows can be built as custom :class:`zuko.lazy.Flow` objects.
         ],
         base=UnconditionalDistribution(
             DiagNormal,
-            torch.zeros(3),
-            torch.ones(3),
+            loc=torch.zeros(3),
+            scale=torch.ones(3),
             buffer=True,
         ),
     )

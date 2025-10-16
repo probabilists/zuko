@@ -141,14 +141,14 @@ class GF(Flow):
                 i,
                 UnconditionalTransform(
                     RotationTransform,
-                    torch.randn(features, features),
+                    A=torch.randn(features, features),
                 ),
             )
 
         base = UnconditionalDistribution(
             DiagNormal,
-            torch.zeros(features),
-            torch.ones(features),
+            loc=torch.zeros(features),
+            scale=torch.ones(features),
             buffer=True,
         )
 
