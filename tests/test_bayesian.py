@@ -136,11 +136,11 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     assert torch.allclose(log_p1, log_p2)
     assert not torch.allclose(log_p1, log_p3)
 
-    for p in (*bflow.means.parameters(), *bflow.logvars.parameters()):
-        assert p.grad is not None
+    for name, p in (*bflow.means.named_parameters(), *bflow.logvars.named_parameters()):
+        assert p.grad is not None, name
 
-    for p in bflow.base.parameters():
-        assert p.grad is None
+    for name, p in bflow.base.named_parameters():
+        assert p.grad is None, name
 
     ## sample_model
     bflow.zero_grad(set_to_none=True)
@@ -160,11 +160,11 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
     assert torch.allclose(log_p1, log_p2)
     assert not torch.allclose(log_p1, log_p3)
 
-    for p in bflow.parameters():
-        assert p.grad is None
+    for name, p in bflow.named_parameters():
+        assert p.grad is None, name
 
-    for p in sflow.parameters():
-        assert p.grad is not None
+    for name, p in sflow.named_parameters():
+        assert p.grad is not None, name
 
     del sflow
 
@@ -184,11 +184,11 @@ def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
         loss = x.square().sum().sqrt()
         loss.backward()
 
-        for p in (*bflow.means.parameters(), *bflow.logvars.parameters()):
-            assert p.grad is not None
+        for name, p in (*bflow.means.named_parameters(), *bflow.logvars.named_parameters()):
+            assert p.grad is not None, name
 
-        for p in bflow.base.parameters():
-            assert p.grad is None
+        for name, p in bflow.base.named_parameters():
+            assert p.grad is None, name
 
     # Invertibility
     x, c = randn(256, 3), randn(256, 5)

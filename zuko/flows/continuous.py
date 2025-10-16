@@ -97,11 +97,16 @@ class FFJTransform(LazyTransform):
         return self.ode(x)
 
     def forward(self, c: Tensor = None) -> Transform:
+        if self.training:
+            phi = self.parameters() if c is None else (c, *self.parameters())
+        else:
+            phi = () if c is None else (c,)
+
         return FreeFormJacobianTransform(
             f=partial(self.f, c=c),
             t0=self.times[0],
             t1=self.times[1],
-            phi=self.parameters() if c is None else (c, *self.parameters()),
+            phi=phi,
             atol=self.atol,
             rtol=self.rtol,
             exact=self.exact,

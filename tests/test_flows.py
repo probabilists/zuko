@@ -25,8 +25,17 @@ def test_flows(tmp_path: Path, F: type):
     loss = -log_p.mean()
     loss.backward()
 
-    for p in flow.parameters():
-        assert p.grad is not None
+    for name, p in flow.named_parameters():
+        assert p.grad is not None, name
+
+    ## eval
+    flow.eval()
+
+    with torch.no_grad():
+        log_p_eval = flow(c).log_prob(x)
+        assert torch.allclose(log_p, log_p_eval)
+
+    flow.train()
 
     # Sampling
     x = flow(c).sample((32,))
@@ -41,8 +50,8 @@ def test_flows(tmp_path: Path, F: type):
         loss = x.square().sum().sqrt()
         loss.backward()
 
-        for p in flow.parameters():
-            assert p.grad is not None
+        for name, p in flow.named_parameters():
+            assert p.grad is not None, name
 
     # Invertibility
     x, c = randn(256, 3), randn(256, 5)
@@ -50,6 +59,20 @@ def test_flows(tmp_path: Path, F: type):
     z = t.inv(t(x))
 
     assert torch.allclose(x, z, atol=1e-4)
+
+    # Jacobian
+    x, c = randn(3), randn(5)
+    t = flow(c).transform
+    y = t(x)
+
+    J = torch.autograd.functional.jacobian(t, x)
+    J_inv = torch.autograd.functional.jacobian(t.inv, y)
+
+    assert torch.allclose(J, torch.linalg.inv(J_inv), atol=1e-3)
+
+    ladj = torch.linalg.slogdet(J).logabsdet
+
+    assert torch.allclose(t.log_abs_det_jacobian(x, y), ladj, atol=1e-3)
 
     # Saving
     torch.save(flow, tmp_path / "flow.pth")

@@ -191,7 +191,13 @@ class Bisection(torch.autograd.Function):
             x = x.detach().requires_grad_()
             y = f(x)
 
-        (jacobian,) = torch.autograd.grad(y, x, torch.ones_like(y), retain_graph=True)
+        jacobian = torch.autograd.grad(
+            y,
+            x,
+            torch.ones_like(y),
+            retain_graph=bool(phi),
+        )[0]
+
         grad_y = grad_x / jacobian
 
         if phi:
@@ -286,6 +292,7 @@ class GaussLegendre(torch.autograd.Function):
         return GaussLegendre.quadrature(f, a, b, n)
 
     @staticmethod
+    @once_differentiable
     def backward(ctx, grad_area: Tensor) -> Tuple[Tensor, ...]:
         f, n = ctx.f, ctx.n
         a, b, *phi = ctx.saved_tensors
@@ -304,7 +311,12 @@ class GaussLegendre(torch.autograd.Function):
             with torch.enable_grad():
                 area = GaussLegendre.quadrature(f, a, b, n)
 
-            grad_phi = torch.autograd.grad(area, phi, grad_area, create_graph=True)
+            grad_phi = torch.autograd.grad(
+                area,
+                phi,
+                grad_area,
+                retain_graph=True,
+            )
         else:
             grad_phi = ()
 

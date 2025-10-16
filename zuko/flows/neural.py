@@ -60,9 +60,14 @@ class MNN(nn.Module):
         return y
 
     def forward(self, signal: Tensor) -> Transform:
+        if self.training:
+            phi = (signal, *self.parameters())
+        else:
+            phi = (signal,)
+
         return MonotonicTransform(
             f=partial(self.f, signal),
-            phi=(signal, *self.parameters()),
+            phi=phi,
         )
 
 
@@ -99,10 +104,15 @@ class UMNN(nn.Module):
         return torch.exp(dx / (1 + abs(dx / 7)))  # in [1e-3, 1e3]
 
     def forward(self, signal: Tensor, constant: Tensor) -> Transform:
+        if self.training:
+            phi = (signal, *self.parameters())
+        else:
+            phi = (signal,)
+
         return ComposedTransform(
             UnconstrainedMonotonicTransform(
                 g=partial(self.g, signal),
-                phi=(signal, *self.parameters()),
+                phi=phi,
             ),
             AdditiveTransform(shift=constant),
         )

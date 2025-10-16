@@ -25,8 +25,8 @@ def test_mixtures(tmp_path: Path, M: type):
     loss = -log_p.mean()
     loss.backward()
 
-    for p in mixture.parameters():
-        assert p.grad is not None
+    for name, p in mixture.named_parameters():
+        assert p.grad is not None, name
 
     # Sampling
     x = mixture(c).sample((32,))
@@ -41,8 +41,8 @@ def test_mixtures(tmp_path: Path, M: type):
         loss = x.square().sum().sqrt()
         loss.backward()
 
-        for p in mixture.parameters():
-            assert p.grad is not None
+        for name, p in mixture.named_parameters():
+            assert p.grad is not None, name
 
     # Saving
     torch.save(mixture, tmp_path / "mixture.pth")

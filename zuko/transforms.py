@@ -620,11 +620,18 @@ class MonotonicTransform(Transform):
         return ladj
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        create_graph = torch.is_grad_enabled() and (x.requires_grad or bool(self.phi))
+
         with torch.enable_grad():
             x = x.clone().requires_grad_()
             y = self.f(x)
 
-        jacobian = torch.autograd.grad(y, x, torch.ones_like(y), create_graph=True)[0]
+        jacobian = torch.autograd.grad(
+            y,
+            x,
+            torch.ones_like(y),
+            create_graph=create_graph,
+        )[0]
 
         return y, jacobian.log()
 
@@ -985,6 +992,7 @@ class AutoregressiveTransform(Transform):
 
     def _inverse(self, y: Tensor) -> Tensor:
         x = torch.zeros_like(y)
+
         for _ in range(self.passes):
             x = self.meta(x).inv(y)
 
@@ -1136,6 +1144,8 @@ class FreeFormJacobianTransform(Transform):
         return ladj
 
     def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        create_graph = torch.is_grad_enabled() and (x.requires_grad or bool(self.phi))
+
         if self.exact:
             I = torch.eye(x.shape[-1], dtype=x.dtype, device=x.device)
             I = I.expand(*x.shape, -1).movedim(-1, 0)
@@ -1148,12 +1158,16 @@ class FreeFormJacobianTransform(Transform):
                 dx = self.f(t, x)
 
             if self.exact:
-                (jacobian,) = torch.autograd.grad(
-                    dx, x, I, create_graph=True, is_grads_batched=True
-                )
+                jacobian = torch.autograd.grad(
+                    dx,
+                    x,
+                    I,
+                    create_graph=create_graph,
+                    is_grads_batched=True,
+                )[0]
                 trace = torch.einsum("i...i", jacobian)
             else:
-                (epsjp,) = torch.autograd.grad(dx, x, eps, create_graph=True)
+                epsjp = torch.autograd.grad(dx, x, eps, create_graph=create_graph)[0]
                 trace = (epsjp * eps).sum(dim=-1)
 
             return dx, trace * self.trace_scale
