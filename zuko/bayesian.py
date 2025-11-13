@@ -98,7 +98,7 @@ class BayesianModel(nn.Module):
 
     def forward(self, *args, **kwargs):
         raise RuntimeError(
-            "BayesianModel should not be called directly. Use `sample_model` or `reparameterize` instead."
+            "'forward' method of BayesianModel should not be called directly. Use 'sample_model' or 'reparameterize' instead."
         )
 
     def sample_params(self) -> Dict[str, Tensor]:
@@ -257,22 +257,12 @@ class BayesianModel(nn.Module):
         return kl
 
     def __getattr__(self, name: str):
-        """Forwards attribute access to the base model.
-        A BayesianModel wraps a base model, so any attribute not found in the
-        BayesianModel itself is looked up in the base model.
+        r"""Accesses named attribute.
 
-        The main Normalizing Flow functions are excluded from this forwarding to avoid
-        ambiguity.
+        If an attribute is not found in the BayesianModel, it is looked up in the base
+        model.
         """
-        if name in [
-            "log_prob",
-            "sample",
-            "rsample",
-            "rsample_and_log_prob",
-        ]:
-            raise RuntimeError(
-                f"BayesianModel should not be called directly for method {name}. Use `sample_model` or `reparameterize` instead."
-            )
+
         try:
             return super().__getattr__(name)
         except AttributeError:
