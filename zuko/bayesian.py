@@ -255,3 +255,25 @@ class BayesianModel(nn.Module):
             # fmt: on
 
         return kl
+
+    def __getattr__(self, name: str):
+        """Forwards attribute access to the base model.
+        A BayesianModel wraps a base model, so any attribute not found in the
+        BayesianModel itself is looked up in the base model.
+
+        The main Normalizing Flow functions are excluded from this forwarding to avoid
+        ambiguity.
+        """
+        if name in [
+            "log_prob",
+            "sample",
+            "rsample",
+            "rsample_and_log_prob",
+        ]:
+            raise RuntimeError(
+                f"BayesianModel should not be called directly for method {name}. Use `sample_model` or `reparameterize` instead."
+            )
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.base, name)
