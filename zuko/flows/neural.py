@@ -13,7 +13,7 @@ import torch.nn as nn
 from functools import partial
 from torch import Tensor
 from torch.distributions import Transform
-from typing import Any, Dict
+from typing import Any
 
 from .autoregressive import MaskedAutoregressiveTransform
 from ..distributions import DiagNormal
@@ -48,7 +48,7 @@ class MNN(nn.Module):
         kwargs: Keyword arguments passed to :class:`zuko.nn.MonotonicMLP`.
     """
 
-    def __init__(self, signal: int = 16, **kwargs):
+    def __init__(self, signal: int = 16, **kwargs) -> None:
         super().__init__()
 
         self.network = MonotonicMLP(1 + signal, 1, **kwargs)
@@ -90,7 +90,7 @@ class UMNN(nn.Module):
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
     """
 
-    def __init__(self, signal: int = 16, **kwargs):
+    def __init__(self, signal: int = 16, **kwargs) -> None:
         super().__init__()
 
         kwargs.setdefault("activation", nn.ELU)
@@ -149,9 +149,9 @@ class NAF(Flow):
         transforms: int = 3,
         randperm: bool = False,
         signal: int = 16,
-        network: Dict[str, Any] = {},  # noqa: B006
+        network: dict[str, Any] = {},  # noqa: B006
         **kwargs,
-    ):
+    ) -> None:
         orders = [
             torch.arange(features),
             torch.flipud(torch.arange(features)),
@@ -213,9 +213,9 @@ class UNAF(Flow):
         transforms: int = 3,
         randperm: bool = False,
         signal: int = 16,
-        network: Dict[str, Any] = {},  # noqa: B006
+        network: dict[str, Any] = {},  # noqa: B006
         **kwargs,
-    ):
+    ) -> None:
         orders = [
             torch.arange(features),
             torch.flipud(torch.arange(features)),

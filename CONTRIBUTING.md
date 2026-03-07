@@ -21,16 +21,16 @@ If you like the project and wish to contribute, you can start by looking at issu
 To get started with contributing code, we recommend to install Zuko in [editable mode](https://pip.pypa.io/en/latest/topics/local-project-installs) with its development dependencies.
 
 ```
-pip install -e .[docs,lint,test]
+pip install -e .[dev,docs,test]
 ```
 
 Optionally, we also provide pre-commit hooks to ensure that the code you commit adheres to our conventions.
 
 ```
-pre-commit install --config pre-commit.yml
+pre-commit install --config pre-commit.yaml
 ```
 
-After installation, pre-commit will automatically execute the [configured hooks](pre-commit.yml) before each commit and provide instructions on how to fix detected issues.
+After installation, pre-commit will automatically execute the [configured hooks](pre-commit.yaml) before each commit and provide instructions on how to fix detected issues.
 
 ### Testing
 

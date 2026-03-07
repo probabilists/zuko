@@ -16,9 +16,10 @@ import abc
 import torch.nn as nn
 import warnings
 
+from collections.abc import Callable, Sequence
 from torch import Tensor
 from torch.distributions import Distribution, Transform
-from typing import Any, Callable, Sequence, Union
+from typing import Any
 
 from .distributions import NormalizingFlow
 from .transforms import ComposedTransform
@@ -36,7 +37,7 @@ class LazyDistribution(nn.Module, abc.ABC):
     """
 
     @abc.abstractmethod
-    def forward(self, c: Any = None) -> Distribution:
+    def forward(self, c: Tensor = None) -> Distribution:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -59,7 +60,7 @@ class LazyTransform(nn.Module, abc.ABC):
     """
 
     @abc.abstractmethod
-    def forward(self, c: Any = None) -> Transform:
+    def forward(self, c: Tensor = None) -> Transform:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -84,12 +85,12 @@ class LazyInverse(LazyTransform):
         transform: A lazy transformation :math:`y = f(x | c)`.
     """
 
-    def __init__(self, transform: LazyTransform):
+    def __init__(self, transform: LazyTransform) -> None:
         super().__init__()
 
         self.transform = transform
 
-    def forward(self, c: Any = None) -> Transform:
+    def forward(self, c: Tensor = None) -> Transform:
         return self.transform(c).inv
 
     @property
@@ -107,7 +108,7 @@ class LazyComposedTransform(LazyTransform):
         transforms: A sequence of lazy transformations :math:`f_i`.
     """
 
-    def __init__(self, *transforms: LazyTransform):
+    def __init__(self, *transforms: LazyTransform) -> None:
         super().__init__()
 
         self.transforms = nn.ModuleList(transforms)
@@ -115,7 +116,7 @@ class LazyComposedTransform(LazyTransform):
     def __repr__(self) -> str:
         return repr(self.transforms).replace("ModuleList", "LazyComposedTransform", 1)
 
-    def forward(self, c: Any = None) -> Transform:
+    def forward(self, c: Tensor = None) -> Transform:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -140,9 +141,9 @@ class Flow(LazyDistribution):
 
     def __init__(
         self,
-        transform: Union[LazyTransform, Sequence[LazyTransform]],
+        transform: LazyTransform | Sequence[LazyTransform],
         base: LazyDistribution,
-    ):
+    ) -> None:
         super().__init__()
 
         if isinstance(transform, LazyTransform):
@@ -194,7 +195,7 @@ class Unconditional(nn.Module):
         *args: Tensor,
         buffer: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         warnings.warn(
@@ -222,7 +223,7 @@ class Unconditional(nn.Module):
         else:
             return repr(self.forward())
 
-    def forward(self, c: Tensor = None) -> Any:
+    def forward(self, c: Tensor = None) -> Any:  # noqa: ANN401
         r"""
         Arguments:
             c: A context :math:`c`. This argument is always ignored.
@@ -262,10 +263,10 @@ class UnconditionalDistribution(Partial, LazyDistribution):
     def __init__(
         self,
         f: Callable[..., Distribution],
-        *args: Any,
+        *args,
         buffer: bool = False,
-        **kwargs: Any,
-    ):
+        **kwargs,
+    ) -> None:
         super().__init__(f, *args, buffer=buffer, **kwargs)
 
     def extra_repr(self) -> str:
@@ -310,10 +311,10 @@ class UnconditionalTransform(Partial, LazyTransform):
     def __init__(
         self,
         f: Callable[..., Transform],
-        *args: Any,
+        *args,
         buffer: bool = False,
-        **kwargs: Any,
-    ):
+        **kwargs,
+    ) -> None:
         super().__init__(f, *args, buffer=buffer, **kwargs)
 
     def extra_repr(self) -> str:

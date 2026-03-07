@@ -8,10 +8,10 @@ __all__ = [
 import torch
 import torch.nn as nn
 
+from collections.abc import Callable, Sequence
 from math import prod
 from torch import Size, Tensor
 from torch.distributions import Transform
-from typing import Callable, Sequence
 
 from ..distributions import DiagNormal
 from ..lazy import Flow, LazyTransform, UnconditionalDistribution, UnconditionalTransform
@@ -64,7 +64,7 @@ class ElementWiseTransform(LazyTransform):
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         self.univariate = univariate
@@ -124,7 +124,7 @@ class GF(Flow):
         transforms: int = 3,
         components: int = 8,
         **kwargs,
-    ):
+    ) -> None:
         transforms = [
             ElementWiseTransform(
                 features=features,

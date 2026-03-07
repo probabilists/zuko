@@ -11,7 +11,7 @@ from zuko.flows import *
 
 
 @pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
-def test_flows(tmp_path: Path, F: type):
+def test_flows(tmp_path: Path, F: type) -> None:
     flow = F(3, 5)
 
     # Evaluation of log_prob
@@ -94,7 +94,7 @@ def test_flows(tmp_path: Path, F: type):
     assert repr(flow)
 
 
-def test_triangular_transforms():
+def test_triangular_transforms() -> None:
     order = torch.randperm(5)
 
     adjacency = torch.rand((5, 5)) < 0.25
@@ -144,7 +144,7 @@ def test_triangular_transforms():
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
 
 
-def test_adjacency_matrix():
+def test_adjacency_matrix() -> None:
     T = MaskedAutoregressiveTransform
 
     # With a valid adjacency matrix
@@ -179,7 +179,7 @@ def test_adjacency_matrix():
         t = T(5, adjacency=adjacency_invalid)
 
 
-def test_context_adjacency_matrix():
+def test_context_adjacency_matrix() -> None:
     T = MaskedAutoregressiveTransform
 
     # With a valid adjacency matrix

@@ -71,7 +71,7 @@ class FFJTransform(LazyTransform):
         rtol: float = 1e-5,
         exact: bool = True,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         kwargs.setdefault("activation", nn.ELU)
@@ -135,7 +135,7 @@ class CNF(Flow):
         features: int,
         context: int = 0,
         **kwargs,
-    ):
+    ) -> None:
         transform = FFJTransform(
             features=features,
             context=context,

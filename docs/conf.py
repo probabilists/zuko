@@ -7,6 +7,8 @@ import pathlib
 import re
 import subprocess
 
+from sphinx.application import Sphinx
+
 import zuko
 
 ## Project
@@ -128,15 +130,14 @@ rst_prolog = """
 """
 templates_path = ["templates"]
 
+
 ## Edit HTML
-
-
-def edit_html(app, exception):
+def edit_html(app: Sphinx, exception: Exception) -> None:
     if exception:
         raise exception
 
     for file in glob.glob(f"{app.outdir}/**/*.html", recursive=True):
-        with open(file, "r") as f:
+        with open(file) as f:
             text = f.read()
 
         # fmt: off
@@ -149,5 +150,5 @@ def edit_html(app, exception):
             f.write(text)
 
 
-def setup(app):
+def setup(app: Sphinx) -> None:
     app.connect("build-finished", edit_html)

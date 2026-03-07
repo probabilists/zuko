@@ -3,15 +3,15 @@ r"""Tests for the zuko.mixtures module."""
 import pytest
 import torch
 
+from collections.abc import Sequence
 from pathlib import Path
 from torch import randn
-from typing import Sequence
 
 from zuko.mixtures import *
 
 
 @pytest.mark.parametrize("M", [GMM])
-def test_mixtures(tmp_path: Path, M: type):
+def test_mixtures(tmp_path: Path, M: type) -> None:
     mixture = M(3, 5)
 
     # Evaluation of log_prob
@@ -79,7 +79,7 @@ def test_gmm_shapes(
     covariance_type: str,
     tied: bool,
     strategy: str,
-):
+) -> None:
     if context > 0:
         c = torch.randn(*batch, context)
     else:
@@ -115,7 +115,7 @@ def test_gmm_shapes(
 
 
 @pytest.mark.parametrize("covariance_type", ["full", "diagonal", "spherical"])
-def test_gmm_tied_covariance(covariance_type: str):
+def test_gmm_tied_covariance(covariance_type: str) -> None:
     gmm = GMM(features=3, components=2, covariance_type=covariance_type, tied=True)
     d = gmm()
 
@@ -127,7 +127,7 @@ def test_gmm_tied_covariance(covariance_type: str):
     assert torch.allclose(covs[0], covs[1])
 
 
-def test_gmm_insufficient_samples():
+def test_gmm_insufficient_samples() -> None:
     gmm = GMM(features=3, components=7, covariance_type="full")
 
     with pytest.raises(AssertionError, match="The number of samples"):
