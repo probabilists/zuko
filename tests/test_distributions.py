@@ -7,7 +7,7 @@ from torch.distributions import *
 from zuko.distributions import *
 
 
-def test_distributions():
+def test_distributions() -> None:
     ds = [
         NormalizingFlow(ExpTransform(), Gamma(2.0, 1.0)),
         Joint(Uniform(0.0, 1.0), Normal(0.0, 1.0)),

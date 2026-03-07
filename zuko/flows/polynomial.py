@@ -58,7 +58,7 @@ class SOSPF(MAF):
         degree: int = 4,
         polynomials: int = 3,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(
             features=features,
             context=context,
@@ -104,7 +104,7 @@ class BPF(MAF):
         context: int = 0,
         degree: int = 16,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(
             features=features,
             context=context,

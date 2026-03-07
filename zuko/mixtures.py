@@ -7,13 +7,13 @@ __all__ = [
 import torch
 import torch.nn as nn
 
+from collections.abc import Sequence
 from math import prod
 from torch import Tensor
 from torch.distributions import (
     Distribution,
     MultivariateNormal,
 )
-from typing import Sequence, Tuple
 
 from .distributions import DiagNormal, Mixture
 from .lazy import LazyDistribution
@@ -49,7 +49,7 @@ class GMM(LazyDistribution):
         tied: bool = False,
         epsilon: float = 1e-6,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         self.components = components
@@ -98,7 +98,7 @@ class GMM(LazyDistribution):
         return Mixture(DiagNormal(loc=loc, scale=scale), logits)
 
     @torch.no_grad()
-    def initialize(self, x: Tensor, strategy: str):
+    def initialize(self, x: Tensor, strategy: str) -> None:
         r"""Initializes the components of the model.
 
         Note:
@@ -147,13 +147,13 @@ class GMM(LazyDistribution):
         else:
             params = (probs.log(), means, *covs)
 
-        assert all(p.shape == s for p, s in zip(params, self.shapes))
+        assert all(p.shape == s for p, s in zip(params, self.shapes, strict=True))
 
         if hasattr(self, "hyper"):
             self.hyper[-1].weight.mul_(1e-2)
             self.hyper[-1].bias.copy_(torch.cat([p.flatten() for p in params]))
         else:
-            for p, p_ in zip(self.phi, params):
+            for p, p_ in zip(self.phi, params, strict=True):
                 p.copy_(p_)
 
 
@@ -189,7 +189,7 @@ def _get_gmm_shapes(
     return shapes
 
 
-def _estimate_full_cov(x: Tensor, match: Tensor, tied: bool) -> Tuple[Tensor, Tensor]:
+def _estimate_full_cov(x: Tensor, match: Tensor, tied: bool) -> tuple[Tensor, Tensor]:
     _, D = x.shape
     _, K = match.shape
 
@@ -236,7 +236,7 @@ def _estimate_spherical_cov(x: Tensor, match: Tensor, tied: bool) -> Tensor:
     return diag.log()
 
 
-def _cluster_random(x: Tensor, components: int):
+def _cluster_random(x: Tensor, components: int) -> Tensor:
     N, _ = x.shape
 
     idx = torch.multinomial(torch.ones(N, device=x.device), components)
@@ -245,7 +245,7 @@ def _cluster_random(x: Tensor, components: int):
     return centers
 
 
-def _cluster_kmeans(x: Tensor, components: int, iterations: int = 7):
+def _cluster_kmeans(x: Tensor, components: int, iterations: int = 7) -> Tensor:
     N, _ = x.shape
 
     centers = _cluster_kmeans_pp(x, components)
@@ -265,7 +265,7 @@ def _cluster_kmeans(x: Tensor, components: int, iterations: int = 7):
     return centers
 
 
-def _cluster_kmeans_pp(x: Tensor, components: int):
+def _cluster_kmeans_pp(x: Tensor, components: int) -> Tensor:
     N, _ = x.shape
 
     idx = torch.multinomial(torch.ones(N, device=x.device), components)

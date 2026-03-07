@@ -48,7 +48,7 @@ class NSF(MAF):
         context: int = 0,
         bins: int = 8,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(
             features=features,
             context=context,
@@ -94,7 +94,7 @@ class NCSF(MAF):
         context: int = 0,
         bins: int = 8,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(
             features=features,
             context=context,

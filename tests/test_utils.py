@@ -8,7 +8,7 @@ from torch import randn
 from zuko.utils import *
 
 
-def test_bisection():
+def test_bisection() -> None:
     alpha = torch.tensor(1.0, requires_grad=True)
 
     f = lambda x: torch.cos(alpha * x)
@@ -29,7 +29,7 @@ def test_bisection():
     assert torch.allclose(grad_alpha, dalpha, atol=1e-6)
 
 
-def test_broadcast():
+def test_broadcast() -> None:
     # Trivial
     a = randn(2, 3)
     (b,) = broadcast(a)
@@ -64,7 +64,7 @@ def test_broadcast():
     assert (a == c).all() and (b == d).all()
 
 
-def test_gauss_legendre():
+def test_gauss_legendre() -> None:
     # Polynomial
     alpha = torch.tensor(1.0, requires_grad=True)
 
@@ -85,7 +85,7 @@ def test_gauss_legendre():
     assert torch.allclose(grad_alpha, dalpha, atol=1e-6)
 
 
-def test_odeint():
+def test_odeint() -> None:
     # Linear
     alpha = torch.tensor(1.0, requires_grad=True)
     t = torch.tensor(3.0, requires_grad=True)
@@ -108,7 +108,7 @@ def test_odeint():
     assert torch.allclose(grad_alpha, dalpha, atol=1e-6)
 
 
-def test_unpack():
+def test_unpack() -> None:
     # Normal
     x = randn(26)
     y, z = unpack(x, ((1, 2, 3), (4, 5)))

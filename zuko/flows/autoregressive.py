@@ -7,11 +7,11 @@ __all__ = [
 
 import torch
 
+from collections.abc import Callable, Sequence
 from functools import partial
 from math import ceil, prod
 from torch import BoolTensor, LongTensor, Size, Tensor
 from torch.distributions import Transform
-from typing import Callable, Sequence
 
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
@@ -72,11 +72,11 @@ class MaskedAutoregressiveTransform(LazyTransform):
 
     def __new__(
         cls,
-        features: int = None,
+        features: int | None = None,
         context: int = 0,
-        passes: int = None,
-        order: LongTensor = None,
-        adjacency: BoolTensor = None,
+        passes: int | None = None,
+        order: LongTensor | None = None,
+        adjacency: BoolTensor | None = None,
         *args,
         **kwargs,
     ) -> LazyTransform:
@@ -89,13 +89,13 @@ class MaskedAutoregressiveTransform(LazyTransform):
         self,
         features: int,
         context: int = 0,
-        passes: int = None,
-        order: LongTensor = None,
-        adjacency: BoolTensor = None,
+        passes: int | None = None,
+        order: LongTensor | None = None,
+        adjacency: BoolTensor | None = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         # Univariate transformation
@@ -290,7 +290,7 @@ class MAF(Flow):
         transforms: int = 3,
         randperm: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         orders = [
             torch.arange(features),
             torch.flipud(torch.arange(features)),

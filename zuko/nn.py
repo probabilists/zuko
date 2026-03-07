@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from collections.abc import Callable, Iterable, Sequence
 from torch import BoolTensor, Tensor
-from typing import Callable, Iterable, Sequence, Union
 
 
 def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
@@ -36,7 +36,7 @@ class LayerNorm(nn.Module):
         eps: A numerical stability term.
     """
 
-    def __init__(self, dim: Union[int, Iterable[int]] = -1, eps: float = 1e-5):
+    def __init__(self, dim: int | Iterable[int] = -1, eps: float = 1e-5) -> None:
         super().__init__()
 
         self.dim = dim if isinstance(dim, int) else tuple(dim)
@@ -68,8 +68,8 @@ class Linear(nn.Module):
         in_features: int,
         out_features: int,
         bias: bool = True,
-        stack: int = None,
-    ):
+        stack: int | None = None,
+    ) -> None:
         super().__init__()
 
         shape = () if stack is None else (stack,)
@@ -86,7 +86,7 @@ class Linear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
 
-    def reset_parameters(self):
+    def reset_parameters(self) -> None:
         bound = 1 / self.weight.shape[-1] ** 0.5
 
         nn.init.uniform_(self.weight, -bound, bound)
@@ -161,10 +161,10 @@ class MLP(nn.Sequential):
         in_features: int,
         out_features: int,
         hidden_features: Sequence[int] = (64, 64),
-        activation: Callable[[], nn.Module] = None,
+        activation: Callable[[], nn.Module] | None = None,
         normalize: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         if activation is None:
             activation = nn.ReLU
 
@@ -175,6 +175,7 @@ class MLP(nn.Sequential):
         for before, after in zip(
             (in_features, *hidden_features),
             (*hidden_features, out_features),
+            strict=True,
         ):
             layers.extend([
                 Linear(before, after, **kwargs),
@@ -208,7 +209,7 @@ class MaskedLinear(nn.Linear):
         kwargs: Keyword arguments passed to :class:`torch.nn.Linear`.
     """
 
-    def __init__(self, adjacency: BoolTensor, **kwargs):
+    def __init__(self, adjacency: BoolTensor, **kwargs) -> None:
         super().__init__(*reversed(adjacency.shape), **kwargs)
 
         self.register_buffer("mask", adjacency)
@@ -258,9 +259,9 @@ class MaskedMLP(nn.Sequential):
         self,
         adjacency: BoolTensor,
         hidden_features: Sequence[int] = (64, 64),
-        activation: Callable[[], nn.Module] = None,
+        activation: Callable[[], nn.Module] | None = None,
         residual: bool = False,
-    ):
+    ) -> None:
         out_features, in_features = adjacency.shape
 
         if activation is None:
@@ -380,7 +381,7 @@ class MonotonicMLP(MLP):
                 [1.1049, 1.3635, 1.2592]])
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         kwargs["activation"] = TwoWayELU
         kwargs["normalize"] = False
 
