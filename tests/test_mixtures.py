@@ -134,14 +134,17 @@ def test_gmm_insufficient_samples() -> None:
         gmm.initialize(torch.randn(6, 3), strategy="random")
 
 
-def test_gmm_unknown_init_strategy_error_message() -> None:
+def test_gmm_unknown_strategy() -> None:
     gmm = GMM(features=3, components=2, covariance_type="full")
 
     with pytest.raises(ValueError, match="Unknown clustering strategy"):
         gmm.initialize(torch.randn(16, 3), strategy="invalid")
 
 
-def test_gmm_unknown_covariance_error_message() -> None:
+def test_gmm_unknown_covariance_type() -> None:
+    with pytest.raises(ValueError, match="Unknown covariance type"):
+        gmm = GMM(features=3, components=2, covariance_type="invalid")
+
     gmm = GMM(features=3, components=2, covariance_type="full")
     gmm.covariance_type = "invalid"
 
