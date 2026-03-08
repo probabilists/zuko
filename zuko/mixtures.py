@@ -14,6 +14,7 @@ from torch.distributions import (
     Distribution,
     MultivariateNormal,
 )
+from typing import Literal
 
 from .distributions import DiagNormal, Mixture
 from .lazy import LazyDistribution
@@ -34,7 +35,6 @@ class GMM(LazyDistribution):
         context: The number of context features.
         components: The number of components :math:`K` in the mixture.
         covariance_type: The type of covariance matrix parameterization to use.
-            One of :py:`['full', 'diagonal', 'spherical']`.
         tied: Whether to tie the covariance parameters across components.
         epsilon: A numerical stability term.
         kwargs: Keyword arguments passed to :class:`zuko.nn.MLP`.
@@ -45,7 +45,7 @@ class GMM(LazyDistribution):
         features: int,
         context: int = 0,
         components: int = 2,
-        covariance_type: str = "full",
+        covariance_type: Literal["full", "diagonal", "spherical"] = "full",
         tied: bool = False,
         epsilon: float = 1e-6,
         **kwargs,
@@ -81,7 +81,7 @@ class GMM(LazyDistribution):
         elif self.covariance_type == "spherical":
             return self._forward_diagonal(*phi)
         else:
-            raise ValueError(f"Unknown covariance type '{self.covariance_type}'.")
+            raise NotImplementedError(f"Unknown covariance type '{self.covariance_type}'.")
 
     def _forward_full(
         self, logits: Tensor, loc: Tensor, diag: Tensor, tril: Tensor
@@ -98,7 +98,7 @@ class GMM(LazyDistribution):
         return Mixture(DiagNormal(loc=loc, scale=scale), logits)
 
     @torch.no_grad()
-    def initialize(self, x: Tensor, strategy: str) -> None:
+    def initialize(self, x: Tensor, strategy: Literal["random", "kmeans", "kmeans++"]) -> None:
         r"""Initializes the components of the model.
 
         Note:
@@ -107,7 +107,7 @@ class GMM(LazyDistribution):
 
         Arguments:
             x: The feature samples, with shape :math:`(N, D)`.
-            strategy: The clustering strategy. One of :py:`['random', 'kmeans', 'kmeans++']`.
+            strategy: The clustering strategy.
         """
 
         N, _ = x.shape
@@ -123,7 +123,7 @@ class GMM(LazyDistribution):
         elif strategy == "kmeans++":
             centers = _cluster_kmeans_pp(x, self.components)
         else:
-            raise ValueError(f"Unknown clustering strategy '{strategy}'.")
+            raise NotImplementedError(f"Unknown clustering strategy '{strategy}'.")
 
         match = torch.cdist(x, centers).argmin(dim=-1)
         match = torch.nn.functional.one_hot(match, num_classes=self.components).to(dtype=x.dtype)
@@ -140,7 +140,7 @@ class GMM(LazyDistribution):
         elif self.covariance_type == "spherical":
             covs = _estimate_spherical_cov(x, match, self.tied)
         else:
-            raise ValueError(f"Unknown covariance type '{self.covariance_type}'.")
+            raise NotImplementedError(f"Unknown covariance type '{self.covariance_type}'.")
 
         if torch.is_tensor(covs):
             params = (probs.log(), means, covs)
@@ -160,7 +160,7 @@ class GMM(LazyDistribution):
 def _get_gmm_shapes(
     components: int,
     features: int,
-    covariance_type: str,
+    covariance_type: Literal["full", "diagonal", "spherical"],
     tied: bool,
 ) -> Sequence[int]:
     leading = 1 if tied else components
@@ -184,7 +184,7 @@ def _get_gmm_shapes(
             (leading, 1),  # diagonal
         ])
     else:
-        raise ValueError(f"Unknown covariance type '{covariance_type}'.")
+        raise NotImplementedError(f"Unknown covariance type '{covariance_type}'.")
 
     return shapes
 
