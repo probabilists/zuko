@@ -123,7 +123,7 @@ class GMM(LazyDistribution):
         elif strategy == "kmeans++":
             centers = _cluster_kmeans_pp(x, self.components)
         else:
-            raise ValueError(f"Unkown clustering strategy '{strategy}'.")
+            raise ValueError(f"Unknown clustering strategy '{strategy}'.")
 
         match = torch.cdist(x, centers).argmin(dim=-1)
         match = torch.nn.functional.one_hot(match, num_classes=self.components).to(dtype=x.dtype)
@@ -140,7 +140,7 @@ class GMM(LazyDistribution):
         elif self.covariance_type == "spherical":
             covs = _estimate_spherical_cov(x, match, self.tied)
         else:
-            raise ValueError(f"Unkown covariance type '{self.covariance_type}'.")
+            raise ValueError(f"Unknown covariance type '{self.covariance_type}'.")
 
         if torch.is_tensor(covs):
             params = (probs.log(), means, covs)
