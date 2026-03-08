@@ -110,6 +110,7 @@ FLOWS = {
     "UNAF": zuko.flows.UNAF,
     "SOSPF": zuko.flows.SOSPF,
     "NSF": zuko.flows.NSF,
+    "BPF": zuko.flows.BPF,
     "FFJORD": zuko.flows.CNF,
     "GF": zuko.flows.GF,
 }

@@ -41,6 +41,8 @@ FLOWS = {
     "SOSPF (C)": partial(zuko.flows.SOSPF, passes=2),
     "NSF (AR)": zuko.flows.NSF,
     "NSF (C)": partial(zuko.flows.NSF, passes=2),
+    "BPF (AR)": zuko.flows.BPF,
+    "BPF (C)": partial(zuko.flows.BPF, passes=2),
     "FFJORD": partial(zuko.flows.CNF, exact=False),
     "GF": zuko.flows.GF,
 }
