@@ -67,7 +67,7 @@ class GMM(LazyDistribution):
         else:
             self.phi = nn.ParameterList(torch.randn(*s) for s in shapes)
 
-    def forward(self, c: Tensor = None) -> Distribution:
+    def forward(self, c: Tensor | None = None) -> Distribution:
         if c is None:
             phi = self.phi
         else:

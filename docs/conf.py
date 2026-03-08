@@ -141,9 +141,8 @@ def edit_html(app: Sphinx, exception: Exception) -> None:
             text = f.read()
 
         # fmt: off
-        text = text.replace('<a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>\'s', '')
-        text = text.replace('<span class="pre">[source]</span>', '<i class="fa-solid fa-code"></i>')
-        text = re.sub(r'(<a class="reference external".*</a>)(<a class="headerlink".*</a>)', r'\2\1', text)
+        text = text.replace('<a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>\'s', "")
+        text = re.sub(r'(<a class="reference external".*</a>)(<a class="headerlink".*</a>)', r"\2\1", text)
         # fmt: on
 
         with open(file, "w") as f:

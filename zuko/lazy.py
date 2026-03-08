@@ -37,7 +37,7 @@ class LazyDistribution(nn.Module, abc.ABC):
     """
 
     @abc.abstractmethod
-    def forward(self, c: Tensor = None) -> Distribution:
+    def forward(self, c: Tensor | None = None) -> Distribution:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -60,7 +60,7 @@ class LazyTransform(nn.Module, abc.ABC):
     """
 
     @abc.abstractmethod
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -90,7 +90,7 @@ class LazyInverse(LazyTransform):
 
         self.transform = transform
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         return self.transform(c).inv
 
     @property
@@ -116,7 +116,7 @@ class LazyComposedTransform(LazyTransform):
     def __repr__(self) -> str:
         return repr(self.transforms).replace("ModuleList", "LazyComposedTransform", 1)
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -153,7 +153,7 @@ class Flow(LazyDistribution):
 
         self.base = base
 
-    def forward(self, c: Tensor = None) -> NormalizingFlow:
+    def forward(self, c: Tensor | None = None) -> NormalizingFlow:
         r"""
         Arguments:
             c: A context :math:`c`.
@@ -223,7 +223,7 @@ class Unconditional(nn.Module):
         else:
             return repr(self.forward())
 
-    def forward(self, c: Tensor = None) -> Any:  # noqa: ANN401
+    def forward(self, c: Tensor | None = None) -> Any:  # noqa: ANN401
         r"""
         Arguments:
             c: A context :math:`c`. This argument is always ignored.
@@ -275,7 +275,7 @@ class UnconditionalDistribution(Partial, LazyDistribution):
         else:
             return repr(self.forward())
 
-    def forward(self, c: Tensor = None) -> Distribution:
+    def forward(self, c: Tensor | None = None) -> Distribution:
         r"""
         Arguments:
             c: A context :math:`c`. This argument is always ignored.
@@ -323,7 +323,7 @@ class UnconditionalTransform(Partial, LazyTransform):
         else:
             return repr(self.forward())
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         r"""
         Arguments:
             c: A context :math:`c`. This argument is always ignored.

@@ -102,7 +102,7 @@ class NormalizingFlow(Distribution):
     def event_shape(self) -> Size:
         return self.transform.inverse_shape(self.base.event_shape)
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(NormalizingFlow, new)
         new.transform = self.transform
         new.base = self.base.expand(batch_shape)
@@ -178,7 +178,7 @@ class Joint(Distribution):
     def event_shape(self) -> Size:
         return Size([sum(m.event_shape.numel() for m in self.marginals)])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Joint, new)
         new.marginals = [m.expand(batch_shape) for m in self.marginals]
 
@@ -255,7 +255,7 @@ class Mixture(Distribution):
     def event_shape(self) -> Size:
         return self.base.event_shape
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Mixture, new)
         new.base = self.base.expand(batch_shape + self.base.batch_shape[-1:])
         new.logits = self.logits
@@ -316,7 +316,7 @@ class GeneralizedNormal(Distribution):
     def batch_shape(self) -> Size:
         return self.beta.shape
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(GeneralizedNormal, new)
         new.beta = self.beta.expand(batch_shape)
 
@@ -358,7 +358,7 @@ class DiagNormal(Independent):
     def __repr__(self) -> str:
         return "Diag" + repr(self.base_dist)
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(DiagNormal, new)
         return super().expand(batch_shape, new)
 
@@ -391,7 +391,7 @@ class BoxUniform(Independent):
     def __repr__(self) -> str:
         return "Box" + repr(self.base_dist)
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(BoxUniform, new)
         return super().expand(batch_shape, new)
 
@@ -421,7 +421,7 @@ class TransformedUniform(NormalizingFlow):
     def __init__(self, f: Transform, lower: Tensor, upper: Tensor) -> None:
         super().__init__(f, Uniform(*map(f, map(torch.as_tensor, (lower, upper)))))
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(TransformedUniform, new)
         return super().expand(batch_shape, new)
 
@@ -469,7 +469,7 @@ class Truncated(Distribution):
     def batch_shape(self) -> Size:
         return self.base.batch_shape
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Truncated, new)
         new.base = self.base.expand(batch_shape)
         new.uniform = self.uniform.expand(batch_shape)
@@ -537,7 +537,7 @@ class Sort(Distribution):
     def event_shape(self) -> Size:
         return Size([self.n])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Sort, new)
         new.base = self.base.expand(batch_shape)
         new.n = self.n
@@ -613,7 +613,7 @@ class TopK(Sort):
     def event_shape(self) -> Size:
         return Size([self.k])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(TopK, new)
         new.k = self.k
         return super().expand(batch_shape, new)
@@ -660,7 +660,7 @@ class Minimum(TopK):
     def event_shape(self) -> Size:
         return Size([])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Minimum, new)
         return super().expand(batch_shape, new)
 
@@ -694,6 +694,6 @@ class Maximum(Minimum):
 
         self.descending = True
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Maximum, new)
         return super().expand(batch_shape, new)

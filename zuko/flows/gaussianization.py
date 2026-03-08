@@ -83,7 +83,7 @@ class ElementWiseTransform(LazyTransform):
             f"(base): {base}",
         ])
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         if c is None:
             phi = self.phi
         else:

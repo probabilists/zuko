@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable, Sequence
 from torch import BoolTensor, Tensor
 
 
-def linear(x: Tensor, W: Tensor, b: Tensor = None) -> Tensor:
+def linear(x: Tensor, W: Tensor, b: Tensor | None = None) -> Tensor:
     if W.dim() == 2:
         return F.linear(x, W, b)
     else:

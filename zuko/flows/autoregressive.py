@@ -214,7 +214,7 @@ class MaskedAutoregressiveTransform(LazyTransform):
 
         return DependentTransform(self.univariate(*phi), 1)
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         return AutoregressiveTransform(partial(self.meta, c), self.passes)
 
 
