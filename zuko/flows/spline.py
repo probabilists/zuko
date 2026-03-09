@@ -7,7 +7,9 @@ __all__ = [
 
 import torch
 
+from functools import partial
 from math import pi
+from torch import Tensor
 from torch.distributions import Transform
 
 from .autoregressive import MAF
@@ -39,6 +41,7 @@ class NSF(MAF):
         features: The number of features.
         context: The number of context features.
         bins: The number of bins :math:`K`.
+        slope: The minimum slope of the spline transformation(s).
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
     """
 
@@ -47,23 +50,24 @@ class NSF(MAF):
         features: int,
         context: int = 0,
         bins: int = 8,
+        slope: float = 1e-3,
         **kwargs,
     ) -> None:
         super().__init__(
             features=features,
             context=context,
-            univariate=MonotonicRQSTransform,
+            univariate=partial(MonotonicRQSTransform, slope=slope),
             shapes=[(bins,), (bins,), (bins - 1,)],
             **kwargs,
         )
 
 
-def CircularRQSTransform(*phi) -> Transform:
+def CircularRQSTransform(*phi: Tensor, slope: float = 1e-3) -> Transform:
     r"""Creates a circular rational-quadratic spline (RQS) transformation."""
 
     return ComposedTransform(
         CircularShiftTransform(bound=pi),
-        MonotonicRQSTransform(*phi, bound=pi),
+        MonotonicRQSTransform(*phi, bound=pi, slope=slope),
     )
 
 
@@ -85,6 +89,7 @@ class NCSF(MAF):
         features: The number of features.
         context: The number of context features.
         bins: The number of bins :math:`K`.
+        slope: The minimum slope of the spline transformation(s).
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
     """
 
@@ -93,12 +98,13 @@ class NCSF(MAF):
         features: int,
         context: int = 0,
         bins: int = 8,
+        slope: float = 1e-3,
         **kwargs,
     ) -> None:
         super().__init__(
             features=features,
             context=context,
-            univariate=CircularRQSTransform,
+            univariate=partial(CircularRQSTransform, slope=slope),
             shapes=[(bins,), (bins,), (bins - 1,)],
             **kwargs,
         )

@@ -5,6 +5,7 @@ __all__ = [
     "SOSPF",
 ]
 
+from functools import partial
 from torch import Tensor
 from torch.distributions import Transform
 
@@ -19,11 +20,11 @@ from ..transforms import (
 )
 
 
-def ShiftedSOSPTransform(a: Tensor, constant: Tensor) -> Transform:
+def ShiftedSOSPTransform(a: Tensor, constant: Tensor, slope: float = 1e-3) -> Transform:
     r"""Creates a shifted sum-of-squares polynomial (SOSP) transformation."""
 
     return ComposedTransform(
-        SOSPolynomialTransform(a=a),
+        SOSPolynomialTransform(a=a, slope=slope),
         AdditiveTransform(shift=constant),
     )
 
@@ -48,6 +49,7 @@ class SOSPF(MAF):
         context: The number of context features.
         degree: The degree :math:`L` of polynomials.
         polynomials: The number of polynomials :math:`K`.
+        slope: The minimum slope of the polynomial transformation(s).
         kwargs: Keyword arguments passed to :class:`zuko.flows.autoregressive.MAF`.
     """
 
@@ -57,12 +59,13 @@ class SOSPF(MAF):
         context: int = 0,
         degree: int = 4,
         polynomials: int = 3,
+        slope: float = 1e-3,
         **kwargs,
     ) -> None:
         super().__init__(
             features=features,
             context=context,
-            univariate=ShiftedSOSPTransform,
+            univariate=partial(ShiftedSOSPTransform, slope=slope),
             shapes=[(polynomials, degree + 1), ()],
             **kwargs,
         )
