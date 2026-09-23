@@ -4,9 +4,9 @@ import math
 import pytest
 import torch
 
+from collections.abc import Sequence
 from pathlib import Path
 from torch import randn
-from typing import Sequence
 
 from zuko.bayesian import BayesianModel
 from zuko.flows import *
@@ -15,7 +15,7 @@ from zuko.nn import *
 
 @pytest.mark.parametrize("local_trick", [False, True])
 @pytest.mark.parametrize("batch", [(), (256,)])
-def test_bayesian_MLP(local_trick: bool, batch: Sequence[int]):
+def test_bayesian_MLP(local_trick: bool, batch: Sequence[int]) -> None:
     net = MLP(3, 5)
     bnet = BayesianModel(net)
 
@@ -53,7 +53,7 @@ def test_bayesian_MLP(local_trick: bool, batch: Sequence[int]):
 
 @pytest.mark.parametrize("local_trick", [False, True])
 @pytest.mark.parametrize("batch", [(), (256,)])
-def test_bayesian_MaskedMLP(local_trick: bool, batch: Sequence[int]):
+def test_bayesian_MaskedMLP(local_trick: bool, batch: Sequence[int]) -> None:
     adjacency = randn(5, 3) < 0
     net = MaskedMLP(adjacency)
     bnet = BayesianModel(net)
@@ -111,7 +111,7 @@ def test_bayesian_MaskedMLP(local_trick: bool, batch: Sequence[int]):
 
 @pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, GF, BPF])
 @pytest.mark.parametrize("local_trick", [True, False])
-def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool):
+def test_bayesian_flows(tmp_path: Path, F: type, local_trick: bool) -> None:
     flow = F(3, 5)
     bflow = BayesianModel(flow)
 

@@ -8,11 +8,11 @@ __all__ = [
 
 import torch
 
+from collections.abc import Callable, Sequence
 from functools import partial
 from math import prod
 from torch import BoolTensor, Size, Tensor
 from torch.distributions import Transform
-from typing import Callable, Sequence
 
 from .gaussianization import ElementWiseTransform
 from ..distributions import DiagNormal
@@ -65,9 +65,9 @@ class GeneralCouplingTransform(LazyTransform):
 
     def __new__(
         cls,
-        features: int = None,
+        features: int | None = None,
         context: int = 0,
-        mask: BoolTensor = None,
+        mask: BoolTensor | None = None,
         *args,
         **kwargs,
     ) -> LazyTransform:
@@ -80,11 +80,11 @@ class GeneralCouplingTransform(LazyTransform):
         self,
         features: int,
         context: int = 0,
-        mask: BoolTensor = None,
+        mask: BoolTensor | None = None,
         univariate: Callable[..., Transform] = MonotonicAffineTransform,
         shapes: Sequence[Size] = ((), ()),
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         # Univariate transformation
@@ -135,7 +135,7 @@ class GeneralCouplingTransform(LazyTransform):
 
         return DependentTransform(self.univariate(*phi), 1)
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         return CouplingTransform(partial(self.meta, c), self.mask)
 
 
@@ -168,7 +168,7 @@ class NICE(Flow):
         transforms: int = 3,
         randmask: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         temp = []
 
         for i in range(transforms):

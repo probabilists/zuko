@@ -31,7 +31,6 @@ from torch.distributions import (
     constraints,
 )
 from torch.distributions.utils import _sum_rightmost
-from typing import Tuple
 
 Distribution._validate_args = False
 Distribution.arg_constraints = {}
@@ -74,7 +73,7 @@ class NormalizingFlow(Distribution):
         self,
         transform: Transform,
         base: Distribution,
-    ):
+    ) -> None:
         super().__init__()
 
         reinterpreted = transform.codomain.event_dim - len(base.event_shape)
@@ -103,7 +102,7 @@ class NormalizingFlow(Distribution):
     def event_shape(self) -> Size:
         return self.transform.inverse_shape(self.base.event_shape)
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(NormalizingFlow, new)
         new.transform = self.transform
         new.base = self.base.expand(batch_shape)
@@ -127,7 +126,7 @@ class NormalizingFlow(Distribution):
 
         return self.transform.inv(z)
 
-    def rsample_and_log_prob(self, shape: Size = ()) -> Tuple[Tensor, Tensor]:
+    def rsample_and_log_prob(self, shape: Size = ()) -> tuple[Tensor, Tensor]:
         if self.base.has_rsample:
             z = self.base.rsample(shape)
         else:
@@ -158,7 +157,7 @@ class Joint(Distribution):
 
     has_rsample = True
 
-    def __init__(self, *marginals: Distribution):
+    def __init__(self, *marginals: Distribution) -> None:
         super().__init__()
 
         batch_shape = torch.broadcast_shapes(*(m.batch_shape for m in marginals))
@@ -179,7 +178,7 @@ class Joint(Distribution):
     def event_shape(self) -> Size:
         return Size([sum(m.event_shape.numel() for m in self.marginals)])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Joint, new)
         new.marginals = [m.expand(batch_shape) for m in self.marginals]
 
@@ -236,7 +235,7 @@ class Mixture(Distribution):
 
     has_rsample = False
 
-    def __init__(self, base: Distribution, logits: Tensor):
+    def __init__(self, base: Distribution, logits: Tensor) -> None:
         super().__init__()
 
         assert base.batch_shape[-1] == logits.shape[-1]
@@ -256,7 +255,7 @@ class Mixture(Distribution):
     def event_shape(self) -> Size:
         return self.base.event_shape
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Mixture, new)
         new.base = self.base.expand(batch_shape + self.base.batch_shape[-1:])
         new.logits = self.logits
@@ -308,7 +307,7 @@ class GeneralizedNormal(Distribution):
     support = constraints.real
     has_rsample = True
 
-    def __init__(self, beta: Tensor):
+    def __init__(self, beta: Tensor) -> None:
         super().__init__()
 
         self.beta = torch.as_tensor(beta)
@@ -317,7 +316,7 @@ class GeneralizedNormal(Distribution):
     def batch_shape(self) -> Size:
         return self.beta.shape
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(GeneralizedNormal, new)
         new.beta = self.beta.expand(batch_shape)
 
@@ -353,13 +352,13 @@ class DiagNormal(Independent):
         tensor([ 1.5410, -0.2934, -2.1788])
     """
 
-    def __init__(self, loc: Tensor, scale: Tensor, ndims: int = 1):
+    def __init__(self, loc: Tensor, scale: Tensor, ndims: int = 1) -> None:
         super().__init__(Normal(torch.as_tensor(loc), torch.as_tensor(scale)), ndims)
 
     def __repr__(self) -> str:
         return "Diag" + repr(self.base_dist)
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(DiagNormal, new)
         return super().expand(batch_shape, new)
 
@@ -386,13 +385,13 @@ class BoxUniform(Independent):
         tensor([-0.0075,  0.5364, -0.8230])
     """
 
-    def __init__(self, lower: Tensor, upper: Tensor, ndims: int = 1):
+    def __init__(self, lower: Tensor, upper: Tensor, ndims: int = 1) -> None:
         super().__init__(Uniform(torch.as_tensor(lower), torch.as_tensor(upper)), ndims)
 
     def __repr__(self) -> str:
         return "Box" + repr(self.base_dist)
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(BoxUniform, new)
         return super().expand(batch_shape, new)
 
@@ -419,10 +418,10 @@ class TransformedUniform(NormalizingFlow):
         tensor(0.4281)
     """
 
-    def __init__(self, f: Transform, lower: Tensor, upper: Tensor):
+    def __init__(self, f: Transform, lower: Tensor, upper: Tensor) -> None:
         super().__init__(f, Uniform(*map(f, map(torch.as_tensor, (lower, upper)))))
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(TransformedUniform, new)
         return super().expand(batch_shape, new)
 
@@ -455,7 +454,7 @@ class Truncated(Distribution):
         base: Distribution,
         lower: Tensor = float("-inf"),
         upper: Tensor = float("+inf"),
-    ):
+    ) -> None:
         super().__init__()
 
         assert not base.event_shape, "'base' has to be univariate"
@@ -470,7 +469,7 @@ class Truncated(Distribution):
     def batch_shape(self) -> Size:
         return self.base.batch_shape
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Truncated, new)
         new.base = self.base.expand(batch_shape)
         new.uniform = self.uniform.expand(batch_shape)
@@ -517,7 +516,7 @@ class Sort(Distribution):
         base: Distribution,
         n: int = 2,
         descending: bool = False,
-    ):
+    ) -> None:
         super().__init__()
 
         assert not base.event_shape, "'base' has to be univariate"
@@ -538,7 +537,7 @@ class Sort(Distribution):
     def event_shape(self) -> Size:
         return Size([self.n])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Sort, new)
         new.base = self.base.expand(batch_shape)
         new.n = self.n
@@ -599,7 +598,7 @@ class TopK(Sort):
         k: int = 1,
         n: int = 2,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(base, n, **kwargs)
 
         assert 1 <= k < n, "k has to be in [1, n)"
@@ -614,7 +613,7 @@ class TopK(Sort):
     def event_shape(self) -> Size:
         return Size([self.k])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(TopK, new)
         new.k = self.k
         return super().expand(batch_shape, new)
@@ -649,7 +648,7 @@ class Minimum(TopK):
         tensor(-2.1788)
     """
 
-    def __init__(self, base: Distribution, n: int = 2):
+    def __init__(self, base: Distribution, n: int = 2) -> None:
         super().__init__(base, 1, n)
 
         self.descending = False
@@ -661,7 +660,7 @@ class Minimum(TopK):
     def event_shape(self) -> Size:
         return Size([])
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Minimum, new)
         return super().expand(batch_shape, new)
 
@@ -690,11 +689,11 @@ class Maximum(Minimum):
         tensor(1.5410)
     """
 
-    def __init__(self, base: Distribution, n: int = 2):
+    def __init__(self, base: Distribution, n: int = 2) -> None:
         super().__init__(base, n)
 
         self.descending = True
 
-    def expand(self, batch_shape: Size, new: Distribution = None) -> Distribution:
+    def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Maximum, new)
         return super().expand(batch_shape, new)

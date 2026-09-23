@@ -7,6 +7,8 @@ import pathlib
 import re
 import subprocess
 
+from sphinx.application import Sphinx
+
 import zuko
 
 ## Project
@@ -128,26 +130,24 @@ rst_prolog = """
 """
 templates_path = ["templates"]
 
+
 ## Edit HTML
-
-
-def edit_html(app, exception):
+def edit_html(app: Sphinx, exception: Exception) -> None:
     if exception:
         raise exception
 
     for file in glob.glob(f"{app.outdir}/**/*.html", recursive=True):
-        with open(file, "r") as f:
+        with open(file) as f:
             text = f.read()
 
         # fmt: off
-        text = text.replace('<a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>\'s', '')
-        text = text.replace('<span class="pre">[source]</span>', '<i class="fa-solid fa-code"></i>')
-        text = re.sub(r'(<a class="reference external".*</a>)(<a class="headerlink".*</a>)', r'\2\1', text)
+        text = text.replace('<a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>\'s', "")
+        text = re.sub(r'(<a class="reference external".*</a>)(<a class="headerlink".*</a>)', r"\2\1", text)
         # fmt: on
 
         with open(file, "w") as f:
             f.write(text)
 
 
-def setup(app):
+def setup(app: Sphinx) -> None:
     app.connect("build-finished", edit_html)

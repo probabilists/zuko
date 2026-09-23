@@ -71,7 +71,7 @@ class FFJTransform(LazyTransform):
         rtol: float = 1e-5,
         exact: bool = True,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         kwargs.setdefault("activation", nn.ELU)
@@ -85,7 +85,7 @@ class FFJTransform(LazyTransform):
         self.rtol = rtol
         self.exact = exact
 
-    def f(self, t: Tensor, x: Tensor, c: Tensor = None) -> Tensor:
+    def f(self, t: Tensor, x: Tensor, c: Tensor | None = None) -> Tensor:
         t = self.freqs * t[..., None]
         t = torch.cat((t.cos(), t.sin()), dim=-1)
 
@@ -96,7 +96,7 @@ class FFJTransform(LazyTransform):
 
         return self.ode(x)
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         if self.training:
             phi = self.parameters() if c is None else (c, *self.parameters())
         else:
@@ -135,7 +135,7 @@ class CNF(Flow):
         features: int,
         context: int = 0,
         **kwargs,
-    ):
+    ) -> None:
         transform = FFJTransform(
             features=features,
             context=context,

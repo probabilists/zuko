@@ -12,10 +12,11 @@ import re
 import torch
 import torch.nn as nn
 
+from collections.abc import Generator, Iterator, Sequence
 from contextlib import contextmanager
 from functools import partial
 from torch import Tensor
-from typing import Dict, Generator, Sequence
+from typing import Any
 
 from .nn import Linear, MaskedLinear, linear
 
@@ -62,7 +63,7 @@ class BayesianModel(nn.Module):
         init_logvar: float = -9.0,
         include_params: Sequence[str] = ("",),
         exclude_params: Sequence[str] = (),
-    ):
+    ) -> None:
         super().__init__()
 
         self.base = base
@@ -86,7 +87,9 @@ class BayesianModel(nn.Module):
 
         self._reset_bayesian_parameters(logvar_mean=init_logvar)
 
-    def _reset_bayesian_parameters(self, logvar_mean: float = -9.0, logvar_std: float = 1e-3):
+    def _reset_bayesian_parameters(
+        self, logvar_mean: float = -9.0, logvar_std: float = 1e-3
+    ) -> None:
         r"""Initializes the posterior means and log-variances."""
 
         for name, param in self.base.named_parameters():
@@ -96,12 +99,12 @@ class BayesianModel(nn.Module):
                 self.means[key].data.copy_(param.data)
                 self.logvars[key].data.normal_(logvar_mean, logvar_std)
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> None:
         raise RuntimeError(
             "'forward' method of BayesianModel should not be called directly. Use 'sample_model' or 'reparameterize' instead."
         )
 
-    def sample_params(self) -> Dict[str, Tensor]:
+    def sample_params(self) -> dict[str, Tensor]:
         r"""Returns model parameters sampled from the posterior."""
 
         params = {}
@@ -165,7 +168,7 @@ class BayesianModel(nn.Module):
                 yield self.base
 
     @contextmanager
-    def _reparametrize_trick(self):
+    def _reparametrize_trick(self) -> Iterator[None]:
         original_forwards = {}
         randn_cache = {}
 
@@ -197,7 +200,7 @@ class BayesianModel(nn.Module):
         x: Tensor,
         name: str,
         module: nn.Module,
-        randn_cache: Dict[(str, torch.Size), Tensor],
+        randn_cache: dict[(str, torch.Size), Tensor],
     ) -> Tensor:
         """Applies the local reparameterization trick to a linear layer."""
 
@@ -256,7 +259,7 @@ class BayesianModel(nn.Module):
 
         return kl
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         r"""Accesses named attribute.
 
         If an attribute is not found in the BayesianModel, it is looked up in the base

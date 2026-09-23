@@ -60,7 +60,7 @@ class PlanarLazyTransform(LazyTransform):
         features: int,
         context: int = 0,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         self.shapes = [(features,), (features,), ()]
@@ -71,7 +71,7 @@ class PlanarLazyTransform(LazyTransform):
         else:
             self.phi = nn.ParameterList(torch.randn(s) for s in self.shapes)
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         if c is None:
             phi = self.phi
         else:
@@ -109,7 +109,7 @@ class PNF(Flow):
         context: int = 0,
         transforms: int = 3,
         **kwargs,
-    ):
+    ) -> None:
         transforms = [
             PlanarLazyTransform(
                 features=features,

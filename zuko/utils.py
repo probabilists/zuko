@@ -16,10 +16,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from functools import lru_cache
+from collections.abc import Callable, Iterable, Sequence
+from functools import cache
 from torch import Size, Tensor
-from torch.autograd.function import once_differentiable
-from typing import Any, Callable, Dict, Iterable, List, Sequence, Tuple, Union
+from torch.autograd.function import FunctionCtx, once_differentiable
+from typing import Any
 
 
 class Partial(nn.Module):
@@ -56,10 +57,10 @@ class Partial(nn.Module):
         self,
         f: Callable,
         /,
-        *args: Any,
+        *args,
         buffer: bool = False,
-        **kwargs: Any,
-    ):
+        **kwargs,
+    ) -> None:
         super().__init__()
 
         self.f = f
@@ -91,7 +92,7 @@ class Partial(nn.Module):
         return [getattr(self, f"_{i}") for i in range(self._nargs)]
 
     @property
-    def kwargs(self) -> Dict[str, Any]:
+    def kwargs(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self._keys}
 
     def extra_repr(self) -> str:
@@ -100,7 +101,7 @@ class Partial(nn.Module):
         else:
             return f"(f): {self.f}"
 
-    def forward(self, *args, **kwargs) -> Any:
+    def forward(self, *args, **kwargs) -> Any:  # noqa: ANN401
         r"""
         Returns:
             :py:`self.f(*self.args, *args, **self.kwargs, **kwargs)`
@@ -117,8 +118,8 @@ class Partial(nn.Module):
 def bisection(
     f: Callable[[Tensor], Tensor],
     y: Tensor,
-    a: Union[float, Tensor],
-    b: Union[float, Tensor],
+    a: float | Tensor,
+    b: float | Tensor,
     n: int = 16,
     phi: Iterable[Tensor] = (),
 ) -> Tensor:
@@ -158,7 +159,7 @@ def bisection(
 class Bisection(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
+        ctx: FunctionCtx,
         f: Callable[[Tensor], Tensor],
         y: Tensor,
         a: Tensor,
@@ -183,7 +184,7 @@ class Bisection(torch.autograd.Function):
 
     @staticmethod
     @once_differentiable
-    def backward(ctx, grad_x: Tensor) -> Tuple[Tensor, ...]:
+    def backward(ctx: FunctionCtx, grad_x: Tensor) -> tuple[Tensor, ...]:
         f = ctx.f
         x, *phi = ctx.saved_tensors
 
@@ -208,7 +209,7 @@ class Bisection(torch.autograd.Function):
         return (None, grad_y, None, None, None, *grad_phi)
 
 
-def broadcast(*tensors: Tensor, ignore: Union[int, Sequence[int]] = 0) -> List[Tensor]:
+def broadcast(*tensors: Tensor, ignore: int | Sequence[int] = 0) -> list[Tensor]:
     r"""Broadcasts tensors together.
 
     The term broadcasting describes how PyTorch treats tensors with different shapes
@@ -235,10 +236,12 @@ def broadcast(*tensors: Tensor, ignore: Union[int, Sequence[int]] = 0) -> List[T
     if isinstance(ignore, int):
         ignore = [ignore] * len(tensors)
 
-    dims = [t.dim() - i for t, i in zip(tensors, ignore)]
-    common = torch.broadcast_shapes(*(t.shape[:i] for t, i in zip(tensors, dims)))
+    dims = [t.dim() - i for t, i in zip(tensors, ignore, strict=True)]
+    common = torch.broadcast_shapes(*(t.shape[:i] for t, i in zip(tensors, dims, strict=True)))
 
-    return [torch.broadcast_to(t, common + t.shape[i:]) for t, i in zip(tensors, dims)]
+    return [
+        torch.broadcast_to(t, common + t.shape[i:]) for t, i in zip(tensors, dims, strict=True)
+    ]
 
 
 def gauss_legendre(
@@ -279,7 +282,7 @@ def gauss_legendre(
 class GaussLegendre(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
+        ctx: FunctionCtx,
         f: Callable[[Tensor], Tensor],
         a: Tensor,
         b: Tensor,
@@ -293,7 +296,7 @@ class GaussLegendre(torch.autograd.Function):
 
     @staticmethod
     @once_differentiable
-    def backward(ctx, grad_area: Tensor) -> Tuple[Tensor, ...]:
+    def backward(ctx: FunctionCtx, grad_area: Tensor) -> tuple[Tensor, ...]:
         f, n = ctx.f, ctx.n
         a, b, *phi = ctx.saved_tensors
 
@@ -323,8 +326,8 @@ class GaussLegendre(torch.autograd.Function):
         return (None, grad_a, grad_b, None, *grad_phi)
 
     @staticmethod
-    @lru_cache(maxsize=None)
-    def nodes(n: int, **kwargs) -> Tuple[Tensor, Tensor]:
+    @cache
+    def nodes(n: int, **kwargs) -> tuple[Tensor, Tensor]:
         r"""Returns the nodes and weights for a :math:`n`-point Gauss-Legendre
         quadrature over the interval :math:`[0, 1]`.
 
@@ -362,13 +365,13 @@ class GaussLegendre(torch.autograd.Function):
 
 def odeint(
     f: Callable[[Tensor, Tensor], Tensor],
-    x: Union[Tensor, Sequence[Tensor]],
-    t0: Union[float, Tensor],
-    t1: Union[float, Tensor],
+    x: Tensor | Sequence[Tensor],
+    t0: float | Tensor,
+    t1: float | Tensor,
     phi: Iterable[Tensor] = (),
     atol: float = 1e-6,
     rtol: float = 1e-5,
-) -> Union[Tensor, Sequence[Tensor]]:
+) -> Tensor | Sequence[Tensor]:
     r"""Integrates a system of first-order ordinary differential equations (ODEs)
 
     .. math:: \frac{dx}{dt} = f_\phi(t, x) ,
@@ -443,7 +446,7 @@ def dopri45(
     t: Tensor,
     dt: Tensor,
     error: bool = False,
-) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+) -> Tensor | tuple[Tensor, Tensor]:
     r"""Applies one step of the Dormand-Prince method.
 
     Wikipedia:
@@ -500,10 +503,10 @@ class NestedTensor(tuple):
     """
 
     def __add__(self, other: NestedTensor) -> NestedTensor:
-        return NestedTensor(x + y for x, y in zip(self, other))
+        return NestedTensor(x + y for x, y in zip(self, other, strict=True))
 
     def __sub__(self, other: NestedTensor) -> NestedTensor:
-        return NestedTensor(x - y for x, y in zip(self, other))
+        return NestedTensor(x - y for x, y in zip(self, other, strict=True))
 
     def __rmul__(self, other: Tensor) -> NestedTensor:
         return NestedTensor(other * x for x in self)
@@ -512,8 +515,8 @@ class NestedTensor(tuple):
 class AdaptiveCheckpointAdjoint(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
-        settings: Tuple[float, float, bool],
+        ctx: FunctionCtx,
+        settings: tuple[float, float, bool],
         f: Callable[[Tensor, Tensor], Tensor],
         x: Tensor,
         t0: Tensor,
@@ -552,7 +555,7 @@ class AdaptiveCheckpointAdjoint(torch.autograd.Function):
 
     @staticmethod
     @once_differentiable
-    def backward(ctx, grad_x: Tensor) -> Tuple[Tensor, ...]:
+    def backward(ctx: FunctionCtx, grad_x: Tensor) -> tuple[Tensor, ...]:
         f = ctx.f
         x0, t0, t1, *phi = ctx.saved_tensors
         x1, _, _ = ctx.steps[-1]
@@ -613,7 +616,7 @@ def unpack(x: Tensor, shapes: Sequence[Size]) -> Sequence[Tensor]:
     sizes = [math.prod(s) for s in shapes]
 
     x = x.split(sizes, -1)
-    x = (y.unflatten(-1, (*s, 1)) for y, s in zip(x, shapes))
+    x = (y.unflatten(-1, (*s, 1)) for y, s in zip(x, shapes, strict=True))
     x = (y.squeeze(-1) for y in x)
 
     return tuple(x)

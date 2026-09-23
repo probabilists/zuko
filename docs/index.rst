@@ -110,6 +110,7 @@ References
     :hidden:
     :maxdepth: 1
 
+    Source <https://github.com/probabilists/zuko>
     Contributing <https://github.com/probabilists/zuko/blob/master/CONTRIBUTING.md>
     Changelog <https://github.com/probabilists/zuko/releases>
     License <https://github.com/probabilists/zuko/blob/master/LICENSE>

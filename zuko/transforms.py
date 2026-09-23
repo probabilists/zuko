@@ -33,19 +33,20 @@ import math
 import torch
 import torch.nn.functional as F
 
+from collections.abc import Callable, Iterable
 from textwrap import indent
 from torch import BoolTensor, LongTensor, Size, Tensor
 from torch.distributions import Distribution, Transform, constraints
 from torch.distributions.transforms import *  # noqa: F403
 from torch.distributions.utils import _sum_rightmost
-from typing import Any, Callable, Iterable, Tuple, Union
+from typing import Any
 
 from .utils import bisection, broadcast, gauss_legendre, odeint
 
 torch.distributions.transforms._InverseTransform.__name__ = "Inverse"
 
 
-def _call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+def _call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:  # noqa: ANN001
     r"""Returns both the transformed value and the log absolute determinant of the
     transformation's Jacobian."""
 
@@ -67,7 +68,7 @@ class ComposedTransform(Transform):
         transforms: A sequence of transformations :math:`f_i`.
     """
 
-    def __init__(self, *transforms: Transform, **kwargs):
+    def __init__(self, *transforms: Transform, **kwargs) -> None:
         super().__init__(**kwargs)
 
         assert transforms, "'transforms' cannot be empty"
@@ -140,7 +141,7 @@ class ComposedTransform(Transform):
         _, ladj = self.call_and_ladj(x)
         return ladj
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         event_dim = self.domain_dim
         acc = 0
 
@@ -172,7 +173,7 @@ class DependentTransform(Transform):
         reinterpreted: The number of dimensions to treat as dependent.
     """
 
-    def __init__(self, base: Transform, reinterpreted: int, **kwargs):
+    def __init__(self, base: Transform, reinterpreted: int, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.base = base
@@ -209,7 +210,7 @@ class DependentTransform(Transform):
 
         return ladj
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         y, ladj = self.base.call_and_ladj(x)
         ladj = ladj = _sum_rightmost(ladj, self.reinterpreted)
 
@@ -230,7 +231,7 @@ class IdentityTransform(Transform):
     bijective = True
     sign = +1
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: Any) -> bool:  # noqa: ANN401
         return isinstance(other, IdentityTransform)
 
     def _call(self, x: Tensor) -> Tensor:
@@ -251,7 +252,7 @@ class CosTransform(Transform):
     bijective = True
     sign = +1
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: Any) -> bool:  # noqa: ANN401
         return isinstance(other, CosTransform)
 
     def _call(self, x: Tensor) -> Tensor:
@@ -272,7 +273,7 @@ class SinTransform(Transform):
     bijective = True
     sign = +1
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: Any) -> bool:  # noqa: ANN401
         return isinstance(other, SinTransform)
 
     def _call(self, x: Tensor) -> Tensor:
@@ -298,7 +299,7 @@ class SoftclipTransform(Transform):
     bijective = True
     sign = +1
 
-    def __init__(self, bound: float = 1.0, **kwargs):
+    def __init__(self, bound: float = 1.0, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.bound = bound
@@ -333,7 +334,7 @@ class CircularShiftTransform(Transform):
 
     bijective = True
 
-    def __init__(self, bound: float = 1.0, **kwargs):
+    def __init__(self, bound: float = 1.0, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.bound = bound
@@ -365,7 +366,7 @@ class SignedPowerTransform(Transform):
     bijective = True
     sign = +1
 
-    def __init__(self, alpha: Tensor, **kwargs):
+    def __init__(self, alpha: Tensor, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.alpha = alpha
@@ -396,7 +397,7 @@ class AdditiveTransform(Transform):
     bijective = True
     sign = +1
 
-    def __init__(self, shift: Tensor, **kwargs):
+    def __init__(self, shift: Tensor, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.shift = shift
@@ -431,7 +432,7 @@ class MonotonicAffineTransform(Transform):
         scale: Tensor,
         slope: float = 1e-3,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         self.shift = shift
@@ -476,7 +477,7 @@ class MonotonicRQSTransform(Transform):
         bound: float = 5.0,
         slope: float = 1e-3,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         widths = widths / (1 + abs(2 * widths / math.log(slope)))
@@ -498,7 +499,7 @@ class MonotonicRQSTransform(Transform):
     def bins(self) -> int:
         return self.horizontal.shape[-1] - 1
 
-    def bin(self, k: LongTensor) -> Tuple[Tensor, ...]:
+    def bin(self, k: LongTensor) -> tuple[Tensor, ...]:
         mask = torch.logical_and(0 <= k, k < self.bins)
 
         k = k % self.bins
@@ -553,7 +554,7 @@ class MonotonicRQSTransform(Transform):
         _, ladj = self.call_and_ladj(x)
         return ladj
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         k = self.searchsorted(self.horizontal, x) - 1
         mask, x0, x1, y0, y1, d0, d1, s = self.bin(k)
 
@@ -590,12 +591,12 @@ class MonotonicTransform(Transform):
 
     def __init__(
         self,
-        f: Callable[[Tensor], Tensor] = None,
+        f: Callable[[Tensor], Tensor] | None = None,
         phi: Iterable[Tensor] = (),
         bound: float = 10.0,
         eps: float = 1e-6,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         if f is not None:
@@ -622,7 +623,7 @@ class MonotonicTransform(Transform):
         _, ladj = self.call_and_ladj(x)
         return ladj
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         create_graph = torch.is_grad_enabled() and (x.requires_grad or bool(self.phi))
 
         with torch.enable_grad():
@@ -672,7 +673,7 @@ class BernsteinTransform(MonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, theta: Tensor, bound: float = 5.0, **kwargs):
+    def __init__(self, theta: Tensor, bound: float = 5.0, **kwargs) -> None:
         super().__init__(None, phi=(theta,), bound=bound, **kwargs)
 
         self.theta = self._constrain_theta(theta)
@@ -684,7 +685,7 @@ class BernsteinTransform(MonotonicTransform):
     def order(self) -> int:
         return self.theta.shape[-1] - 1
 
-    def _offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+    def _offset_and_slope(self) -> tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor]]:
         r"""Calculates the offsets and slopes at the domain bounds for extrapolation."""
 
         dtheta = self.order * (self.theta[..., 1:] - self.theta[..., :-1])
@@ -819,7 +820,7 @@ class BoundedBernsteinTransform(BernsteinTransform):
 
         return torch.cumsum(diffs, dim=-1)
 
-    def _offset_and_slope(self) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
+    def _offset_and_slope(self) -> tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor]]:
         offset = (
             self.theta.new_tensor(-self.bound),
             self.theta.new_tensor(self.bound),
@@ -862,7 +863,7 @@ class GaussianizationTransform(MonotonicTransform):
         shift: Tensor,
         scale: Tensor,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(None, phi=(shift, scale), **kwargs)
 
         self.shift = shift
@@ -899,10 +900,10 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
 
     def __init__(
         self,
-        g: Callable[[Tensor], Tensor] = None,
+        g: Callable[[Tensor], Tensor] | None = None,
         n: int = 32,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(None, **kwargs)
 
         if g is not None:
@@ -922,7 +923,7 @@ class UnconstrainedMonotonicTransform(MonotonicTransform):
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return self.g(x).log()
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         return self.f(x), self.g(x).log()
 
 
@@ -950,7 +951,7 @@ class SOSPolynomialTransform(UnconstrainedMonotonicTransform):
     bijective = True
     sign = +1
 
-    def __init__(self, a: Tensor, slope: float = 1e-3, **kwargs):
+    def __init__(self, a: Tensor, slope: float = 1e-3, **kwargs) -> None:
         super().__init__(None, phi=(a,), n=a.shape[-1], **kwargs)
 
         self.a = a
@@ -984,7 +985,7 @@ class AutoregressiveTransform(Transform):
         meta: Callable[[Tensor], Transform],
         passes: int,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         self.meta = meta
@@ -1004,7 +1005,7 @@ class AutoregressiveTransform(Transform):
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
         return self.meta(x).log_abs_det_jacobian(x, y)
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         y, ladj = self.meta(x).call_and_ladj(x)
         return y, ladj
 
@@ -1032,14 +1033,14 @@ class CouplingTransform(Transform):
         meta: Callable[[Tensor], Transform],
         mask: BoolTensor,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         self.meta = meta
         self.idx_a = mask.nonzero().squeeze(-1)
         self.idx_b = (~mask).nonzero().squeeze(-1)
 
-    def split(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def split(self, x: Tensor) -> tuple[Tensor, Tensor]:
         return x[..., self.idx_a], x[..., self.idx_b]
 
     def merge(self, x_a: Tensor, x_b: Tensor, shape: Size) -> Tensor:
@@ -1067,7 +1068,7 @@ class CouplingTransform(Transform):
 
         return self.meta(x_a).log_abs_det_jacobian(x_b, y_b)
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         x_a, x_b = self.split(x)
         y_b, ladj = self.meta(x_a).call_and_ladj(x_b)
         y = self.merge(x_a, y_b, x.shape)
@@ -1105,14 +1106,14 @@ class FreeFormJacobianTransform(Transform):
     def __init__(
         self,
         f: Callable[[Tensor, Tensor], Tensor],
-        t0: Union[float, Tensor] = 0.0,
-        t1: Union[float, Tensor] = 1.0,
+        t0: float | Tensor = 0.0,
+        t1: float | Tensor = 1.0,
         phi: Iterable[Tensor] = (),
         atol: float = 1e-6,
         rtol: float = 1e-5,
         exact: bool = True,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         self.f = f
@@ -1146,7 +1147,7 @@ class FreeFormJacobianTransform(Transform):
         _, ladj = self.call_and_ladj(x)
         return ladj
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         create_graph = torch.is_grad_enabled() and (x.requires_grad or bool(self.phi))
 
         if self.exact:
@@ -1201,7 +1202,7 @@ class _TanhResidualTransform(Transform):
     codomain = constraints.real_vector
     bijective = True
 
-    def __init__(self, A: Tensor, B: Tensor, C: Tensor, b: Tensor, **kwargs):
+    def __init__(self, A: Tensor, B: Tensor, C: Tensor, b: Tensor, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.A = A
@@ -1251,7 +1252,7 @@ class _TanhResidualTransform(Transform):
         _, ladj = self.call_and_ladj(x)
         return ladj
 
-    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def call_and_ladj(self, x: Tensor) -> tuple[Tensor, Tensor]:
         z = torch.einsum("...ij,...j->...i", self.B, x) + self.b
         h = torch.tanh(z)
         y = x + torch.einsum("...ij,...j->...i", self.A, h)
@@ -1298,7 +1299,7 @@ class SylvesterTransform(_TanhResidualTransform):
         b: The bias vector :math:`b`, with shape :math:`(*, M)`.
     """
 
-    def __init__(self, Q: Tensor, R1: Tensor, R2: Tensor, b: Tensor, **kwargs):
+    def __init__(self, Q: Tensor, R1: Tensor, R2: Tensor, b: Tensor, **kwargs) -> None:
         R1, R2 = self.triangular(R1), self.triangular(R2)
 
         super().__init__(Q @ R1, R2 @ Q.mT, R2 @ R1, b, **kwargs)
@@ -1342,9 +1343,9 @@ class TriangularSylvesterTransform(_TanhResidualTransform):
         R1: Tensor,
         R2: Tensor,
         b: Tensor,
-        order: LongTensor = None,
+        order: LongTensor | None = None,
         **kwargs,
-    ):
+    ) -> None:
         R1 = SylvesterTransform.triangular(R1)
         R2 = SylvesterTransform.triangular(R2)
 
@@ -1386,7 +1387,7 @@ class PlanarTransform(_TanhResidualTransform):
         b: The bias :math:`b`, with shape :math:`(*,)`.
     """
 
-    def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs):
+    def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs) -> None:
         uw = torch.sum(u * w, dim=-1, keepdim=True)
         ww = torch.sum(w * w, dim=-1, keepdim=True)
         u = u + (F.softplus(uw) - 1 - uw) * w / torch.clamp(ww, min=1e-12)
@@ -1412,7 +1413,7 @@ class PermutationTransform(Transform):
     codomain = constraints.real_vector
     bijective = True
 
-    def __init__(self, order: LongTensor, **kwargs):
+    def __init__(self, order: LongTensor, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.order = order
@@ -1451,7 +1452,7 @@ class RotationTransform(Transform):
     codomain = constraints.real_vector
     bijective = True
 
-    def __init__(self, A: Tensor, **kwargs):
+    def __init__(self, A: Tensor, **kwargs) -> None:
         super().__init__(**kwargs)
 
         self.R = torch.linalg.matrix_exp(A - A.mT)
@@ -1478,7 +1479,7 @@ class LULinearTransform(Transform):
     codomain = constraints.real_vector
     bijective = True
 
-    def __init__(self, LU: Tensor, **kwargs):
+    def __init__(self, LU: Tensor, **kwargs) -> None:
         super().__init__(**kwargs)
 
         I = torch.eye(LU.shape[-1], dtype=LU.dtype, device=LU.device)

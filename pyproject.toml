@@ -11,7 +11,6 @@ authors = [
 classifiers = [
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
-  "License :: OSI Approved :: MIT License",
   "Natural Language :: English",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
@@ -29,19 +28,22 @@ keywords = [
   "generative",
   "deep learning",
 ]
+license = "MIT"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
+dev = [
+  "ipykernel>=6.29.0",
+  "matplotlib>=3.8.0",
+  "pre-commit>=3.7.0",
+  "ruff==0.9.9",
+]
 docs = [
   "docutils==0.19",
   "furo==2024.5.6",
   "myst-nb==1.0.0",
   "sphinx==7.3.7",
-]
-lint = [
-  "pre-commit>=3.7.0",
-  "ruff==0.9.9",
 ]
 test = [
   "pytest>=8.0.0",
@@ -57,8 +59,8 @@ extend-include = ["*.ipynb"]
 line-length = 99
 
 [tool.ruff.lint]
-extend-select = ["B", "I", "RUF022", "W"]
-ignore = ["E731", "E741"]
+extend-select = ["ANN", "B", "I", "UP", "W"]
+ignore = ["ANN002", "ANN003", "E731", "E741"]
 preview = true
 
 [tool.ruff.lint.extend-per-file-ignores]

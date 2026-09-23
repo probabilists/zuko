@@ -1,16 +1,19 @@
 r"""Tests configuration."""
 
+import argparse
 import pytest
 import torch
 
+from collections.abc import Iterator
 
-def pytest_addoption(parser):
+
+def pytest_addoption(parser: argparse.ArgumentParser) -> None:
     parser.addoption("--device", type=str, default="cpu")
     parser.addoption("--dtype", type=str, default="float64")
 
 
 @pytest.fixture(autouse=True, scope="module")
-def torch_device(pytestconfig):
+def torch_device(pytestconfig: pytest.Config) -> Iterator[None]:
     device = pytestconfig.getoption("device")
 
     if device == "cpu":
@@ -23,7 +26,7 @@ def torch_device(pytestconfig):
 
 
 @pytest.fixture(autouse=True, scope="module")
-def torch_dtype(pytestconfig):
+def torch_dtype(pytestconfig: pytest.Config) -> Iterator[None]:
     dtype = pytestconfig.getoption("dtype")
 
     if dtype == "float32":

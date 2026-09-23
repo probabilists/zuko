@@ -14,6 +14,7 @@ import torch.nn as nn
 from math import prod
 from torch import LongTensor, Tensor
 from torch.distributions import Transform
+from typing import Literal
 
 from ..distributions import DiagNormal
 from ..lazy import Flow, LazyTransform, UnconditionalDistribution
@@ -81,12 +82,12 @@ class SylvesterLazyTransform(LazyTransform):
         self,
         features: int,
         context: int = 0,
-        hidden: int = None,
-        orthogonal: str = "householder",
-        reflections: int = None,
-        order: LongTensor = None,
+        hidden: int | None = None,
+        orthogonal: Literal["householder", "qr", "permutation"] = "householder",
+        reflections: int | None = None,
+        order: LongTensor | None = None,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         if hidden is None:
@@ -152,7 +153,7 @@ class SylvesterLazyTransform(LazyTransform):
 
         return Q
 
-    def forward(self, c: Tensor = None) -> Transform:
+    def forward(self, c: Tensor | None = None) -> Transform:
         if c is None:
             phi = self.phi
         else:
@@ -205,7 +206,7 @@ class TSNF(Flow):
         transforms: int = 3,
         randperm: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         orders = [
             torch.arange(features),
             torch.flipud(torch.arange(features)),
@@ -262,7 +263,7 @@ class OSNF(Flow):
         context: int = 0,
         transforms: int = 3,
         **kwargs,
-    ):
+    ) -> None:
         transforms = [
             SylvesterLazyTransform(
                 features=features,
@@ -313,7 +314,7 @@ class HSNF(Flow):
         context: int = 0,
         transforms: int = 3,
         **kwargs,
-    ):
+    ) -> None:
         transforms = [
             SylvesterLazyTransform(
                 features=features,
