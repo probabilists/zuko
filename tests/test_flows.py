@@ -10,7 +10,27 @@ from torch import randn
 from zuko.flows import *
 
 
-@pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
+@pytest.mark.parametrize(
+    "F",
+    [
+        NICE,
+        MAF,
+        NSF,
+        SOSPF,
+        NAF,
+        UNAF,
+        CNF,
+        GF,
+        BPF,
+        PNF,
+        TSNF,
+        partial(TSNF, randperm=True),
+        OSNF,
+        partial(OSNF, hidden=2),
+        HSNF,
+        partial(HSNF, hidden=2, reflections=4),
+    ],
+)
 def test_flows(tmp_path: Path, F: type):
     flow = F(3, 5)
 
@@ -92,6 +112,27 @@ def test_flows(tmp_path: Path, F: type):
 
     # Printing
     assert repr(flow)
+
+
+@pytest.mark.parametrize("F", [PNF, TSNF, OSNF, HSNF])
+def test_reversed_flows(F: type):
+    flow = F(3, 5)
+    flow = Flow(flow.transform.inv, flow.base)
+
+    # Sampling and evaluation
+    c = randn(5)
+    x, log_p = flow(c).rsample_and_log_prob((32,))
+
+    assert x.shape == (32, 3)
+    assert torch.allclose(flow(c).log_prob(x), log_p, atol=1e-4)
+
+    # Reparameterization trick
+    flow.zero_grad(set_to_none=True)
+    loss = (x.square().sum(dim=-1) + log_p).mean()
+    loss.backward()
+
+    for name, p in flow.named_parameters():
+        assert p.grad is not None, name
 
 
 def test_triangular_transforms():

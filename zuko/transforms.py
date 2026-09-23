@@ -18,11 +18,14 @@ __all__ = [
     "MonotonicRQSTransform",
     "MonotonicTransform",
     "PermutationTransform",
+    "PlanarTransform",
     "RotationTransform",
     "SOSPolynomialTransform",
     "SignedPowerTransform",
     "SinTransform",
     "SoftclipTransform",
+    "SylvesterTransform",
+    "TriangularSylvesterTransform",
     "UnconstrainedMonotonicTransform",
 ]
 
@@ -1176,6 +1179,226 @@ class FreeFormJacobianTransform(Transform):
         y, ladj = odeint(f_aug, (x, ladj), self.t0, self.t1, self.phi, self.atol, self.rtol)
 
         return y, ladj * (1 / self.trace_scale)
+
+
+class _TanhResidualTransform(Transform):
+    r"""Creates a transformation of the form
+
+    .. math:: f(x) = x + A \tanh(B x + b)
+
+    where :math:`A` is a :math:`D \times M` matrix, :math:`B` is a :math:`M \times D`
+    matrix and :math:`C = B A` is an upper triangular matrix whose diagonal elements
+    are greater than :math:`-1`.
+
+    Arguments:
+        A: The matrix :math:`A`, with shape :math:`(*, D, M)`.
+        B: The matrix :math:`B`, with shape :math:`(*, M, D)`.
+        C: The upper triangular matrix :math:`C = B A`, with shape :math:`(*, M, M)`.
+        b: The bias vector :math:`b`, with shape :math:`(*, M)`.
+    """
+
+    domain = constraints.real_vector
+    codomain = constraints.real_vector
+    bijective = True
+
+    def __init__(self, A: Tensor, B: Tensor, C: Tensor, b: Tensor, **kwargs):
+        super().__init__(**kwargs)
+
+        self.A = A
+        self.B = B
+        self.C = C
+        self.b = b
+
+    def _call(self, x: Tensor) -> Tensor:
+        z = torch.einsum("...ij,...j->...i", self.B, x) + self.b
+
+        return x + torch.einsum("...ij,...j->...i", self.A, torch.tanh(z))
+
+    def _inverse(self, y: Tensor) -> Tensor:
+        # Since B x = B y - C tanh(z) and C is upper triangular, the pre-activations
+        # z = B x + b are recovered by back-substitution. Each step is a monotonic
+        # univariate root-finding problem z_i + c_ii tanh(z_i) = r_i whose solution
+        # lies within [r_i - |c_ii|, r_i + |c_ii|].
+
+        c = torch.einsum("...ij,...j->...i", self.B, y) + self.b
+        h = []
+
+        for i in reversed(range(c.shape[-1])):
+            r = c[..., i]
+
+            if h:
+                r = r - torch.einsum(
+                    "...j,...j", self.C[..., i, i + 1 :], torch.stack(h[::-1], dim=-1)
+                )
+
+            s = self.C[..., i, i]
+            z = bisection(
+                f=lambda z, s=s: z + s * torch.tanh(z),
+                y=r,
+                a=r - s.abs(),
+                b=r + s.abs(),
+                n=64,
+                phi=(s,) if s.requires_grad else (),
+            )
+
+            h.append(torch.tanh(z))
+
+        h = torch.stack(h[::-1], dim=-1)
+
+        return y - torch.einsum("...ij,...j->...i", self.A, h)
+
+    def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
+        _, ladj = self.call_and_ladj(x)
+        return ladj
+
+    def call_and_ladj(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        z = torch.einsum("...ij,...j->...i", self.B, x) + self.b
+        h = torch.tanh(z)
+        y = x + torch.einsum("...ij,...j->...i", self.A, h)
+
+        diag = torch.diagonal(self.C, dim1=-2, dim2=-1)
+        ladj = torch.log1p((1 - h**2) * diag).sum(dim=-1)
+
+        return y, ladj
+
+
+class SylvesterTransform(_TanhResidualTransform):
+    r"""Creates a Sylvester transformation.
+
+    .. math:: f(x) = x + Q R_1 \tanh(R_2 Q^T x + b)
+
+    where :math:`Q` is a :math:`D \times M` matrix with orthonormal columns
+    (:math:`Q^T Q = I`) and :math:`R_1` and :math:`R_2` are :math:`M \times M` upper
+    triangular matrices.
+
+    To ensure invertibility, the diagonal elements of :math:`R_1` and :math:`R_2` are
+    mapped to the interval :math:`(-1, 1)` with the hyperbolic tangent function, which
+    guarantees :math:`r^1_{ii} \, r^2_{ii} > -1`. Thanks to Sylvester's determinant
+    identity and the triangular structure of :math:`R_1` and :math:`R_2`, the
+    log-absolute-determinant of the Jacobian is
+
+    .. math:: \log |\det J_f(x)| =
+        \sum_{i = 1}^{M} \log \left( 1 + \tanh'(z_i) \, r^1_{ii} \, r^2_{ii} \right)
+
+    where :math:`z = R_2 Q^T x + b`. The inverse transformation does not have a closed
+    form. Because :math:`R_2 R_1` is upper triangular, it reduces to :math:`M`
+    sequential univariate root-finding problems, which are solved with the bisection
+    method.
+
+    References:
+        | Sylvester Normalizing Flows for Variational Inference (van den Berg et al., 2018)
+        | https://arxiv.org/abs/1803.05649
+
+    Arguments:
+        Q: A matrix :math:`Q` with orthonormal columns, with shape :math:`(*, D, M)`.
+        R1: A matrix whose upper triangular part is :math:`R_1`, with shape
+            :math:`(*, M, M)`.
+        R2: A matrix whose upper triangular part is :math:`R_2`, with shape
+            :math:`(*, M, M)`.
+        b: The bias vector :math:`b`, with shape :math:`(*, M)`.
+    """
+
+    def __init__(self, Q: Tensor, R1: Tensor, R2: Tensor, b: Tensor, **kwargs):
+        R1, R2 = self.triangular(R1), self.triangular(R2)
+
+        super().__init__(Q @ R1, R2 @ Q.mT, R2 @ R1, b, **kwargs)
+
+    @staticmethod
+    def triangular(R: Tensor) -> Tensor:
+        r"""Maps a matrix to an upper triangular matrix whose diagonal elements lie in
+        the interval :math:`(-1, 1)`."""
+
+        diag = torch.tanh(torch.diagonal(R, dim1=-2, dim2=-1))
+
+        return torch.triu(R, diagonal=1) + torch.diag_embed(diag)
+
+
+class TriangularSylvesterTransform(_TanhResidualTransform):
+    r"""Creates a triangular Sylvester transformation.
+
+    A special case of the Sylvester transformation for which :math:`M = D` and
+    :math:`Q` is a permutation matrix, such that :math:`Q^T x = x_\sigma` for a
+    permutation :math:`\sigma` of the features.
+
+    See also:
+        :class:`SylvesterTransform`
+
+    References:
+        | Sylvester Normalizing Flows for Variational Inference (van den Berg et al., 2018)
+        | https://arxiv.org/abs/1803.05649
+
+    Arguments:
+        R1: A matrix whose upper triangular part is :math:`R_1`, with shape
+            :math:`(*, D, D)`.
+        R2: A matrix whose upper triangular part is :math:`R_2`, with shape
+            :math:`(*, D, D)`.
+        b: The bias vector :math:`b`, with shape :math:`(*, D)`.
+        order: The permutation :math:`\sigma`, with shape :math:`(D,)`. If
+            :py:`None`, the identity is used.
+    """
+
+    def __init__(
+        self,
+        R1: Tensor,
+        R2: Tensor,
+        b: Tensor,
+        order: LongTensor = None,
+        **kwargs,
+    ):
+        R1 = SylvesterTransform.triangular(R1)
+        R2 = SylvesterTransform.triangular(R2)
+
+        # Q R1 and R2 Q^T are row and column permutations, respectively
+        if order is None:
+            A, B = R1, R2
+        else:
+            inverse = torch.argsort(order)
+            A, B = R1[..., inverse, :], R2[..., :, inverse]
+
+        super().__init__(A, B, R2 @ R1, b, **kwargs)
+
+
+class PlanarTransform(_TanhResidualTransform):
+    r"""Creates a planar transformation.
+
+    .. math:: f(x) = x + \hat{u} \tanh(w^T x + b)
+
+    The planar transformation is a Sylvester-type transformation with a single hidden
+    unit (:math:`M = 1`), but without orthogonality constraints. Following Rezende et
+    al. (2015), invertibility is ensured by the reparameterization
+
+    .. math:: \hat{u} = u + \left( \log(1 + \exp(w^T u)) - 1 - w^T u \right)
+        \frac{w}{\|w\|^2}
+
+    which guarantees :math:`w^T \hat{u} > -1`. The inverse transformation is obtained
+    by solving a univariate root-finding problem with the bisection method.
+
+    See also:
+        :class:`SylvesterTransform`
+
+    References:
+        | Variational Inference with Normalizing Flows (Rezende et al., 2015)
+        | https://arxiv.org/abs/1505.05770
+
+    Arguments:
+        u: The update vector :math:`u`, with shape :math:`(*, D)`.
+        w: The weight vector :math:`w`, with shape :math:`(*, D)`.
+        b: The bias :math:`b`, with shape :math:`(*,)`.
+    """
+
+    def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs):
+        uw = torch.sum(u * w, dim=-1, keepdim=True)
+        ww = torch.sum(w * w, dim=-1, keepdim=True)
+        u = u + (F.softplus(uw) - 1 - uw) * w / torch.clamp(ww, min=1e-12)
+        uw = torch.sum(u * w, dim=-1, keepdim=True)
+
+        super().__init__(
+            u.unsqueeze(-1),
+            w.unsqueeze(-2),
+            uw.unsqueeze(-1),
+            b.unsqueeze(-1),
+            **kwargs,
+        )
 
 
 class PermutationTransform(Transform):

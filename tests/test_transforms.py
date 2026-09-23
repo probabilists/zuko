@@ -83,6 +83,13 @@ def test_multivariate_transforms():
         PermutationTransform(torch.randperm(5)),
         RotationTransform(randn(5, 5)),
         LULinearTransform(randn(5, 5)),
+        PlanarTransform(5 * randn(5), randn(5), randn(())),
+        SylvesterTransform(torch.linalg.qr(randn(5, 3)).Q, randn(3, 3), randn(3, 3), randn(3)),
+        SylvesterTransform(
+            torch.linalg.qr(randn(5, 5)).Q, 3 * randn(5, 5), 3 * randn(5, 5), randn(5)
+        ),
+        TriangularSylvesterTransform(randn(5, 5), randn(5, 5), randn(5)),
+        TriangularSylvesterTransform(randn(5, 5), randn(5, 5), randn(5), torch.randperm(5)),
     ]
 
     for t in ts:

@@ -93,6 +93,10 @@ For more information, check out the documentation and tutorials at [zuko.readthe
 | `CNF`     | 2018 | [Neural Ordinary Differential Equations](https://arxiv.org/abs/1806.07366) |
 | `GF`      | 2020 | [Gaussianization Flows](https://arxiv.org/abs/2003.01941) |
 | `BPF`     | 2020 | [Bernstein-Polynomial Normalizing Flows](https://arxiv.org/abs/2004.00464) |
+| `PNF`     | 2015 | [Variational Inference with Normalizing Flows](https://arxiv.org/abs/1505.05770) |
+| `TSNF`    | 2018 | [Sylvester Normalizing Flows for Variational Inference](https://arxiv.org/abs/1803.05649) |
+| `OSNF`    | 2018 | [Sylvester Normalizing Flows for Variational Inference](https://arxiv.org/abs/1803.05649) |
+| `HSNF`    | 2018 | [Sylvester Normalizing Flows for Variational Inference](https://arxiv.org/abs/1803.05649) |
 
 ## Contributing
 
