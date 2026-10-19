@@ -1,7 +1,7 @@
 r"""Planar flows."""
 
 __all__ = [
-    "PNF",
+    "PF",
     "PlanarLazyTransform",
 ]
 
@@ -80,8 +80,8 @@ class PlanarLazyTransform(LazyTransform):
         return PlanarTransform(*phi)
 
 
-class PNF(Flow):
-    r"""Creates a planar normalizing flow (PNF).
+class PF(Flow):
+    r"""Creates a planar flow (PF).
 
     Note:
         Evaluating densities is cheap, but sampling requires inverting planar

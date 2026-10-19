@@ -22,13 +22,13 @@ from zuko.flows import *
         CNF,
         GF,
         BPF,
-        PNF,
-        TSNF,
-        partial(TSNF, randperm=True),
-        OSNF,
-        partial(OSNF, hidden=2),
-        HSNF,
-        partial(HSNF, hidden=2, reflections=4),
+        PF,
+        TSF,
+        partial(TSF, randperm=True),
+        OSF,
+        partial(OSF, hidden=2),
+        HSF,
+        partial(HSF, hidden=2, reflections=4),
     ],
 )
 def test_flows(tmp_path: Path, F: type) -> None:
@@ -114,7 +114,7 @@ def test_flows(tmp_path: Path, F: type) -> None:
     assert repr(flow)
 
 
-@pytest.mark.parametrize("F", [PNF, TSNF, OSNF, HSNF])
+@pytest.mark.parametrize("F", [PF, TSF, OSF, HSF])
 def test_reversed_flows(F: type) -> None:
     flow = F(3, 5)
     flow = Flow(flow.transform.inv, flow.base)

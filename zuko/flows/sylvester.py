@@ -1,9 +1,9 @@
 r"""Sylvester flows."""
 
 __all__ = [
-    "HSNF",
-    "OSNF",
-    "TSNF",
+    "HSF",
+    "OSF",
+    "TSF",
     "SylvesterLazyTransform",
 ]
 
@@ -172,8 +172,8 @@ class SylvesterLazyTransform(LazyTransform):
         return SylvesterTransform(Q, R1, R2, b)
 
 
-class TSNF(Flow):
-    r"""Creates a triangular Sylvester normalizing flow (TSNF).
+class TSF(Flow):
+    r"""Creates a triangular Sylvester flow (TSF).
 
     Note:
         Evaluating densities is cheap, but sampling requires inverting Sylvester
@@ -233,8 +233,8 @@ class TSNF(Flow):
         super().__init__(transforms, base)
 
 
-class OSNF(Flow):
-    r"""Creates an orthogonal Sylvester normalizing flow (OSNF).
+class OSF(Flow):
+    r"""Creates an orthogonal Sylvester flow (OSF).
 
     Note:
         Evaluating densities is cheap, but sampling requires inverting Sylvester
@@ -284,8 +284,8 @@ class OSNF(Flow):
         super().__init__(transforms, base)
 
 
-class HSNF(Flow):
-    r"""Creates a Householder Sylvester normalizing flow (HSNF).
+class HSF(Flow):
+    r"""Creates a Householder Sylvester flow (HSF).
 
     Note:
         Evaluating densities is cheap, but sampling requires inverting Sylvester
