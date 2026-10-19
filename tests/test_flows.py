@@ -185,6 +185,25 @@ def test_triangular_transforms() -> None:
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
 
 
+def test_householder_reflections() -> None:
+    t = SylvesterLazyTransform(5, hidden=3, reflections=4)
+
+    # Rows with zero and small norms
+    V = randn(4, 5)
+    V[1] = 0
+    V[2] = 1e-10 * V[2]
+    V.requires_grad_()
+
+    Q = t.householder(V)
+    I = torch.eye(3)
+
+    assert torch.allclose(Q.mT @ Q, I, atol=1e-6)
+
+    Q.sum().backward()
+
+    assert torch.isfinite(V.grad).all()
+
+
 def test_adjacency_matrix() -> None:
     T = MaskedAutoregressiveTransform
 

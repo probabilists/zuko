@@ -143,9 +143,11 @@ class SylvesterLazyTransform(LazyTransform):
 
     def householder(self, V: Tensor) -> Tensor:
         r"""Returns the first :math:`M` columns of the product of the Householder
-        reflections defined by the rows of :math:`V`."""
+        reflections defined by the rows of :math:`V`. Rows with zero norm are mapped to
+        the identity instead."""
 
-        V = V / torch.linalg.vector_norm(V, dim=-1, keepdim=True).clamp(min=1e-8)
+        norm = torch.linalg.vector_norm(V, dim=-1, keepdim=True)
+        V = V / torch.where(norm > 0, norm, 1)
         Q = torch.eye(V.shape[-1], dtype=V.dtype, device=V.device)[:, : self.hidden]
 
         for v in torch.unbind(V, dim=-2):
