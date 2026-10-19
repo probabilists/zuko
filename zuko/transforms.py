@@ -1197,6 +1197,10 @@ class TanhResidualTransform(Transform):
         B: The matrix :math:`B`, with shape :math:`(*, M, D)`.
         C: The upper triangular matrix :math:`C = B A`, with shape :math:`(*, M, M)`.
         b: The bias vector :math:`b`, with shape :math:`(*, M)`.
+        d: The diagonal elements :math:`d = 1 + \operatorname{diag}(C)`, with shape
+            :math:`(*, M)`. If :py:`None`, they are computed from :math:`C`. Providing
+            them avoids catastrophic cancellation when diagonal elements of :math:`C`
+            are close to :math:`-1`.
         n: The number of bisection iterations for the inverse transformation.
     """
 
@@ -1210,15 +1214,20 @@ class TanhResidualTransform(Transform):
         B: Tensor,
         C: Tensor,
         b: Tensor,
+        d: Tensor | None = None,
         n: int = 32,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
 
+        if d is None:
+            d = 1 + torch.diagonal(C, dim1=-2, dim2=-1)
+
         self.A = A
         self.B = B
         self.C = C
         self.b = b
+        self.d = d
         self.n = n
 
     def _call(self, x: Tensor) -> Tensor:
@@ -1230,24 +1239,29 @@ class TanhResidualTransform(Transform):
         # Since B x = B y - C tanh(z) and C is upper triangular, the pre-activations
         # z = B x + b are recovered by back-substitution. Each step is a monotonic
         # univariate root-finding problem z_i + c_ii tanh(z_i) = r_i whose solution
-        # lies within [r_i - |c_ii|, r_i + |c_ii|].
+        # lies within [r_i - |c_ii|, r_i + |c_ii|]. The left-hand side is evaluated as
+        # z_i - tanh(z_i) + d_i tanh(z_i) to remain accurate when c_ii is close to -1.
 
         c = torch.einsum("...ij,...j->...i", self.B, y) + self.b
         h = [None] * c.shape[-1]
 
         for i in reversed(range(len(h))):
-            r = c[..., i]
-            s = self.C[..., i, i]
-            z = bisection(
-                f=lambda z, s=s: z + s * torch.tanh(z),
-                y=r,
-                a=r - s.abs(),
-                b=r + s.abs(),
+            r_i = c[..., i]
+            d_i = self.d[..., i]
+            s_i = (d_i - 1).abs()
+
+            # The default argument d_i=d_i captures the current value of d_i in f,
+            # which is called again in the backward pass, after the loop has ended.
+            z_i = bisection(
+                f=lambda z, d_i=d_i: z - torch.tanh(z) + d_i * torch.tanh(z),
+                y=r_i,
+                a=r_i - s_i,
+                b=r_i + s_i,
                 n=self.n,
-                phi=(s,) if s.requires_grad else (),
+                phi=(d_i,) if d_i.requires_grad else (),
             )
 
-            h[i] = torch.tanh(z)
+            h[i] = torch.tanh(z_i)
             c = c - self.C[..., :, i] * h[i][..., None]
 
         h = torch.stack(h, dim=-1)
@@ -1263,8 +1277,9 @@ class TanhResidualTransform(Transform):
         h = torch.tanh(z)
         y = x + torch.einsum("...ij,...j->...i", self.A, h)
 
-        diag = torch.diagonal(self.C, dim1=-2, dim2=-1)
-        ladj = torch.log1p((1 - h**2) * diag).sum(dim=-1)
+        # 1 + tanh'(z) c = tanh(z)^2 + tanh'(z) d
+        h2 = h**2
+        ladj = torch.log(h2 + (1 - h2) * self.d).sum(dim=-1)
 
         return y, ladj
 
@@ -1307,9 +1322,10 @@ class SylvesterTransform(TanhResidualTransform):
     """
 
     def __init__(self, Q: Tensor, R1: Tensor, R2: Tensor, b: Tensor, **kwargs) -> None:
+        d = self.diagonal(R1, R2)
         R1, R2 = self.triangular(R1), self.triangular(R2)
 
-        super().__init__(Q @ R1, R2 @ Q.mT, R2 @ R1, b, **kwargs)
+        super().__init__(Q @ R1, R2 @ Q.mT, R2 @ R1, b, d=d, **kwargs)
 
     @staticmethod
     def triangular(R: Tensor) -> Tensor:
@@ -1319,6 +1335,24 @@ class SylvesterTransform(TanhResidualTransform):
         diag = torch.tanh(torch.diagonal(R, dim1=-2, dim2=-1))
 
         return torch.triu(R, diagonal=1) + torch.diag_embed(diag)
+
+    @staticmethod
+    def diagonal(R1: Tensor, R2: Tensor) -> Tensor:
+        r"""Returns the diagonal elements :math:`1 + r^1_{ii} \, r^2_{ii}`, where the
+        diagonal elements of :math:`R_1` and :math:`R_2` are mapped as in
+        :meth:`triangular`.
+
+        Using :math:`1 + \tanh(a) \tanh(b) = \frac{\cosh(a + b)}{\cosh(a) \cosh(b)}`,
+        they are computed without catastrophic cancellation.
+        """
+
+        a = torch.diagonal(R1, dim1=-2, dim2=-1)
+        b = torch.diagonal(R2, dim1=-2, dim2=-1)
+
+        def log2cosh(x: Tensor) -> Tensor:
+            return torch.logaddexp(x, -x)
+
+        return 2 * torch.exp(log2cosh(a + b) - log2cosh(a) - log2cosh(b))
 
 
 class TriangularSylvesterTransform(TanhResidualTransform):
@@ -1354,6 +1388,7 @@ class TriangularSylvesterTransform(TanhResidualTransform):
         order: LongTensor | None = None,
         **kwargs,
     ) -> None:
+        d = SylvesterTransform.diagonal(R1, R2)
         R1 = SylvesterTransform.triangular(R1)
         R2 = SylvesterTransform.triangular(R2)
 
@@ -1364,7 +1399,7 @@ class TriangularSylvesterTransform(TanhResidualTransform):
             inverse = torch.argsort(order)
             A, B = R1[..., inverse, :], R2[..., :, inverse]
 
-        super().__init__(A, B, R2 @ R1, b, **kwargs)
+        super().__init__(A, B, R2 @ R1, b, d=d, **kwargs)
 
 
 class PlanarTransform(TanhResidualTransform):
@@ -1399,7 +1434,8 @@ class PlanarTransform(TanhResidualTransform):
     def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs) -> None:
         uw = torch.sum(u * w, dim=-1, keepdim=True)
         ww = torch.sum(w * w, dim=-1, keepdim=True)
-        u = u + (F.softplus(uw) - 1 - uw) * w / torch.clamp(ww, min=1e-12)
+        d = F.softplus(uw)  # 1 + w^T u_hat
+        u = u + (d - 1 - uw) * w / torch.clamp(ww, min=1e-12)
         uw = torch.sum(u * w, dim=-1, keepdim=True)
 
         super().__init__(
@@ -1407,6 +1443,7 @@ class PlanarTransform(TanhResidualTransform):
             w.unsqueeze(-2),
             uw.unsqueeze(-1),
             b.unsqueeze(-1),
+            d=d,
             **kwargs,
         )
 

@@ -126,3 +126,35 @@ def test_multivariate_transforms() -> None:
         ladj = torch.linalg.slogdet(J).logabsdet
 
         assert torch.allclose(t.inv.log_abs_det_jacobian(y, z), ladj, atol=1e-4), t
+
+
+def test_saturated_tanh_residual_transforms() -> None:
+    # The diagonal elements of C are -1 + d with d below the float32 resolution at -1
+    w = torch.tensor([1.0, 0.0, 0.0], dtype=torch.float64)
+    R1 = torch.diag(torch.tensor([12.0, 1.0, 1.0]))
+    R2 = torch.diag(torch.tensor([-12.0, 1.0, 1.0]))
+    order = torch.randperm(3)
+
+    ts = [
+        lambda dtype: PlanarTransform(
+            -20 * w.to(dtype), w.to(dtype), torch.zeros((), dtype=dtype)
+        ),
+        lambda dtype: SylvesterTransform(
+            torch.eye(3, dtype=dtype), R1.to(dtype), R2.to(dtype), torch.zeros(3, dtype=dtype)
+        ),
+        lambda dtype: TriangularSylvesterTransform(
+            R1.to(dtype), R2.to(dtype), torch.zeros(3, dtype=dtype), order
+        ),
+    ]
+
+    for T in ts:
+        t, t64 = T(torch.float32), T(torch.float64)
+
+        x = torch.cat((torch.zeros(1, 3), 1e-3 * randn(15, 3), randn(16, 3))).float()
+        y = t(x)
+
+        J = torch.stack([torch.autograd.functional.jacobian(t64, xi) for xi in x.double()])
+        ladj = torch.linalg.slogdet(J).logabsdet
+
+        assert torch.allclose(t.log_abs_det_jacobian(x, y).double(), ladj, atol=1e-3), t
+        assert torch.allclose(t.inv(y), x, atol=1e-3), t
