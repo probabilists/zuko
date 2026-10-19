@@ -25,6 +25,7 @@ __all__ = [
     "SinTransform",
     "SoftclipTransform",
     "SylvesterTransform",
+    "TanhResidualTransform",
     "TriangularSylvesterTransform",
     "UnconstrainedMonotonicTransform",
 ]
@@ -1182,7 +1183,7 @@ class FreeFormJacobianTransform(Transform):
         return y, ladj * (1 / self.trace_scale)
 
 
-class _TanhResidualTransform(Transform):
+class TanhResidualTransform(Transform):
     r"""Creates a transformation of the form
 
     .. math:: f(x) = x + A \tanh(B x + b)
@@ -1196,19 +1197,29 @@ class _TanhResidualTransform(Transform):
         B: The matrix :math:`B`, with shape :math:`(*, M, D)`.
         C: The upper triangular matrix :math:`C = B A`, with shape :math:`(*, M, M)`.
         b: The bias vector :math:`b`, with shape :math:`(*, M)`.
+        n: The number of bisection iterations for the inverse transformation.
     """
 
     domain = constraints.real_vector
     codomain = constraints.real_vector
     bijective = True
 
-    def __init__(self, A: Tensor, B: Tensor, C: Tensor, b: Tensor, **kwargs) -> None:
+    def __init__(
+        self,
+        A: Tensor,
+        B: Tensor,
+        C: Tensor,
+        b: Tensor,
+        n: int = 32,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
 
         self.A = A
         self.B = B
         self.C = C
         self.b = b
+        self.n = n
 
     def _call(self, x: Tensor) -> Tensor:
         z = torch.einsum("...ij,...j->...i", self.B, x) + self.b
@@ -1222,29 +1233,24 @@ class _TanhResidualTransform(Transform):
         # lies within [r_i - |c_ii|, r_i + |c_ii|].
 
         c = torch.einsum("...ij,...j->...i", self.B, y) + self.b
-        h = []
+        h = [None] * c.shape[-1]
 
-        for i in reversed(range(c.shape[-1])):
+        for i in reversed(range(len(h))):
             r = c[..., i]
-
-            if h:
-                r = r - torch.einsum(
-                    "...j,...j", self.C[..., i, i + 1 :], torch.stack(h[::-1], dim=-1)
-                )
-
             s = self.C[..., i, i]
             z = bisection(
                 f=lambda z, s=s: z + s * torch.tanh(z),
                 y=r,
                 a=r - s.abs(),
                 b=r + s.abs(),
-                n=64,
+                n=self.n,
                 phi=(s,) if s.requires_grad else (),
             )
 
-            h.append(torch.tanh(z))
+            h[i] = torch.tanh(z)
+            c = c - self.C[..., :, i] * h[i][..., None]
 
-        h = torch.stack(h[::-1], dim=-1)
+        h = torch.stack(h, dim=-1)
 
         return y - torch.einsum("...ij,...j->...i", self.A, h)
 
@@ -1263,7 +1269,7 @@ class _TanhResidualTransform(Transform):
         return y, ladj
 
 
-class SylvesterTransform(_TanhResidualTransform):
+class SylvesterTransform(TanhResidualTransform):
     r"""Creates a Sylvester transformation.
 
     .. math:: f(x) = x + Q R_1 \tanh(R_2 Q^T x + b)
@@ -1297,6 +1303,7 @@ class SylvesterTransform(_TanhResidualTransform):
         R2: A matrix whose upper triangular part is :math:`R_2`, with shape
             :math:`(*, M, M)`.
         b: The bias vector :math:`b`, with shape :math:`(*, M)`.
+        kwargs: Keyword arguments passed to :class:`TanhResidualTransform`.
     """
 
     def __init__(self, Q: Tensor, R1: Tensor, R2: Tensor, b: Tensor, **kwargs) -> None:
@@ -1314,12 +1321,12 @@ class SylvesterTransform(_TanhResidualTransform):
         return torch.triu(R, diagonal=1) + torch.diag_embed(diag)
 
 
-class TriangularSylvesterTransform(_TanhResidualTransform):
+class TriangularSylvesterTransform(TanhResidualTransform):
     r"""Creates a triangular Sylvester transformation.
 
     A special case of the Sylvester transformation for which :math:`M = D` and
-    :math:`Q` is a permutation matrix, such that :math:`Q^T x = x_\sigma` for a
-    permutation :math:`\sigma` of the features.
+    :math:`Q` is a permutation matrix, such that :math:`Q^T x = x_\pi` for a
+    permutation :math:`\pi` of the features.
 
     See also:
         :class:`SylvesterTransform`
@@ -1334,8 +1341,9 @@ class TriangularSylvesterTransform(_TanhResidualTransform):
         R2: A matrix whose upper triangular part is :math:`R_2`, with shape
             :math:`(*, D, D)`.
         b: The bias vector :math:`b`, with shape :math:`(*, D)`.
-        order: The permutation :math:`\sigma`, with shape :math:`(D,)`. If
+        order: The permutation order :math:`\pi`, with shape :math:`(D,)`. If
             :py:`None`, the identity is used.
+        kwargs: Keyword arguments passed to :class:`TanhResidualTransform`.
     """
 
     def __init__(
@@ -1359,7 +1367,7 @@ class TriangularSylvesterTransform(_TanhResidualTransform):
         super().__init__(A, B, R2 @ R1, b, **kwargs)
 
 
-class PlanarTransform(_TanhResidualTransform):
+class PlanarTransform(TanhResidualTransform):
     r"""Creates a planar transformation.
 
     .. math:: f(x) = x + \hat{u} \tanh(w^T x + b)
@@ -1385,6 +1393,7 @@ class PlanarTransform(_TanhResidualTransform):
         u: The update vector :math:`u`, with shape :math:`(*, D)`.
         w: The weight vector :math:`w`, with shape :math:`(*, D)`.
         b: The bias :math:`b`, with shape :math:`(*,)`.
+        kwargs: Keyword arguments passed to :class:`TanhResidualTransform`.
     """
 
     def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs) -> None:
