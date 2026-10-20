@@ -1434,8 +1434,9 @@ class PlanarTransform(TanhResidualTransform):
     def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs) -> None:
         uw = torch.sum(u * w, dim=-1, keepdim=True)
         ww = torch.sum(w * w, dim=-1, keepdim=True)
-        d = F.softplus(uw)  # 1 + w^T u_hat
-        u = u + (d - 1 - uw) * w / torch.clamp(ww, min=1e-12)
+        alpha = ww / torch.clamp(ww, min=1e-12)  # 1 unless w is (nearly) null
+        d = alpha * F.softplus(uw) + (1 - alpha) * (1 + uw)  # 1 + w^T u_hat
+        u = u + (F.softplus(uw) - 1 - uw) * w / torch.clamp(ww, min=1e-12)
         uw = torch.sum(u * w, dim=-1, keepdim=True)
 
         super().__init__(

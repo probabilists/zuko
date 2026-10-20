@@ -84,6 +84,8 @@ def test_multivariate_transforms() -> None:
         RotationTransform(randn(5, 5)),
         LULinearTransform(randn(5, 5)),
         PlanarTransform(5 * randn(5), randn(5), randn(())),
+        PlanarTransform(randn(5), torch.zeros(5), randn(())),
+        PlanarTransform(randn(5), 1e-8 * randn(5), randn(())),
         SylvesterTransform(torch.linalg.qr(randn(5, 3)).Q, randn(3, 3), randn(3, 3), randn(3)),
         SylvesterTransform(
             torch.linalg.qr(randn(5, 5)).Q, 3 * randn(5, 5), 3 * randn(5, 5), randn(5)
