@@ -160,3 +160,35 @@ def test_saturated_tanh_residual_transforms() -> None:
 
         assert torch.allclose(t.log_abs_det_jacobian(x, y).double(), ladj, atol=1e-3), t
         assert torch.allclose(t.inv(y), x, atol=1e-3), t
+
+
+def test_planar_transform_small_weights() -> None:
+    u, b = randn(5, dtype=torch.float64), randn((), dtype=torch.float64)
+    w = randn(5, dtype=torch.float64)
+    w = w / torch.linalg.vector_norm(w)
+
+    for scale in [1e-2, 1e-4, 1e-6, 1e-8, 0.0]:
+        t64 = PlanarTransform(u, scale * w, b)
+        t = PlanarTransform(u.float(), scale * w.float(), b.float())
+
+        assert torch.linalg.vector_norm(t.A) <= torch.linalg.vector_norm(u) + 1e-6, scale
+
+        x = randn(256, 5, dtype=torch.float64)
+        y = t64(x)
+
+        assert torch.allclose(t.inv(y.float()).double(), x, atol=1e-5), scale
+
+        J = torch.autograd.functional.jacobian(t64, x[0])
+        ladj = torch.linalg.slogdet(J).logabsdet
+
+        assert torch.allclose(
+            t.log_abs_det_jacobian(x[:1].float(), y[:1].float()).double(), ladj, atol=1e-5
+        ), scale
+
+    # Gradients at w = 0
+    u, w = randn(5, requires_grad=True), torch.zeros(5, requires_grad=True)
+    t = PlanarTransform(u, w, randn(()))
+    x = randn(5)
+    (t(x).sum() + t.log_abs_det_jacobian(x, t(x)) + t.inv(x).sum()).backward()
+
+    assert torch.isfinite(u.grad).all() and torch.isfinite(w.grad).all()

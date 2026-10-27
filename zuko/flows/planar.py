@@ -22,8 +22,9 @@ from ..utils import unpack
 class PlanarLazyTransform(LazyTransform):
     r"""Creates a lazy planar transformation.
 
-    See also:
-        :class:`zuko.transforms.PlanarTransform`
+    Note:
+        The reparameterization differs from the original paper, for numerical stability.
+        See :class:`zuko.transforms.PlanarTransform` for more details.
 
     References:
         | Variational Inference with Normalizing Flows (Rezende et al., 2015)

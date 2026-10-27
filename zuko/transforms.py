@@ -1408,14 +1408,21 @@ class PlanarTransform(TanhResidualTransform):
     .. math:: f(x) = x + \hat{u} \tanh(w^T x + b)
 
     The planar transformation is a Sylvester-type transformation with a single hidden
-    unit (:math:`M = 1`), but without orthogonality constraints. Following Rezende et
-    al. (2015), invertibility is ensured by the reparameterization
+    unit (:math:`M = 1`), but without orthogonality constraints. Invertibility requires
+    :math:`w^T \hat{u} > -1`.
 
-    .. math:: \hat{u} = u + \left( \log(1 + \exp(w^T u)) - 1 - w^T u \right)
-        \frac{w}{\|w\|^2}
+    Note:
+        This reparameterization differs from Rezende et al. (2015), which adds a
+        multiple of :math:`w / \|w\|^2` to :math:`u` and diverges as :math:`w`
+        approaches zero. Instead, here :math:`u` is rescaled as
 
-    which guarantees :math:`w^T \hat{u} > -1`. The inverse transformation is obtained
-    by solving a univariate root-finding problem with the bisection method.
+        .. math:: \hat{u} = \frac{\operatorname{ELU}(w^T u)}{w^T u} \, u
+
+        which guarantees :math:`w^T \hat{u} = \operatorname{ELU}(w^T u) > -1` and
+        :math:`\|\hat{u}\| \leq \|u\|`.
+
+    The inverse transformation is obtained by solving a univariate root-finding problem
+    with the bisection method.
 
     See also:
         :class:`SylvesterTransform`
@@ -1433,10 +1440,10 @@ class PlanarTransform(TanhResidualTransform):
 
     def __init__(self, u: Tensor, w: Tensor, b: Tensor, **kwargs) -> None:
         uw = torch.sum(u * w, dim=-1, keepdim=True)
-        ww = torch.sum(w * w, dim=-1, keepdim=True)
-        alpha = ww / torch.clamp(ww, min=1e-12)  # 1 unless w is (nearly) null
-        d = alpha * F.softplus(uw) + (1 - alpha) * (1 + uw)  # 1 + w^T u_hat
-        u = u + (F.softplus(uw) - 1 - uw) * w / torch.clamp(ww, min=1e-12)
+        neg = uw < 0
+        v = torch.where(neg, uw, -1)  # avoids 0 / 0 and overflows in the unused branches
+        d = torch.where(neg, torch.exp(v), 1 + uw)  # 1 + ELU(w^T u)
+        u = torch.where(neg, torch.expm1(v) / v, 1) * u  # ELU(w^T u) / (w^T u) u
         uw = torch.sum(u * w, dim=-1, keepdim=True)
 
         super().__init__(
