@@ -467,7 +467,7 @@ class Truncated(Distribution):
 
     @property
     def batch_shape(self) -> Size:
-        return self.base.batch_shape
+        return self.uniform.batch_shape
 
     def expand(self, batch_shape: Size, new: Distribution | None = None) -> Distribution:
         new = self._get_checked_instance(Truncated, new)
