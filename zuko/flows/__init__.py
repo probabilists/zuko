@@ -14,5 +14,7 @@ from .coupling import NICE, GeneralCouplingTransform, RealNVP
 from .gaussianization import GF, ElementWiseTransform
 from .mixture import GMM
 from .neural import NAF, UNAF
+from .planar import PF, PlanarLazyTransform
 from .polynomial import BPF, SOSPF
 from .spline import NCSF, NSF
+from .sylvester import HSF, OSF, TSF, SylvesterLazyTransform

@@ -10,7 +10,27 @@ from torch import randn
 from zuko.flows import *
 
 
-@pytest.mark.parametrize("F", [NICE, MAF, NSF, SOSPF, NAF, UNAF, CNF, GF, BPF])
+@pytest.mark.parametrize(
+    "F",
+    [
+        NICE,
+        MAF,
+        NSF,
+        SOSPF,
+        NAF,
+        UNAF,
+        CNF,
+        GF,
+        BPF,
+        PF,
+        TSF,
+        partial(TSF, randperm=True),
+        OSF,
+        partial(OSF, hidden=2),
+        HSF,
+        partial(HSF, hidden=2, reflections=4),
+    ],
+)
 def test_flows(tmp_path: Path, F: type) -> None:
     flow = F(3, 5)
 
@@ -94,6 +114,27 @@ def test_flows(tmp_path: Path, F: type) -> None:
     assert repr(flow)
 
 
+@pytest.mark.parametrize("F", [PF, TSF, OSF, HSF])
+def test_reversed_flows(F: type) -> None:
+    flow = F(3, 5)
+    flow = Flow(flow.transform.inv, flow.base)
+
+    # Sampling and evaluation
+    c = randn(5)
+    x, log_p = flow(c).rsample_and_log_prob((32,))
+
+    assert x.shape == (32, 3)
+    assert torch.allclose(flow(c).log_prob(x), log_p, atol=1e-4)
+
+    # Reparameterization trick
+    flow.zero_grad(set_to_none=True)
+    loss = (x.square().sum(dim=-1) + log_p).mean()
+    loss.backward()
+
+    for name, p in flow.named_parameters():
+        assert p.grad is not None, name
+
+
 def test_triangular_transforms() -> None:
     order = torch.randperm(5)
 
@@ -142,6 +183,25 @@ def test_triangular_transforms() -> None:
 
         assert torch.allclose(t().log_abs_det_jacobian(x, y), ladj, atol=1e-4), T
         assert torch.allclose(J.diag().abs().log().sum(), ladj, atol=1e-4), T
+
+
+def test_householder_reflections() -> None:
+    t = SylvesterLazyTransform(5, hidden=3, reflections=4)
+
+    # Rows with zero and small norms
+    V = randn(4, 5)
+    V[1] = 0
+    V[2] = 1e-10 * V[2]
+    V.requires_grad_()
+
+    Q = t.householder(V)
+    I = torch.eye(3)
+
+    assert torch.allclose(Q.mT @ Q, I, atol=1e-6)
+
+    Q.sum().backward()
+
+    assert torch.isfinite(V.grad).all()
 
 
 def test_adjacency_matrix() -> None:
