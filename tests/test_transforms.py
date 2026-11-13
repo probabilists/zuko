@@ -192,3 +192,91 @@ def test_planar_transform_small_weights() -> None:
     (t(x).sum() + t.log_abs_det_jacobian(x, t(x)) + t.inv(x).sum()).backward()
 
     assert torch.isfinite(u.grad).all() and torch.isfinite(w.grad).all()
+
+
+@pytest.mark.parametrize(
+    ("batch_shape", "order_shape"),
+    [
+        ((), ()),
+        ((4,), ()),
+        ((), (2,)),
+        ((2,), (2,)),
+        ((4, 1, 2), (3, 2)),
+        ((4, 3, 2), (1, 2)),
+        ((4, 3, 2), ()),
+    ],
+)
+def test_permutation_transform_broadcast(
+    batch_shape: tuple[int, ...], order_shape: tuple[int, ...]
+) -> None:
+    orders = torch.tensor([[2, 0, 1], [1, 2, 0], [0, 2, 1]])
+    indices = torch.arange(torch.Size(order_shape).numel()) % len(orders)
+    order = orders[indices].reshape(*order_shape, 3)
+    x = torch.arange(torch.Size(batch_shape).numel() * 3).to(torch.get_default_dtype())
+    x = x.reshape(*batch_shape, 3).requires_grad_()
+    shape = torch.broadcast_shapes(batch_shape, order_shape) + (3,)
+
+    # Apply each permutation independently as a reference.
+    expected = torch.stack([
+        xi[oi]
+        for xi, oi in zip(
+            x.expand(shape).reshape(-1, 3), order.expand(shape).reshape(-1, 3), strict=True
+        )
+    ]).reshape(shape)
+
+    t = PermutationTransform(order)
+    y, ladj = t.call_and_ladj(x)
+
+    assert y.shape == shape
+    assert torch.equal(y, expected)
+    assert ladj.shape == shape[:-1]
+    assert torch.equal(ladj, torch.zeros(shape[:-1]))
+
+    z, inverse_ladj = t.inv.call_and_ladj(y)
+
+    assert torch.equal(z, x.expand(shape))
+    assert inverse_ladj.shape == shape[:-1]
+    assert torch.equal(inverse_ladj, -ladj)
+
+    weights = torch.arange(y.numel()).reshape(y.shape).to(y)
+    actual_grad = torch.autograd.grad((y * weights).sum(), x)[0]
+    expected_grad = torch.autograd.grad((expected * weights).sum(), x)[0]
+
+    assert torch.equal(actual_grad, expected_grad)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda", "mps"])
+@pytest.mark.parametrize("batched", [False, True])
+def test_permutation_transform_cpu_order(device: str, batched: bool) -> None:
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA is not available")
+    if device == "mps" and not torch.backends.mps.is_available():
+        pytest.skip("MPS is not available")
+
+    order = torch.tensor([[2, 0, 1], [1, 2, 0]])
+    if not batched:
+        order = order[0]
+    original = order.clone()
+    x = torch.arange(24, dtype=torch.float32, device=device).reshape(4, 2, 3)
+    x.requires_grad_()
+    permutation = torch.eye(3, dtype=x.dtype)[order].to(device)
+    expected = (permutation @ x.unsqueeze(-1)).squeeze(-1)
+    t = PermutationTransform(order)
+
+    y, ladj = t.call_and_ladj(x)
+    recovered, inverse_ladj = t.inv.call_and_ladj(y)
+
+    torch.testing.assert_close(y, expected)
+    torch.testing.assert_close(recovered, x)
+    assert y.device == x.device and y.dtype == x.dtype
+    assert ladj.shape == x.shape[:-1]
+    torch.testing.assert_close(ladj, torch.zeros_like(x[..., 0]))
+    torch.testing.assert_close(inverse_ladj, -ladj)
+    assert t.order is order
+    assert t.order.device.type == "cpu" and t.order.dtype == torch.long
+    assert torch.equal(t.order, original)
+
+    weights = torch.arange(y.numel(), device=device).reshape(y.shape).to(y)
+    actual_grad = torch.autograd.grad((y * weights).sum(), x)[0]
+    expected_grad = torch.autograd.grad((expected * weights).sum(), x)[0]
+    torch.testing.assert_close(actual_grad, expected_grad)

@@ -1482,13 +1482,15 @@ class PermutationTransform(Transform):
         return f"{self.__class__.__name__}({order})"
 
     def _call(self, x: Tensor) -> Tensor:
-        return x[..., self.order]
+        x, order = broadcast(x, self.order.to(device=x.device), ignore=1)
+        return x.gather(-1, order)
 
     def _inverse(self, y: Tensor) -> Tensor:
-        return y[..., torch.argsort(self.order)]
+        y, order = broadcast(y, torch.argsort(self.order).to(device=y.device), ignore=1)
+        return y.gather(-1, order)
 
     def log_abs_det_jacobian(self, x: Tensor, y: Tensor) -> Tensor:
-        return torch.zeros_like(x[..., 0])
+        return torch.zeros_like(y[..., 0])
 
 
 class RotationTransform(Transform):
